@@ -90,7 +90,7 @@ void Game::Tick(float DeltaTime)
     // This demonstrates parallel rendering - game thread continues while render thread processes
     uint32_t CapturedFrameCount = FrameCount;
     GameRenderer->EnqueueRenderCommand(RenderCommand{
-        [CapturedFrameCount, this]() {
+        [CapturedFrameCount]() {
             std::cout << "[Game::RenderThread] Processing render commands for frame " 
                       << CapturedFrameCount << std::endl;
             

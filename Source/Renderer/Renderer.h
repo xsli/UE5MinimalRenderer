@@ -53,9 +53,7 @@ private:
     std::mutex CommandQueueMutex;
     std::condition_variable CommandQueueCV;
 
-    // Frame synchronization
-    std::mutex FrameMutex;
-    std::condition_variable FrameCV;
+    // Frame counters
     std::atomic<uint32_t> GameThreadFrameNumber;
     std::atomic<uint32_t> RenderThreadFrameNumber;
 };

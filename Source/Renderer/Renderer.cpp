@@ -139,12 +139,20 @@ void Renderer::RenderThreadMain()
             RenderCommand Cmd = std::move(CommandQueue.front());
             CommandQueue.pop();
             
-            // Unlock while executing command to allow more commands to be enqueued
+            // Execute command with lock released to allow more commands to be enqueued
             Lock.unlock();
             
-            if (Cmd.Execute)
+            try
             {
-                Cmd.Execute();
+                if (Cmd.Execute)
+                {
+                    Cmd.Execute();
+                }
+            }
+            catch (...)
+            {
+                // Log error or handle exception
+                std::cerr << "[Renderer::RenderThread] Exception during command execution" << std::endl;
             }
             
             Lock.lock();
