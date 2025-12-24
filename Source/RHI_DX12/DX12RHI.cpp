@@ -1,6 +1,8 @@
 #include "DX12RHI.h"
+#include "d3dx12.h"
 #include <d3dcompiler.h>
 #include <stdexcept>
+#include <cstring>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -73,6 +75,24 @@ FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* I
         rtvHandle.Offset(1, RTVDescriptorSize);
     }
     
+    // Get swap chain description for viewport/scissor
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc;
+    SwapChain->GetDesc1(&swapChainDesc);
+    
+    // Set up viewport
+    Viewport.TopLeftX = 0.0f;
+    Viewport.TopLeftY = 0.0f;
+    Viewport.Width = static_cast<float>(swapChainDesc.Width);
+    Viewport.Height = static_cast<float>(swapChainDesc.Height);
+    Viewport.MinDepth = 0.0f;
+    Viewport.MaxDepth = 1.0f;
+    
+    // Set up scissor rect
+    ScissorRect.left = 0;
+    ScissorRect.top = 0;
+    ScissorRect.right = static_cast<LONG>(swapChainDesc.Width);
+    ScissorRect.bottom = static_cast<LONG>(swapChainDesc.Height);
+    
     // Create synchronization objects
     ThrowIfFailed(Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&Fence)));
     FenceValue = 1;
@@ -93,6 +113,10 @@ void FDX12CommandList::BeginFrame() {
     
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(GraphicsCommandList->Reset(CommandAllocator.Get(), nullptr));
+    
+    // Set viewport and scissor rect
+    GraphicsCommandList->RSSetViewports(1, &Viewport);
+    GraphicsCommandList->RSSetScissorRects(1, &ScissorRect);
     
     // Transition render target to render target state
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(

@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include <algorithm>
 
 // FTriangleMeshProxy implementation
 FTriangleMeshProxy::FTriangleMeshProxy(FRHIBuffer* InVertexBuffer, FRHIPipelineState* InPSO, uint32 InVertexCount)
