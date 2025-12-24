@@ -55,10 +55,17 @@ Source/
 ├── Core/           # Core types and utilities
 ├── RHI/            # Render Hardware Interface (platform-agnostic)
 ├── RHI_DX12/       # DirectX 12 implementation
+│   ├── d3dx12*.h   # Microsoft DirectX 12 helper headers (included)
+│   └── DX12RHI.*   # DX12 RHI implementation
 ├── Renderer/       # Rendering layer
 ├── Game/           # Game logic layer
 └── Runtime/        # Application entry point
 ```
+
+## Dependencies
+All required dependencies are included in the repository:
+- **d3dx12.h and related headers**: Microsoft's DirectX 12 helper headers from [DirectX-Headers](https://github.com/microsoft/DirectX-Headers) (MIT License)
+- **Windows SDK**: Provides d3d12.lib, dxgi.lib, d3dcompiler.lib (installed with Visual Studio)
 
 ## Flow
 1. **Game Thread**: Creates game objects and ticks the world

@@ -17,9 +17,14 @@ cd build
 
 echo.
 echo Generating Visual Studio solution...
-cmake .. -G "Visual Studio 17 2022" -A x64
+echo Note: This will use the default Visual Studio generator detected by CMake
+cmake ..
 if %ERRORLEVEL% NEQ 0 (
     echo ERROR: CMake generation failed
+    echo.
+    echo Alternative: Try specifying Visual Studio version explicitly:
+    echo   cmake .. -G "Visual Studio 16 2019" -A x64
+    echo   cmake .. -G "Visual Studio 17 2022" -A x64
     exit /b 1
 )
 
