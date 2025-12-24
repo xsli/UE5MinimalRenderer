@@ -48,3 +48,6 @@ Thumbs.db
 *.dSYM/
 *.pdb
 *.ilk
+
+# CodeQL
+_codeql_detected_source_root
