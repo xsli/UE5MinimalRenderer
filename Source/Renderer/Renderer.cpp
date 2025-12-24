@@ -7,6 +7,9 @@ FTriangleMeshProxy::FTriangleMeshProxy(FRHIBuffer* InVertexBuffer, FRHIPipelineS
 }
 
 FTriangleMeshProxy::~FTriangleMeshProxy() {
+    // Note: Raw delete is intentional here. The proxy owns these RHI resources
+    // and is responsible for their lifetime. This matches the RHI design pattern
+    // where resources are created via factory methods and owned by their users.
     delete VertexBuffer;
     delete PipelineState;
 }

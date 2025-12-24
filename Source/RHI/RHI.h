@@ -55,6 +55,8 @@ public:
 };
 
 // RHI Interface - factory for creating RHI resources
+// Note: Resource ownership model - resources created by FRHI are owned by the caller
+// and must be deleted when no longer needed. This matches traditional graphics API patterns.
 class FRHI {
 public:
     virtual ~FRHI() = default;
@@ -63,6 +65,8 @@ public:
     virtual void Shutdown() = 0;
     
     virtual FRHICommandList* GetCommandList() = 0;
+    
+    // Resource creation - caller takes ownership and is responsible for deletion
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIPipelineState* CreateGraphicsPipelineState() = 0;
     

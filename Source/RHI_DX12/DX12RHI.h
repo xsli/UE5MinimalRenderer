@@ -68,7 +68,7 @@ private:
     
     ComPtr<ID3D12Fence> Fence;
     uint64 FenceValue;
-    void* FenceEvent;
+    void* FenceEvent;  // HANDLE type - using void* to avoid including windows.h in header
     
     D3D12_VIEWPORT Viewport;
     D3D12_RECT ScissorRect;
