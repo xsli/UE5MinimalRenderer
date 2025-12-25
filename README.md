@@ -9,10 +9,22 @@ This project demonstrates a simplified version of Unreal Engine 5's parallel ren
 - **DX12 Backend**: DirectX 12 implementation
 
 ## Demo
-The project includes a simple demo that renders a colored triangle:
-- Red vertex at the top
-- Green vertex at the bottom right
-- Blue vertex at the bottom left
+The project renders a **3D rotating cube** with different colored faces:
+- Front face: Red
+- Back face: Green
+- Top face: Blue
+- Bottom face: Yellow
+- Right face: Magenta
+- Left face: Cyan
+
+The cube rotates continuously and demonstrates:
+- 3D camera system with perspective projection
+- Model-View-Projection (MVP) matrix transformations
+- Depth testing and depth buffer
+- Indexed rendering
+- DirectX left-handed coordinate system
+
+A real-time statistics overlay displays FPS, frame time, and triangle count.
 
 ## Architecture
 ```
@@ -52,20 +64,41 @@ start UE5MinimalRenderer.sln
 ## Project Structure
 ```
 Source/
-├── Core/           # Core types and utilities
+├── Core/           # Core types, math library (DirectXMath wrapper)
 ├── RHI/            # Render Hardware Interface (platform-agnostic)
 ├── RHI_DX12/       # DirectX 12 implementation
 │   ├── d3dx12*.h   # Microsoft DirectX 12 helper headers (included)
-│   └── DX12RHI.*   # DX12 RHI implementation
-├── Renderer/       # Rendering layer
+│   └── DX12RHI.*   # DX12 RHI implementation with depth buffer support
+├── Renderer/       # Rendering layer with 3D camera system
+│   ├── Camera.*    # 3D camera with view/projection matrices
+│   └── Renderer.*  # Scene management and rendering
 ├── Game/           # Game logic layer
+│   └── Game.*      # Cube object and game world
 └── Runtime/        # Application entry point
 ```
 
 ## Dependencies
 All required dependencies are included in the repository:
+- **DirectXMath**: Microsoft's SIMD-optimized math library (part of Windows SDK)
 - **d3dx12.h and related headers**: Microsoft's DirectX 12 helper headers from [DirectX-Headers](https://github.com/microsoft/DirectX-Headers) (MIT License)
-- **Windows SDK**: Provides d3d12.lib, dxgi.lib, d3dcompiler.lib (installed with Visual Studio)
+- **Windows SDK**: Provides d3d12.lib, dxgi.lib, d3dcompiler.lib, d2d1.lib, dwrite.lib (installed with Visual Studio)
+
+## Features
+
+### 3D Rendering
+- **Math Library**: DirectXMath wrapper with matrix operations
+- **Camera System**: Perspective projection with configurable FOV, aspect ratio, near/far planes
+- **Transformation Pipeline**: Model → View → Projection transformations
+- **Depth Testing**: Proper occlusion with 32-bit depth buffer
+- **Indexed Rendering**: Efficient cube rendering with index buffer
+
+### Rendering Pipeline
+- **Vertex Shader**: MVP matrix transformation in HLSL
+- **Pixel Shader**: Per-vertex color interpolation
+- **Constant Buffers**: 256-byte aligned GPU buffers
+- **Text Overlay**: Statistics rendered with Direct2D/DirectWrite
+
+For detailed implementation information, see [3D_IMPLEMENTATION.md](3D_IMPLEMENTATION.md).
 
 ## Flow
 1. **Game Thread**: Creates game objects and ticks the world
