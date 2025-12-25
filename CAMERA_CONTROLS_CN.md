@@ -104,12 +104,14 @@ struct FInputState {
 
 ### 灵敏度设置
 
-当前的灵敏度值（可在 Main.cpp 中调整）：
+当前的灵敏度值（可在 Main.cpp 的 `CameraSettings` 命名空间中调整）：
 ```cpp
-const float movementSpeed = 0.01f;   // 前后移动速度
-const float rotationSpeed = 0.005f;  // 旋转速度
-const float panSpeed = 0.01f;        // 平移速度
-const float zoomSpeed = 0.5f;        // 缩放速度
+namespace CameraSettings {
+    constexpr float MovementSpeed = 0.01f;   // 前后移动速度
+    constexpr float RotationSpeed = 0.005f;  // 旋转速度
+    constexpr float PanSpeed = 0.01f;        // 平移速度
+    constexpr float ZoomSpeed = 0.5f;        // 缩放速度
+}
 ```
 
 ## 使用方法

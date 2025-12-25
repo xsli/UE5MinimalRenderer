@@ -10,8 +10,15 @@ struct FInputState {
     bool bMiddleMouseDown = false;
     int LastMouseX = 0;
     int LastMouseY = 0;
-    bool bMouseMoving = false;
 };
+
+// Camera sensitivity settings
+namespace CameraSettings {
+    constexpr float MovementSpeed = 0.01f;
+    constexpr float RotationSpeed = 0.005f;
+    constexpr float PanSpeed = 0.01f;
+    constexpr float ZoomSpeed = 0.5f;
+}
 
 // Global game instance and timing
 static FGame* g_Game = nullptr;
@@ -81,25 +88,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                         int deltaX = currentX - g_InputState.LastMouseX;
                         int deltaY = currentY - g_InputState.LastMouseY;
                         
-                        // Sensitivity factors
-                        const float movementSpeed = 0.01f;
-                        const float rotationSpeed = 0.005f;
-                        const float panSpeed = 0.01f;
-                        
                         // LMB + RMB or MMB: Pan camera
                         if ((g_InputState.bLeftMouseDown && g_InputState.bRightMouseDown) || g_InputState.bMiddleMouseDown) {
-                            camera->PanRight(deltaX * panSpeed);
-                            camera->PanUp(-deltaY * panSpeed);  // Invert Y for natural movement
+                            camera->PanRight(deltaX * CameraSettings::PanSpeed);
+                            camera->PanUp(-deltaY * CameraSettings::PanSpeed);  // Invert Y for natural movement
                         }
                         // LMB only: Move forward/backward and rotate left/right
                         else if (g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown) {
-                            camera->MoveForwardBackward(-deltaY * movementSpeed);  // Y movement controls forward/back
-                            camera->RotateYaw(deltaX * rotationSpeed);  // X movement controls left/right rotation
+                            camera->MoveForwardBackward(-deltaY * CameraSettings::MovementSpeed);  // Y movement controls forward/back
+                            camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);  // X movement controls left/right rotation
                         }
                         // RMB only: Rotate camera
                         else if (g_InputState.bRightMouseDown && !g_InputState.bLeftMouseDown) {
-                            camera->RotateYaw(deltaX * rotationSpeed);
-                            camera->RotatePitch(deltaY * rotationSpeed);
+                            camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);
+                            camera->RotatePitch(deltaY * CameraSettings::RotationSpeed);
                         }
                         
                         g_InputState.LastMouseX = currentX;
@@ -117,8 +119,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     if (camera) {
                         int delta = GET_WHEEL_DELTA_WPARAM(wParam);
                         float zoomAmount = delta / 120.0f;  // Standard wheel delta is 120 per notch
-                        const float zoomSpeed = 0.5f;
-                        camera->Zoom(zoomAmount * zoomSpeed);
+                        camera->Zoom(zoomAmount * CameraSettings::ZoomSpeed);
                     }
                 }
                 return 0;

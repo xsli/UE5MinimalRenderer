@@ -92,12 +92,14 @@ The Windows message loop (`WindowProc` in `Main.cpp`) handles:
 
 ### Sensitivity Settings
 
-Current sensitivity values (in `Main.cpp`):
+Current sensitivity values (in `Main.cpp`, `CameraSettings` namespace):
 ```cpp
-const float movementSpeed = 0.01f;   // Forward/backward movement
-const float rotationSpeed = 0.005f;  // Camera rotation
-const float panSpeed = 0.01f;        // Pan movement
-const float zoomSpeed = 0.5f;        // Zoom/scroll speed
+namespace CameraSettings {
+    constexpr float MovementSpeed = 0.01f;   // Forward/backward movement
+    constexpr float RotationSpeed = 0.005f;  // Camera rotation
+    constexpr float PanSpeed = 0.01f;        // Pan movement
+    constexpr float ZoomSpeed = 0.5f;        // Zoom/scroll speed
+}
 ```
 
 These can be adjusted for different feel preferences.
