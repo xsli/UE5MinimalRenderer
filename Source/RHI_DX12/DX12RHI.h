@@ -14,7 +14,13 @@ using Microsoft::WRL::ComPtr;
 
 class FDX12Buffer : public FRHIBuffer {
 public:
-    FDX12Buffer(ID3D12Resource* InResource);
+    enum class EBufferType {
+        Vertex,
+        Index,
+        Constant
+    };
+    
+    FDX12Buffer(ID3D12Resource* InResource, EBufferType InType);
     virtual ~FDX12Buffer() override;
     
     virtual void* Map() override;
@@ -22,10 +28,14 @@ public:
     
     ID3D12Resource* GetResource() const { return Resource.Get(); }
     D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView() const { return VertexBufferView; }
+    D3D12_INDEX_BUFFER_VIEW GetIndexBufferView() const { return IndexBufferView; }
+    D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() const { return Resource->GetGPUVirtualAddress(); }
     
 private:
     ComPtr<ID3D12Resource> Resource;
+    EBufferType BufferType;
     D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
+    D3D12_INDEX_BUFFER_VIEW IndexBufferView;
 };
 
 class FDX12PipelineState : public FRHIPipelineState {
@@ -43,15 +53,19 @@ private:
 
 class FDX12CommandList : public FRHICommandList {
 public:
-    FDX12CommandList(ID3D12Device* Device, ID3D12CommandQueue* Queue, IDXGISwapChain3* SwapChain);
+    FDX12CommandList(ID3D12Device* Device, ID3D12CommandQueue* Queue, IDXGISwapChain3* SwapChain, uint32 Width, uint32 Height);
     virtual ~FDX12CommandList() override;
     
     virtual void BeginFrame() override;
     virtual void EndFrame() override;
     virtual void ClearRenderTarget(const FColor& Color) override;
+    virtual void ClearDepthStencil() override;
     virtual void SetPipelineState(FRHIPipelineState* PipelineState) override;
     virtual void SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, uint32 Stride) override;
+    virtual void SetIndexBuffer(FRHIBuffer* IndexBuffer) override;
+    virtual void SetConstantBuffer(FRHIBuffer* ConstantBuffer, uint32 RootParameterIndex) override;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) override;
+    virtual void DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) override;
     virtual void Present() override;
     virtual void FlushCommandsFor2D() override;
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
@@ -60,6 +74,7 @@ public:
     
 private:
     void WaitForGPU();
+    void CreateDepthStencilBuffer(uint32 Width, uint32 Height);
     
     ComPtr<ID3D12Device> Device;
     ComPtr<ID3D12CommandQueue> CommandQueue;
@@ -72,6 +87,10 @@ private:
     ComPtr<ID3D12DescriptorHeap> RTVHeap;
     uint32 RTVDescriptorSize;
     uint32 FrameIndex;
+    
+    // Depth buffer
+    ComPtr<ID3D12Resource> DepthStencilBuffer;
+    ComPtr<ID3D12DescriptorHeap> DSVHeap;
     
     ComPtr<ID3D12Fence> Fence;
     uint64 FenceValue;
@@ -105,7 +124,9 @@ public:
     
     virtual FRHICommandList* GetCommandList() override;
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) override;
-    virtual FRHIPipelineState* CreateGraphicsPipelineState() override;
+    virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) override;
+    virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) override;
+    virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) override;
     
 private:
     ComPtr<IDXGIFactory4> Factory;

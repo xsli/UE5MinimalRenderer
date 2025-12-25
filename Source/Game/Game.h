@@ -20,6 +20,20 @@ public:
     virtual FSceneProxy* CreateSceneProxy(FRHI* RHI) override;
 };
 
+// Cube game object (3D)
+class FCubeObject : public FGameObject {
+public:
+    FCubeObject(FRenderer* InRenderer);
+    virtual ~FCubeObject() override;
+    
+    virtual void Tick(float DeltaTime) override;
+    virtual FSceneProxy* CreateSceneProxy(FRHI* RHI) override;
+    
+private:
+    FRenderer* Renderer;
+    float RotationAngle;
+};
+
 // Game world/level
 class FGameWorld {
 public:

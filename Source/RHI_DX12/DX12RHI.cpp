@@ -19,18 +19,35 @@ inline void ThrowIfFailed(HRESULT hr) {
 }
 
 // FDX12Buffer implementation
-FDX12Buffer::FDX12Buffer(ID3D12Resource* InResource)
-    : Resource(InResource) {
+FDX12Buffer::FDX12Buffer(ID3D12Resource* InResource, EBufferType InType)
+    : Resource(InResource), BufferType(InType) {
     
     D3D12_RESOURCE_DESC desc = Resource->GetDesc();
-    VertexBufferView.BufferLocation = Resource->GetGPUVirtualAddress();
-    VertexBufferView.SizeInBytes = static_cast<UINT>(desc.Width);
-    VertexBufferView.StrideInBytes = sizeof(FVertex);
     
-    FLog::Log(ELogLevel::Info, std::string("FDX12Buffer created - GPU Address: 0x") + 
-        std::to_string(VertexBufferView.BufferLocation) + 
-        ", Size: " + std::to_string(VertexBufferView.SizeInBytes) + 
-        ", Stride: " + std::to_string(VertexBufferView.StrideInBytes));
+    if (BufferType == EBufferType::Vertex) {
+        VertexBufferView.BufferLocation = Resource->GetGPUVirtualAddress();
+        VertexBufferView.SizeInBytes = static_cast<UINT>(desc.Width);
+        VertexBufferView.StrideInBytes = sizeof(FVertex);
+        
+        FLog::Log(ELogLevel::Info, std::string("FDX12Buffer (Vertex) created - GPU Address: 0x") + 
+            std::to_string(VertexBufferView.BufferLocation) + 
+            ", Size: " + std::to_string(VertexBufferView.SizeInBytes) + 
+            ", Stride: " + std::to_string(VertexBufferView.StrideInBytes));
+    }
+    else if (BufferType == EBufferType::Index) {
+        IndexBufferView.BufferLocation = Resource->GetGPUVirtualAddress();
+        IndexBufferView.SizeInBytes = static_cast<UINT>(desc.Width);
+        IndexBufferView.Format = DXGI_FORMAT_R32_UINT;  // 32-bit indices
+        
+        FLog::Log(ELogLevel::Info, std::string("FDX12Buffer (Index) created - GPU Address: 0x") + 
+            std::to_string(IndexBufferView.BufferLocation) + 
+            ", Size: " + std::to_string(IndexBufferView.SizeInBytes));
+    }
+    else if (BufferType == EBufferType::Constant) {
+        FLog::Log(ELogLevel::Info, std::string("FDX12Buffer (Constant) created - GPU Address: 0x") + 
+            std::to_string(Resource->GetGPUVirtualAddress()) + 
+            ", Size: " + std::to_string(desc.Width));
+    }
 }
 
 FDX12Buffer::~FDX12Buffer() {
@@ -56,7 +73,7 @@ FDX12PipelineState::~FDX12PipelineState() {
 }
 
 // FDX12CommandList implementation
-FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* InQueue, IDXGISwapChain3* InSwapChain)
+FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* InQueue, IDXGISwapChain3* InSwapChain, uint32 Width, uint32 Height)
     : Device(InDevice), CommandQueue(InQueue), SwapChain(InSwapChain), FrameIndex(0), FenceValue(0) {
     
     // Create command allocator
@@ -109,6 +126,9 @@ FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* I
     if (FenceEvent == nullptr) {
         ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
     }
+    
+    // Create depth stencil buffer
+    CreateDepthStencilBuffer(Width, Height);
     
     // Initialize text rendering
     InitializeTextRendering(InDevice, InSwapChain);
@@ -163,7 +183,22 @@ void FDX12CommandList::ClearRenderTarget(const FColor& Color) {
         std::to_string(Color.R) + ", " + std::to_string(Color.G) + ", " + std::to_string(Color.B));
     
     GraphicsCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-    GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+    
+    // Set render target with depth stencil
+    if (DSVHeap) {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DSVHeap->GetCPUDescriptorHandleForHeapStart());
+        GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    } else {
+        GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+    }
+}
+
+void FDX12CommandList::ClearDepthStencil() {
+    if (DSVHeap) {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DSVHeap->GetCPUDescriptorHandleForHeapStart());
+        GraphicsCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        FLog::Log(ELogLevel::Info, "ClearDepthStencil called");
+    }
 }
 
 void FDX12CommandList::SetPipelineState(FRHIPipelineState* PipelineState) {
@@ -184,12 +219,33 @@ void FDX12CommandList::SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, 
     GraphicsCommandList->IASetVertexBuffers(0, 1, &vbv);
 }
 
+void FDX12CommandList::SetIndexBuffer(FRHIBuffer* IndexBuffer) {
+    FLog::Log(ELogLevel::Info, "SetIndexBuffer called");
+    FDX12Buffer* DX12Buffer = static_cast<FDX12Buffer*>(IndexBuffer);
+    D3D12_INDEX_BUFFER_VIEW ibv = DX12Buffer->GetIndexBufferView();
+    GraphicsCommandList->IASetIndexBuffer(&ibv);
+}
+
+void FDX12CommandList::SetConstantBuffer(FRHIBuffer* ConstantBuffer, uint32 RootParameterIndex) {
+    FLog::Log(ELogLevel::Info, std::string("SetConstantBuffer - Root Parameter: ") + std::to_string(RootParameterIndex));
+    FDX12Buffer* DX12Buffer = static_cast<FDX12Buffer*>(ConstantBuffer);
+    GraphicsCommandList->SetGraphicsRootConstantBufferView(RootParameterIndex, DX12Buffer->GetGPUVirtualAddress());
+}
+
 void FDX12CommandList::DrawPrimitive(uint32 VertexCount, uint32 StartVertex) {
     FLog::Log(ELogLevel::Info, std::string("DrawPrimitive - VertexCount: ") + std::to_string(VertexCount) + 
         ", StartVertex: " + std::to_string(StartVertex));
     
     GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     GraphicsCommandList->DrawInstanced(VertexCount, 1, StartVertex, 0);
+}
+
+void FDX12CommandList::DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) {
+    FLog::Log(ELogLevel::Info, std::string("DrawIndexedPrimitive - IndexCount: ") + std::to_string(IndexCount) + 
+        ", StartIndex: " + std::to_string(StartIndex) + ", BaseVertex: " + std::to_string(BaseVertex));
+    
+    GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    GraphicsCommandList->DrawIndexedInstanced(IndexCount, 1, StartIndex, BaseVertex, 0);
 }
 
 void FDX12CommandList::Present() {
@@ -231,6 +287,52 @@ void FDX12CommandList::FlushCommandsFor2D()
 		FLog::Log(ELogLevel::Error, std::string("FlushCommandsFor2D error: ") + e.what());
 		throw;
 	}
+}
+
+void FDX12CommandList::CreateDepthStencilBuffer(uint32 Width, uint32 Height) {
+    FLog::Log(ELogLevel::Info, "Creating depth stencil buffer...");
+    
+    // Create depth stencil descriptor heap
+    D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+    dsvHeapDesc.NumDescriptors = 1;
+    dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+    dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    ThrowIfFailed(Device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&DSVHeap)));
+    
+    // Create depth stencil texture
+    CD3DX12_HEAP_PROPERTIES depthHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+    CD3DX12_RESOURCE_DESC depthResourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+        DXGI_FORMAT_D32_FLOAT,
+        Width,
+        Height,
+        1, // Array size
+        1  // Mip levels
+    );
+    depthResourceDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    
+    D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+    depthOptimizedClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+    depthOptimizedClearValue.DepthStencil.Depth = 1.0f;
+    depthOptimizedClearValue.DepthStencil.Stencil = 0;
+    
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &depthHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &depthResourceDesc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        &depthOptimizedClearValue,
+        IID_PPV_ARGS(&DepthStencilBuffer)
+    ));
+    
+    // Create depth stencil view
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+    
+    Device->CreateDepthStencilView(DepthStencilBuffer.Get(), &dsvDesc, DSVHeap->GetCPUDescriptorHandleForHeapStart());
+    
+    FLog::Log(ELogLevel::Info, "Depth stencil buffer created successfully");
 }
 
 void FDX12CommandList::WaitForGPU() {
@@ -466,7 +568,7 @@ bool FDX12RHI::Initialize(void* WindowHandle, uint32 InWidth, uint32 InHeight) {
         ThrowIfFailed(Factory->MakeWindowAssociation(static_cast<HWND>(WindowHandle), DXGI_MWA_NO_ALT_ENTER));
         
         // Create command list
-        CommandList = std::make_unique<FDX12CommandList>(Device.Get(), CommandQueue.Get(), SwapChain.Get());
+        CommandList = std::make_unique<FDX12CommandList>(Device.Get(), CommandQueue.Get(), SwapChain.Get(), Width, Height);
         
         FLog::Log(ELogLevel::Info, "DX12 RHI initialized successfully");
         return true;
@@ -516,14 +618,93 @@ FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data) {
     }
     
     FLog::Log(ELogLevel::Info, "Vertex buffer created successfully");
-    return new FDX12Buffer(vertexBuffer.Detach());
+    return new FDX12Buffer(vertexBuffer.Detach(), FDX12Buffer::EBufferType::Vertex);
 }
 
-FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
-    FLog::Log(ELogLevel::Info, "Creating graphics pipeline state...");
+FRHIBuffer* FDX12RHI::CreateIndexBuffer(uint32 Size, const void* Data) {
+    FLog::Log(ELogLevel::Info, std::string("Creating index buffer - Size: ") + std::to_string(Size) + " bytes");
     
-    // Simple shader code
-    const char* shaderCode = R"(
+    // Create upload heap
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
+    
+    ComPtr<ID3D12Resource> indexBuffer;
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &bufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&indexBuffer)));
+    
+    // Copy data
+    if (Data) {
+        void* pIndexDataBegin;
+        CD3DX12_RANGE readRange(0, 0);
+        ThrowIfFailed(indexBuffer->Map(0, &readRange, &pIndexDataBegin));
+        memcpy(pIndexDataBegin, Data, Size);
+        indexBuffer->Unmap(0, nullptr);
+        FLog::Log(ELogLevel::Info, "Index data copied to buffer");
+    }
+    
+    FLog::Log(ELogLevel::Info, "Index buffer created successfully");
+    return new FDX12Buffer(indexBuffer.Detach(), FDX12Buffer::EBufferType::Index);
+}
+
+FRHIBuffer* FDX12RHI::CreateConstantBuffer(uint32 Size) {
+    FLog::Log(ELogLevel::Info, std::string("Creating constant buffer - Size: ") + std::to_string(Size) + " bytes");
+    
+    // Constant buffers must be 256-byte aligned
+    uint32 alignedSize = (Size + 255) & ~255;
+    
+    // Create upload heap
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(alignedSize);
+    
+    ComPtr<ID3D12Resource> constantBuffer;
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &bufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&constantBuffer)));
+    
+    FLog::Log(ELogLevel::Info, "Constant buffer created successfully");
+    return new FDX12Buffer(constantBuffer.Detach(), FDX12Buffer::EBufferType::Constant);
+}
+
+FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth) {
+    FLog::Log(ELogLevel::Info, std::string("Creating graphics pipeline state (depth: ") + 
+        (bEnableDepth ? "enabled" : "disabled") + ")...");
+    
+    // Shader code with optional MVP matrix
+    const char* shaderCode = bEnableDepth ? R"(
+        cbuffer MVPBuffer : register(b0) {
+            float4x4 MVP;
+        };
+        
+        struct VSInput {
+            float3 position : POSITION;
+            float4 color : COLOR;
+        };
+        
+        struct PSInput {
+            float4 position : SV_POSITION;
+            float4 color : COLOR;
+        };
+        
+        PSInput VSMain(VSInput input) {
+            PSInput result;
+            result.position = mul(float4(input.position, 1.0f), MVP);
+            result.color = input.color;
+            return result;
+        }
+        
+        float4 PSMain(PSInput input) : SV_TARGET {
+            return input.color;
+        }
+    )" : R"(
         struct VSInput {
             float3 position : POSITION;
             float4 color : COLOR;
@@ -572,7 +753,16 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
     
     // Create root signature
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-    rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    
+    if (bEnableDepth) {
+        // Root parameter for MVP constant buffer
+        CD3DX12_ROOT_PARAMETER rootParameters[1];
+        rootParameters[0].InitAsConstantBufferView(0); // b0 register
+        
+        rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    } else {
+        rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    }
     
     ComPtr<ID3DBlob> signature;
     ComPtr<ID3D12RootSignature> rootSignature;
@@ -600,8 +790,18 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
     psoDesc.RasterizerState = rasterizerDesc;
     
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    psoDesc.DepthStencilState.DepthEnable = FALSE;
-    psoDesc.DepthStencilState.StencilEnable = FALSE;
+    
+    if (bEnableDepth) {
+        psoDesc.DepthStencilState.DepthEnable = TRUE;
+        psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        psoDesc.DepthStencilState.StencilEnable = FALSE;
+        psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+    } else {
+        psoDesc.DepthStencilState.DepthEnable = FALSE;
+        psoDesc.DepthStencilState.StencilEnable = FALSE;
+    }
+    
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     psoDesc.NumRenderTargets = 1;

@@ -27,6 +27,37 @@ uint32 FTriangleMeshProxy::GetTriangleCount() const {
     return VertexCount / 3;  // Assumes triangle list topology
 }
 
+// FCubeMeshProxy implementation
+FCubeMeshProxy::FCubeMeshProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer, FRHIBuffer* InConstantBuffer,
+                               FRHIPipelineState* InPSO, uint32 InIndexCount, const FMatrix4x4& InModelMatrix)
+    : VertexBuffer(InVertexBuffer), IndexBuffer(InIndexBuffer), ConstantBuffer(InConstantBuffer),
+      PipelineState(InPSO), IndexCount(InIndexCount), ModelMatrix(InModelMatrix) {
+}
+
+FCubeMeshProxy::~FCubeMeshProxy() {
+    delete VertexBuffer;
+    delete IndexBuffer;
+    delete ConstantBuffer;
+    delete PipelineState;
+}
+
+void FCubeMeshProxy::Render(FRHICommandList* RHICmdList) {
+    FLog::Log(ELogLevel::Info, "FCubeMeshProxy::Render called");
+    RHICmdList->SetPipelineState(PipelineState);
+    RHICmdList->SetConstantBuffer(ConstantBuffer, 0);
+    RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FVertex));
+    RHICmdList->SetIndexBuffer(IndexBuffer);
+    RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
+}
+
+uint32 FCubeMeshProxy::GetTriangleCount() const {
+    return IndexCount / 3;  // Assumes triangle list topology
+}
+
+void FCubeMeshProxy::UpdateTransform(const FMatrix4x4& InModelMatrix) {
+    ModelMatrix = InModelMatrix;
+}
+
 // FRenderer implementation
 FRenderer::FRenderer(FRHI* InRHI)
     : RHI(InRHI) {
@@ -36,6 +67,12 @@ FRenderer::~FRenderer() {
 }
 
 void FRenderer::Initialize() {
+    // Create camera
+    Camera = std::make_unique<FCamera>();
+    Camera->SetPosition(FVector(0.0f, 0.0f, -5.0f));
+    Camera->SetLookAt(FVector(0.0f, 0.0f, 0.0f));
+    Camera->SetPerspective(DirectX::XM_PIDIV4, 16.0f / 9.0f, 0.1f, 100.0f);
+    
     FLog::Log(ELogLevel::Info, "Renderer initialized");
 }
 
@@ -69,6 +106,7 @@ void FRenderer::RenderFrame() {
     
     // Clear screen
     RHICmdList->ClearRenderTarget(FColor(0.2f, 0.3f, 0.4f, 1.0f));
+    RHICmdList->ClearDepthStencil();
     
     // Render scene
     RenderScene(RHICmdList);
