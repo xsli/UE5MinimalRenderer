@@ -52,6 +52,13 @@ public:
     virtual void SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, uint32 Stride) = 0;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) = 0;
     virtual void Present() = 0;
+    
+    // Flush 3D rendering commands before 2D overlay rendering
+    // This ensures all 3D content is rendered before 2D text/UI is drawn on top
+    virtual void FlushCommandsFor2D() = 0;
+    
+    // Text rendering - call FlushCommandsFor2D() before calling this
+    virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) = 0;
 };
 
 // RHI Interface - factory for creating RHI resources

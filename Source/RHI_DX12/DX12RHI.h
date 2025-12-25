@@ -3,6 +3,9 @@
 #include "../RHI/RHI.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include <d3d11on12.h>
+#include <d2d1_3.h>
+#include <dwrite.h>
 #include <wrl.h>
 #include <vector>
 #include "d3dx12.h"
@@ -50,6 +53,10 @@ public:
     virtual void SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, uint32 Stride) override;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) override;
     virtual void Present() override;
+    virtual void FlushCommandsFor2D() override;
+    virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
+    
+    void InitializeTextRendering(ID3D12Device* Device, IDXGISwapChain3* SwapChain);
     
 private:
     void WaitForGPU();
@@ -68,10 +75,24 @@ private:
     
     ComPtr<ID3D12Fence> Fence;
     uint64 FenceValue;
-    void* FenceEvent;  // HANDLE type - using void* to avoid including windows.h in header
+    void* FenceEvent;
     
     D3D12_VIEWPORT Viewport;
     D3D12_RECT ScissorRect;
+    
+    // D2D/DWrite resources for text rendering
+    ComPtr<ID3D11Device> D3D11Device;
+    ComPtr<ID3D11DeviceContext> D3D11DeviceContext;
+    ComPtr<ID3D11On12Device> D3D11On12Device;
+    ComPtr<ID2D1Factory3> D2DFactory;
+    ComPtr<ID2D1Device2> D2DDevice;
+    ComPtr<ID2D1DeviceContext2> D2DDeviceContext;
+    ComPtr<IDWriteFactory> DWriteFactory;
+    ComPtr<ID3D11Resource> WrappedBackBuffers[FrameCount];
+    ComPtr<ID2D1Bitmap1> D2DRenderTargets[FrameCount];
+    
+    // Track whether 3D commands have been flushed for 2D rendering
+    bool bCommandsFlushedFor2D;
 };
 
 class FDX12RHI : public FRHI {
