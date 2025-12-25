@@ -10,6 +10,14 @@ struct FInputState {
     bool bMiddleMouseDown = false;
     int LastMouseX = 0;
     int LastMouseY = 0;
+    
+    // Keyboard state
+    bool bKeyW = false;
+    bool bKeyA = false;
+    bool bKeyS = false;
+    bool bKeyD = false;
+    bool bKeyQ = false;
+    bool bKeyE = false;
 };
 
 // Camera sensitivity settings
@@ -18,6 +26,7 @@ namespace CameraSettings {
     constexpr float RotationSpeed = 0.005f;
     constexpr float PanSpeed = 0.01f;
     constexpr float ZoomSpeed = 0.5f;
+    constexpr float KeyboardMoveSpeed = 2.0f;  // Units per second
 }
 
 // Global game instance and timing
@@ -124,6 +133,33 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 }
                 return 0;
             }
+        
+        // Keyboard events
+        case WM_KEYDOWN:
+            {
+                switch (wParam) {
+                    case 'W': g_InputState.bKeyW = true; return 0;
+                    case 'A': g_InputState.bKeyA = true; return 0;
+                    case 'S': g_InputState.bKeyS = true; return 0;
+                    case 'D': g_InputState.bKeyD = true; return 0;
+                    case 'Q': g_InputState.bKeyQ = true; return 0;
+                    case 'E': g_InputState.bKeyE = true; return 0;
+                }
+                return 0;
+            }
+        
+        case WM_KEYUP:
+            {
+                switch (wParam) {
+                    case 'W': g_InputState.bKeyW = false; return 0;
+                    case 'A': g_InputState.bKeyA = false; return 0;
+                    case 'S': g_InputState.bKeyS = false; return 0;
+                    case 'D': g_InputState.bKeyD = false; return 0;
+                    case 'Q': g_InputState.bKeyQ = false; return 0;
+                    case 'E': g_InputState.bKeyE = false; return 0;
+                }
+                return 0;
+            }
             
         case WM_PAINT:
             {
@@ -141,6 +177,34 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     if (g_FrameCount <= 3) {
                         FLog::Log(ELogLevel::Info, std::string("Frame ") + std::to_string(g_FrameCount) + 
                             " - DeltaTime: " + std::to_string(deltaTime));
+                    }
+                    
+                    // Process keyboard input for camera movement
+                    FCamera* camera = g_Game->GetCamera();
+                    if (camera) {
+                        float moveAmount = CameraSettings::KeyboardMoveSpeed * deltaTime;
+                        
+                        // WASD movement (UE5 style)
+                        if (g_InputState.bKeyW) {
+                            camera->MoveForwardBackward(moveAmount);
+                        }
+                        if (g_InputState.bKeyS) {
+                            camera->MoveForwardBackward(-moveAmount);
+                        }
+                        if (g_InputState.bKeyD) {
+                            camera->PanRight(moveAmount);
+                        }
+                        if (g_InputState.bKeyA) {
+                            camera->PanRight(-moveAmount);
+                        }
+                        
+                        // QE for up/down movement
+                        if (g_InputState.bKeyE) {
+                            camera->PanUp(moveAmount);
+                        }
+                        if (g_InputState.bKeyQ) {
+                            camera->PanUp(-moveAmount);
+                        }
                     }
                     
                     // Game tick (includes rendering)
