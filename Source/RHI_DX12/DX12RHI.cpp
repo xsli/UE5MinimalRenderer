@@ -142,17 +142,17 @@ void FDX12CommandList::BeginFrame() {
 }
 
 void FDX12CommandList::EndFrame() {
-    // Transition render target to present state
-    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        RenderTargets[FrameIndex].Get(),
-        D3D12_RESOURCE_STATE_RENDER_TARGET,
-        D3D12_RESOURCE_STATE_PRESENT);
-    GraphicsCommandList->ResourceBarrier(1, &barrier);
-    
-    ThrowIfFailed(GraphicsCommandList->Close());
-    
-    ID3D12CommandList* ppCommandLists[] = { GraphicsCommandList.Get() };
-    CommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+	// Transition render target to present state
+	CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+		RenderTargets[FrameIndex].Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_PRESENT);
+	GraphicsCommandList->ResourceBarrier(1, &barrier);
+
+	// Close and execute the command list
+	ThrowIfFailed(GraphicsCommandList->Close());
+	ID3D12CommandList* ppCommandLists[] = { GraphicsCommandList.Get() };
+	CommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 }
 
 void FDX12CommandList::ClearRenderTarget(const FColor& Color) {
@@ -197,6 +197,40 @@ void FDX12CommandList::Present() {
     ThrowIfFailed(SwapChain->Present(1, 0));
     WaitForGPU();
     FLog::Log(ELogLevel::Info, "Frame presented");
+}
+
+void FDX12CommandList::FlushCommandsFor2D()
+{
+	FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: Submitting 3D rendering commands");
+
+	try {
+		// Close and execute D3D12 command list
+		ThrowIfFailed(GraphicsCommandList->Close());
+		ID3D12CommandList* ppCommandLists[] = { GraphicsCommandList.Get() };
+		CommandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+
+		// Wait for D3D12 to finish rendering
+		const UINT64 fenceValueForD2D = FenceValue++;
+		ThrowIfFailed(CommandQueue->Signal(Fence.Get(), fenceValueForD2D));
+		if (Fence->GetCompletedValue() < fenceValueForD2D) {
+			ThrowIfFailed(Fence->SetEventOnCompletion(fenceValueForD2D, FenceEvent));
+			WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
+		}
+
+		// Reset command list for potential additional commands
+		ThrowIfFailed(CommandAllocator->Reset());
+		ThrowIfFailed(GraphicsCommandList->Reset(CommandAllocator.Get(), nullptr));
+
+		// Reset viewport and scissor since we reset the command list
+		GraphicsCommandList->RSSetViewports(1, &Viewport);
+		GraphicsCommandList->RSSetScissorRects(1, &ScissorRect);
+
+		FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: 3D commands submitted, ready for 2D rendering");
+	}
+	catch (const std::exception& e) {
+		FLog::Log(ELogLevel::Error, std::string("FlushCommandsFor2D error: ") + e.what());
+		throw;
+	}
 }
 
 void FDX12CommandList::WaitForGPU() {
@@ -303,68 +337,57 @@ void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwap
     }
 }
 
-void FDX12CommandList::DrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) {
-    if (!D2DDeviceContext || !DWriteFactory) {
-        return;
-    }
-    
-    try {
-        // Acquire wrapped resource
-        D3D11On12Device->AcquireWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
-        
-        // Set D2D render target
-        D2DDeviceContext->SetTarget(D2DRenderTargets[FrameIndex].Get());
-        D2DDeviceContext->BeginDraw();
-        
-        // Create text format
-        ComPtr<IDWriteTextFormat> textFormat;
-        ThrowIfFailed(DWriteFactory->CreateTextFormat(
-            L"Arial",
-            nullptr,
-            DWRITE_FONT_WEIGHT_NORMAL,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL,
-            FontSize,
-            L"en-us",
-            &textFormat
-        ));
-        
-        // Create brush
-        ComPtr<ID2D1SolidColorBrush> brush;
-        ThrowIfFailed(D2DDeviceContext->CreateSolidColorBrush(
-            D2D1::ColorF(Color.R, Color.G, Color.B, Color.A),
-            &brush
-        ));
-        
-        // Convert string to wstring
-        std::wstring wText(Text.begin(), Text.end());
-        
-        // Draw text
-        D2D1_RECT_F layoutRect = D2D1::RectF(
-            Position.X,
-            Position.Y,
-            Position.X + 500.0f,  // Assume max width
-            Position.Y + FontSize * 2.0f
-        );
-        
-        D2DDeviceContext->DrawTextW(
-            wText.c_str(),
-            static_cast<UINT32>(wText.length()),
-            textFormat.Get(),
-            &layoutRect,
-            brush.Get()
-        );
-        
-        ThrowIfFailed(D2DDeviceContext->EndDraw());
-        
-        // Release wrapped resource
-        D3D11On12Device->ReleaseWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
-        D3D11DeviceContext->Flush();
-    }
-    catch (const std::exception& e) {
-        FLog::Log(ELogLevel::Error, std::string("DrawText error: ") + e.what());
-    }
+void FDX12CommandList::RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) {
+	if (!D2DDeviceContext || !DWriteFactory) {
+		FLog::Log(ELogLevel::Warning, "D2D/DWrite not initialized");
+		return;
+	}
+
+	try {
+		FLog::Log(ELogLevel::Info, std::string("RHIDrawText: '") + Text + "'");
+
+		// Now it's safe to use D2D
+		D3D11On12Device->AcquireWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+
+		D2DDeviceContext->SetTarget(D2DRenderTargets[FrameIndex].Get());
+		D2DDeviceContext->BeginDraw();
+
+		// Create text format
+		ComPtr<IDWriteTextFormat> textFormat;
+		ThrowIfFailed(DWriteFactory->CreateTextFormat(
+			L"Arial", nullptr,
+			DWRITE_FONT_WEIGHT_BOLD,
+			DWRITE_FONT_STYLE_NORMAL,
+			DWRITE_FONT_STRETCH_NORMAL,
+			FontSize, L"en-us", &textFormat));
+
+		// Create brush
+		ComPtr<ID2D1SolidColorBrush> brush;
+		ThrowIfFailed(D2DDeviceContext->CreateSolidColorBrush(
+			D2D1::ColorF(Color.R, Color.G, Color.B, Color.A), &brush));
+
+		// Draw text
+		std::wstring wText(Text.begin(), Text.end());
+		D2D1_RECT_F layoutRect = D2D1::RectF(Position.X, Position.Y, Position.X + 1000.0f, Position.Y + FontSize * 2.0f);
+		D2DDeviceContext->DrawText(wText.c_str(), static_cast<UINT32>(wText.length()), textFormat.Get(), &layoutRect, brush.Get());
+
+		ThrowIfFailed(D2DDeviceContext->EndDraw());
+
+		D3D11On12Device->ReleaseWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+		D3D11DeviceContext->Flush();
+
+		// NOTE: No need to reset D3D12 command list here
+	    // - FlushCommandsFor2D() already reset it before text rendering
+	    // - D2D uses D3D11On12, which has its own command submission path
+	    // - D3D12 command list stays open for EndFrame's resource barrier
+
+		FLog::Log(ELogLevel::Info, "Text rendered successfully");
+	}
+	catch (const std::exception& e) {
+		FLog::Log(ELogLevel::Error, std::string("DrawText error: ") + e.what());
+	}
 }
+
 
 // FDX12RHI implementation
 FDX12RHI::FDX12RHI() : Width(0), Height(0) {

@@ -72,6 +72,9 @@ void FRenderer::RenderFrame() {
     
     // Render scene
     RenderScene(RHICmdList);
+
+	// === CRITICAL: Flush 3D commands before 2D rendering ===
+	RHICmdList->FlushCommandsFor2D();
     
     // Render statistics overlay
     RenderStats(RHICmdList);
@@ -117,22 +120,22 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList) {
     
     // Frame count
     std::string frameCountText = "Frame: " + std::to_string(Stats.GetFrameCount());
-    RHICmdList->DrawText(frameCountText, FVector2D(10.0f, yPos), fontSize, textColor);
+    RHICmdList->RHIDrawText(frameCountText, FVector2D(10.0f, yPos), fontSize, textColor);
     yPos += lineHeight;
     
     // FPS
     char fpsBuffer[64];
     snprintf(fpsBuffer, sizeof(fpsBuffer), "FPS: %.1f", Stats.GetFPS());
-    RHICmdList->DrawText(std::string(fpsBuffer), FVector2D(10.0f, yPos), fontSize, textColor);
+    RHICmdList->RHIDrawText(std::string(fpsBuffer), FVector2D(10.0f, yPos), fontSize, textColor);
     yPos += lineHeight;
     
     // Frame time
     char frameTimeBuffer[64];
     snprintf(frameTimeBuffer, sizeof(frameTimeBuffer), "Frame Time: %.2f ms", Stats.GetFrameTime());
-    RHICmdList->DrawText(std::string(frameTimeBuffer), FVector2D(10.0f, yPos), fontSize, textColor);
+    RHICmdList->RHIDrawText(std::string(frameTimeBuffer), FVector2D(10.0f, yPos), fontSize, textColor);
     yPos += lineHeight;
     
     // Triangle count
     std::string triangleCountText = "Triangles: " + std::to_string(Stats.GetTriangleCount());
-    RHICmdList->DrawText(triangleCountText, FVector2D(10.0f, yPos), fontSize, textColor);
+    RHICmdList->RHIDrawText(triangleCountText, FVector2D(10.0f, yPos), fontSize, textColor);
 }

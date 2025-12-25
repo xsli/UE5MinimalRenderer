@@ -53,7 +53,8 @@ public:
     virtual void SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, uint32 Stride) override;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) override;
     virtual void Present() override;
-    virtual void DrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
+    virtual void FlushCommandsFor2D() override;
+    virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
     
     void InitializeTextRendering(ID3D12Device* Device, IDXGISwapChain3* SwapChain);
     
@@ -74,7 +75,7 @@ private:
     
     ComPtr<ID3D12Fence> Fence;
     uint64 FenceValue;
-    void* FenceEvent;  // HANDLE type - using void* to avoid including windows.h in header
+    void* FenceEvent;
     
     D3D12_VIEWPORT Viewport;
     D3D12_RECT ScissorRect;
@@ -89,6 +90,9 @@ private:
     ComPtr<IDWriteFactory> DWriteFactory;
     ComPtr<ID3D11Resource> WrappedBackBuffers[FrameCount];
     ComPtr<ID2D1Bitmap1> D2DRenderTargets[FrameCount];
+    
+    // Track whether 3D commands have been flushed for 2D rendering
+    bool bCommandsFlushedFor2D;
 };
 
 class FDX12RHI : public FRHI {
