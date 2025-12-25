@@ -32,8 +32,13 @@ FCamera::FCamera()
     }
     
     // Calculate yaw and pitch from direction
+    // DirectX left-handed coordinate system: Z is forward, Y is up, X is right
     Yaw = std::atan2(direction.X, direction.Z);
-    Pitch = std::asin(-direction.Y);
+    // Clamp direction.Y to valid range for asin [-1, 1]
+    float clampedY = direction.Y;
+    if (clampedY > 1.0f) clampedY = 1.0f;
+    if (clampedY < -1.0f) clampedY = -1.0f;
+    Pitch = std::asin(-clampedY);
     
     UpdateOrientation();
 }
