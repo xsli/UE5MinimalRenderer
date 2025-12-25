@@ -26,6 +26,17 @@ The cube rotates continuously and demonstrates:
 
 A real-time statistics overlay displays FPS, frame time, and triangle count.
 
+## Interactive Camera Controls
+
+The application supports **UE5-style viewport controls** for interactive camera navigation:
+
+- **Left Mouse Button (LMB) + Drag**: Move forward/backward and rotate left/right
+- **Right Mouse Button (RMB) + Drag**: Free-look camera rotation (pitch and yaw)
+- **Middle Mouse Button (MMB) + Drag** or **LMB + RMB + Drag**: Pan camera without rotation
+- **Mouse Wheel Scroll**: Zoom in/out
+
+For detailed control information, see [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md).
+
 ## Architecture
 ```
 Game Tick → Renderer → RHI Interface → DX12 Implementation → GPU
@@ -88,6 +99,7 @@ All required dependencies are included in the repository:
 ### 3D Rendering
 - **Math Library**: DirectXMath wrapper with matrix operations
 - **Camera System**: Perspective projection with configurable FOV, aspect ratio, near/far planes
+- **Interactive Controls**: UE5-style mouse controls for camera navigation
 - **Transformation Pipeline**: Model → View → Projection transformations
 - **Depth Testing**: Proper occlusion with 32-bit depth buffer
 - **Indexed Rendering**: Efficient cube rendering with index buffer
