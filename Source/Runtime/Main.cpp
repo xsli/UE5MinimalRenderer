@@ -1,11 +1,23 @@
 #include "../Game/Game.h"
 #include <Windows.h>
+#include <windowsx.h>
 #include <chrono>
+
+// Input state tracking
+struct FInputState {
+    bool bLeftMouseDown = false;
+    bool bRightMouseDown = false;
+    bool bMiddleMouseDown = false;
+    int LastMouseX = 0;
+    int LastMouseY = 0;
+    bool bMouseMoving = false;
+};
 
 // Global game instance and timing
 static FGame* g_Game = nullptr;
 static auto g_LastTime = std::chrono::high_resolution_clock::now();
 static int g_FrameCount = 0;
+static FInputState g_InputState;
 
 // Window procedure
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -13,6 +25,104 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
+        
+        // Mouse button down events
+        case WM_LBUTTONDOWN:
+            g_InputState.bLeftMouseDown = true;
+            g_InputState.LastMouseX = GET_X_LPARAM(lParam);
+            g_InputState.LastMouseY = GET_Y_LPARAM(lParam);
+            SetCapture(hwnd);  // Capture mouse to receive events outside window
+            return 0;
+            
+        case WM_RBUTTONDOWN:
+            g_InputState.bRightMouseDown = true;
+            g_InputState.LastMouseX = GET_X_LPARAM(lParam);
+            g_InputState.LastMouseY = GET_Y_LPARAM(lParam);
+            SetCapture(hwnd);
+            return 0;
+            
+        case WM_MBUTTONDOWN:
+            g_InputState.bMiddleMouseDown = true;
+            g_InputState.LastMouseX = GET_X_LPARAM(lParam);
+            g_InputState.LastMouseY = GET_Y_LPARAM(lParam);
+            SetCapture(hwnd);
+            return 0;
+        
+        // Mouse button up events
+        case WM_LBUTTONUP:
+            g_InputState.bLeftMouseDown = false;
+            if (!g_InputState.bRightMouseDown && !g_InputState.bMiddleMouseDown) {
+                ReleaseCapture();
+            }
+            return 0;
+            
+        case WM_RBUTTONUP:
+            g_InputState.bRightMouseDown = false;
+            if (!g_InputState.bLeftMouseDown && !g_InputState.bMiddleMouseDown) {
+                ReleaseCapture();
+            }
+            return 0;
+            
+        case WM_MBUTTONUP:
+            g_InputState.bMiddleMouseDown = false;
+            if (!g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown) {
+                ReleaseCapture();
+            }
+            return 0;
+        
+        // Mouse move event
+        case WM_MOUSEMOVE:
+            {
+                if (g_Game && (g_InputState.bLeftMouseDown || g_InputState.bRightMouseDown || g_InputState.bMiddleMouseDown)) {
+                    FCamera* camera = g_Game->GetCamera();
+                    if (camera) {
+                        int currentX = GET_X_LPARAM(lParam);
+                        int currentY = GET_Y_LPARAM(lParam);
+                        int deltaX = currentX - g_InputState.LastMouseX;
+                        int deltaY = currentY - g_InputState.LastMouseY;
+                        
+                        // Sensitivity factors
+                        const float movementSpeed = 0.01f;
+                        const float rotationSpeed = 0.005f;
+                        const float panSpeed = 0.01f;
+                        
+                        // LMB + RMB or MMB: Pan camera
+                        if ((g_InputState.bLeftMouseDown && g_InputState.bRightMouseDown) || g_InputState.bMiddleMouseDown) {
+                            camera->PanRight(deltaX * panSpeed);
+                            camera->PanUp(-deltaY * panSpeed);  // Invert Y for natural movement
+                        }
+                        // LMB only: Move forward/backward and rotate left/right
+                        else if (g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown) {
+                            camera->MoveForwardBackward(-deltaY * movementSpeed);  // Y movement controls forward/back
+                            camera->RotateYaw(deltaX * rotationSpeed);  // X movement controls left/right rotation
+                        }
+                        // RMB only: Rotate camera
+                        else if (g_InputState.bRightMouseDown && !g_InputState.bLeftMouseDown) {
+                            camera->RotateYaw(deltaX * rotationSpeed);
+                            camera->RotatePitch(deltaY * rotationSpeed);
+                        }
+                        
+                        g_InputState.LastMouseX = currentX;
+                        g_InputState.LastMouseY = currentY;
+                    }
+                }
+                return 0;
+            }
+        
+        // Mouse wheel event
+        case WM_MOUSEWHEEL:
+            {
+                if (g_Game) {
+                    FCamera* camera = g_Game->GetCamera();
+                    if (camera) {
+                        int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+                        float zoomAmount = delta / 120.0f;  // Standard wheel delta is 120 per notch
+                        const float zoomSpeed = 0.5f;
+                        camera->Zoom(zoomAmount * zoomSpeed);
+                    }
+                }
+                return 0;
+            }
             
         case WM_PAINT:
             {
