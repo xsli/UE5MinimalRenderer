@@ -45,6 +45,113 @@ FSceneProxy* FTriangleObject::CreateSceneProxy(FRHI* RHI) {
     return new FTriangleMeshProxy(vertexBuffer, pso, 3);
 }
 
+// FCubeObject implementation
+FCubeObject::FCubeObject(FRenderer* InRenderer)
+    : Renderer(InRenderer), CubeProxy(nullptr), RotationAngle(0.0f) {
+}
+
+FCubeObject::~FCubeObject() {
+}
+
+void FCubeObject::Tick(float DeltaTime) {
+    // Rotate the cube
+    RotationAngle += DeltaTime * 0.5f;  // Rotate at 0.5 radians per second
+    
+    // Update the cube's model matrix if proxy exists
+    if (CubeProxy) {
+        // Create rotation matrix (rotate around Y axis)
+        FMatrix4x4 rotationY = FMatrix4x4::RotationY(RotationAngle);
+        // Also rotate a bit around X for more interesting view
+        FMatrix4x4 rotationX = FMatrix4x4::RotationX(RotationAngle * 0.3f);
+        FMatrix4x4 modelMatrix = rotationX * rotationY;
+        
+        CubeProxy->UpdateModelMatrix(modelMatrix);
+    }
+}
+
+FSceneProxy* FCubeObject::CreateSceneProxy(FRHI* RHI) {
+    FLog::Log(ELogLevel::Info, "Creating cube scene proxy...");
+    
+    // Define cube vertices (8 unique vertices)
+    // Position each vertex at the corners of a 1x1x1 cube centered at origin
+    FVertex vertices[] = {
+        // Front face (Z = 0.5) - Red
+        { FVector(-0.5f, -0.5f,  0.5f), FColor(1.0f, 0.0f, 0.0f, 1.0f) },  // 0: Bottom-left-front
+        { FVector( 0.5f, -0.5f,  0.5f), FColor(1.0f, 0.0f, 0.0f, 1.0f) },  // 1: Bottom-right-front
+        { FVector( 0.5f,  0.5f,  0.5f), FColor(1.0f, 0.0f, 0.0f, 1.0f) },  // 2: Top-right-front
+        { FVector(-0.5f,  0.5f,  0.5f), FColor(1.0f, 0.0f, 0.0f, 1.0f) },  // 3: Top-left-front
+        
+        // Back face (Z = -0.5) - Green
+        { FVector(-0.5f, -0.5f, -0.5f), FColor(0.0f, 1.0f, 0.0f, 1.0f) },  // 4: Bottom-left-back
+        { FVector( 0.5f, -0.5f, -0.5f), FColor(0.0f, 1.0f, 0.0f, 1.0f) },  // 5: Bottom-right-back
+        { FVector( 0.5f,  0.5f, -0.5f), FColor(0.0f, 1.0f, 0.0f, 1.0f) },  // 6: Top-right-back
+        { FVector(-0.5f,  0.5f, -0.5f), FColor(0.0f, 1.0f, 0.0f, 1.0f) },  // 7: Top-left-back
+        
+        // Top face (Y = 0.5) - Blue
+        { FVector(-0.5f,  0.5f,  0.5f), FColor(0.0f, 0.0f, 1.0f, 1.0f) },  // 8: Top-left-front
+        { FVector( 0.5f,  0.5f,  0.5f), FColor(0.0f, 0.0f, 1.0f, 1.0f) },  // 9: Top-right-front
+        { FVector( 0.5f,  0.5f, -0.5f), FColor(0.0f, 0.0f, 1.0f, 1.0f) },  // 10: Top-right-back
+        { FVector(-0.5f,  0.5f, -0.5f), FColor(0.0f, 0.0f, 1.0f, 1.0f) },  // 11: Top-left-back
+        
+        // Bottom face (Y = -0.5) - Yellow
+        { FVector(-0.5f, -0.5f,  0.5f), FColor(1.0f, 1.0f, 0.0f, 1.0f) },  // 12: Bottom-left-front
+        { FVector( 0.5f, -0.5f,  0.5f), FColor(1.0f, 1.0f, 0.0f, 1.0f) },  // 13: Bottom-right-front
+        { FVector( 0.5f, -0.5f, -0.5f), FColor(1.0f, 1.0f, 0.0f, 1.0f) },  // 14: Bottom-right-back
+        { FVector(-0.5f, -0.5f, -0.5f), FColor(1.0f, 1.0f, 0.0f, 1.0f) },  // 15: Bottom-left-back
+        
+        // Right face (X = 0.5) - Magenta
+        { FVector( 0.5f, -0.5f,  0.5f), FColor(1.0f, 0.0f, 1.0f, 1.0f) },  // 16: Bottom-right-front
+        { FVector( 0.5f, -0.5f, -0.5f), FColor(1.0f, 0.0f, 1.0f, 1.0f) },  // 17: Bottom-right-back
+        { FVector( 0.5f,  0.5f, -0.5f), FColor(1.0f, 0.0f, 1.0f, 1.0f) },  // 18: Top-right-back
+        { FVector( 0.5f,  0.5f,  0.5f), FColor(1.0f, 0.0f, 1.0f, 1.0f) },  // 19: Top-right-front
+        
+        // Left face (X = -0.5) - Cyan
+        { FVector(-0.5f, -0.5f,  0.5f), FColor(0.0f, 1.0f, 1.0f, 1.0f) },  // 20: Bottom-left-front
+        { FVector(-0.5f, -0.5f, -0.5f), FColor(0.0f, 1.0f, 1.0f, 1.0f) },  // 21: Bottom-left-back
+        { FVector(-0.5f,  0.5f, -0.5f), FColor(0.0f, 1.0f, 1.0f, 1.0f) },  // 22: Top-left-back
+        { FVector(-0.5f,  0.5f,  0.5f), FColor(0.0f, 1.0f, 1.0f, 1.0f) },  // 23: Top-left-front
+    };
+    
+    // Define indices for 6 faces (2 triangles per face = 36 indices)
+    uint32 indices[] = {
+        // Front face (Red)
+        0, 1, 2,    0, 2, 3,
+        // Back face (Green)
+        5, 4, 7,    5, 7, 6,
+        // Top face (Blue)
+        8, 9, 10,   8, 10, 11,
+        // Bottom face (Yellow)
+        15, 14, 13, 15, 13, 12,
+        // Right face (Magenta)
+        16, 17, 18, 16, 18, 19,
+        // Left face (Cyan)
+        21, 20, 23, 21, 23, 22
+    };
+    
+    FLog::Log(ELogLevel::Info, std::string("Cube has ") + std::to_string(sizeof(vertices)/sizeof(FVertex)) + 
+        " vertices and " + std::to_string(sizeof(indices)/sizeof(uint32)) + " indices");
+    
+    // Create vertex buffer
+    FRHIBuffer* vertexBuffer = RHI->CreateVertexBuffer(sizeof(vertices), vertices);
+    
+    // Create index buffer
+    FRHIBuffer* indexBuffer = RHI->CreateIndexBuffer(sizeof(indices), indices);
+    
+    // Create constant buffer for MVP matrix
+    FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
+    
+    // Create pipeline state with depth testing enabled
+    FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
+    
+    FLog::Log(ELogLevel::Info, "Cube scene proxy created");
+    
+    // Create and store scene proxy reference
+    CubeProxy = new FCubeMeshProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 36, Renderer->GetCamera());
+    
+    // Return the proxy
+    return CubeProxy;
+}
+
 // FGameWorld implementation
 FGameWorld::FGameWorld(FRHI* InRHI, FRenderer* InRenderer)
     : RHI(InRHI), Renderer(InRenderer) {
@@ -106,9 +213,9 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height) {
     World = std::make_unique<FGameWorld>(RHI.get(), Renderer.get());
     World->Initialize();
     
-    // Add a triangle to the world
-    FTriangleObject* triangle = new FTriangleObject();
-    World->AddGameObject(triangle);
+    // Add a cube to the world (replace triangle with cube for 3D rendering)
+    FCubeObject* cube = new FCubeObject(Renderer.get());
+    World->AddGameObject(cube);
     
     FLog::Log(ELogLevel::Info, "Game initialized successfully");
     return true;

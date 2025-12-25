@@ -48,9 +48,13 @@ public:
     virtual void BeginFrame() = 0;
     virtual void EndFrame() = 0;
     virtual void ClearRenderTarget(const FColor& Color) = 0;
+    virtual void ClearDepthStencil() = 0;
     virtual void SetPipelineState(FRHIPipelineState* PipelineState) = 0;
     virtual void SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, uint32 Stride) = 0;
+    virtual void SetIndexBuffer(FRHIBuffer* IndexBuffer) = 0;
+    virtual void SetConstantBuffer(FRHIBuffer* ConstantBuffer, uint32 RootParameterIndex) = 0;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) = 0;
+    virtual void DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) = 0;
     virtual void Present() = 0;
     
     // Flush 3D rendering commands before 2D overlay rendering
@@ -75,7 +79,9 @@ public:
     
     // Resource creation - caller takes ownership and is responsible for deletion
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) = 0;
-    virtual FRHIPipelineState* CreateGraphicsPipelineState() = 0;
+    virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) = 0;
+    virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) = 0;
+    virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) = 0;
 };
 
 // Factory function to create platform-specific RHI

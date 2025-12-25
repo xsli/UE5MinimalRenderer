@@ -2,6 +2,7 @@
 
 #include "../RHI/RHI.h"
 #include "RenderStats.h"
+#include "Camera.h"
 #include <memory>
 
 // Render commands that can be enqueued from game thread
@@ -34,6 +35,28 @@ private:
     uint32 VertexCount;
 };
 
+// Cube mesh scene proxy (indexed rendering with MVP matrix)
+class FCubeMeshProxy : public FSceneProxy {
+public:
+    FCubeMeshProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer, FRHIBuffer* InConstantBuffer,
+                   FRHIPipelineState* InPSO, uint32 InIndexCount, FCamera* InCamera);
+    virtual ~FCubeMeshProxy() override;
+    
+    virtual void Render(FRHICommandList* RHICmdList) override;
+    virtual uint32 GetTriangleCount() const override;
+    
+    void UpdateModelMatrix(const FMatrix4x4& InModelMatrix);
+    
+private:
+    FRHIBuffer* VertexBuffer;
+    FRHIBuffer* IndexBuffer;
+    FRHIBuffer* ConstantBuffer;
+    FRHIPipelineState* PipelineState;
+    uint32 IndexCount;
+    FCamera* Camera;
+    FMatrix4x4 ModelMatrix;
+};
+
 // Renderer - manages render thread and scene rendering
 class FRenderer {
 public:
@@ -53,6 +76,9 @@ public:
     // Get statistics
     const FRenderStats& GetStats() const { return Stats; }
     
+    // Get camera
+    FCamera* GetCamera() { return Camera.get(); }
+    
 private:
     void RenderScene(FRHICommandList* RHICmdList);
     void RenderStats(FRHICommandList* RHICmdList);
@@ -60,4 +86,5 @@ private:
     FRHI* RHI;
     std::vector<FSceneProxy*> SceneProxies;
     FRenderStats Stats;
+    std::unique_ptr<FCamera> Camera;
 };
