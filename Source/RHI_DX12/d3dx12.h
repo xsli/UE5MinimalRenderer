@@ -21,13 +21,9 @@
 #include "d3dx12_root_signature.h"
 #include "d3dx12_property_format_table.h"
 
-#ifndef D3DX12_NO_STATE_OBJECT_HELPERS
-#include "d3dx12_state_object.h"
-#endif // !D3DX12_NO_STATE_OBJECT_HELPERS
-
-#ifndef D3DX12_NO_CHECK_FEATURE_SUPPORT_CLASS
-#include "d3dx12_check_feature_support.h"
-#endif // !D3DX12_NO_CHECK_FEATURE_SUPPORT_CLASS
+// Define macros to skip optional headers that aren't present
+#define D3DX12_NO_STATE_OBJECT_HELPERS
+#define D3DX12_NO_CHECK_FEATURE_SUPPORT_CLASS
 
 #endif // defined( __cplusplus )
 

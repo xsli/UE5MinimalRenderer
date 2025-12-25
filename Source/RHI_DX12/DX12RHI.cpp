@@ -23,6 +23,11 @@ FDX12Buffer::FDX12Buffer(ID3D12Resource* InResource)
     VertexBufferView.BufferLocation = Resource->GetGPUVirtualAddress();
     VertexBufferView.SizeInBytes = static_cast<UINT>(desc.Width);
     VertexBufferView.StrideInBytes = sizeof(FVertex);
+    
+    FLog::Log(ELogLevel::Info, std::string("FDX12Buffer created - GPU Address: 0x") + 
+        std::to_string(VertexBufferView.BufferLocation) + 
+        ", Size: " + std::to_string(VertexBufferView.SizeInBytes) + 
+        ", Stride: " + std::to_string(VertexBufferView.StrideInBytes));
 }
 
 FDX12Buffer::~FDX12Buffer() {
@@ -111,12 +116,16 @@ FDX12CommandList::~FDX12CommandList() {
 void FDX12CommandList::BeginFrame() {
     FrameIndex = SwapChain->GetCurrentBackBufferIndex();
     
+    FLog::Log(ELogLevel::Info, std::string("BeginFrame - Frame Index: ") + std::to_string(FrameIndex));
+    
     ThrowIfFailed(CommandAllocator->Reset());
     ThrowIfFailed(GraphicsCommandList->Reset(CommandAllocator.Get(), nullptr));
     
     // Set viewport and scissor rect
     GraphicsCommandList->RSSetViewports(1, &Viewport);
     GraphicsCommandList->RSSetScissorRects(1, &ScissorRect);
+    
+    FLog::Log(ELogLevel::Info, std::string("Viewport: ") + std::to_string(Viewport.Width) + "x" + std::to_string(Viewport.Height));
     
     // Transition render target to render target state
     CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -144,41 +153,55 @@ void FDX12CommandList::ClearRenderTarget(const FColor& Color) {
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart(), FrameIndex, RTVDescriptorSize);
     
     const float clearColor[] = { Color.R, Color.G, Color.B, Color.A };
+    FLog::Log(ELogLevel::Info, std::string("ClearRenderTarget - Color: ") + 
+        std::to_string(Color.R) + ", " + std::to_string(Color.G) + ", " + std::to_string(Color.B));
+    
     GraphicsCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 }
 
 void FDX12CommandList::SetPipelineState(FRHIPipelineState* PipelineState) {
+    FLog::Log(ELogLevel::Info, "SetPipelineState called");
     FDX12PipelineState* DX12PSO = static_cast<FDX12PipelineState*>(PipelineState);
     GraphicsCommandList->SetPipelineState(DX12PSO->GetPSO());
     GraphicsCommandList->SetGraphicsRootSignature(DX12PSO->GetRootSignature());
 }
 
 void FDX12CommandList::SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, uint32 Stride) {
+    FLog::Log(ELogLevel::Info, std::string("SetVertexBuffer - Stride: ") + std::to_string(Stride));
     FDX12Buffer* DX12Buffer = static_cast<FDX12Buffer*>(VertexBuffer);
     D3D12_VERTEX_BUFFER_VIEW vbv = DX12Buffer->GetVertexBufferView();
+    FLog::Log(ELogLevel::Info, std::string("  VBV - Location: 0x") + 
+        std::to_string(vbv.BufferLocation) + 
+        ", Size: " + std::to_string(vbv.SizeInBytes) + 
+        ", Stride: " + std::to_string(vbv.StrideInBytes));
     GraphicsCommandList->IASetVertexBuffers(0, 1, &vbv);
 }
 
 void FDX12CommandList::DrawPrimitive(uint32 VertexCount, uint32 StartVertex) {
+    FLog::Log(ELogLevel::Info, std::string("DrawPrimitive - VertexCount: ") + std::to_string(VertexCount) + 
+        ", StartVertex: " + std::to_string(StartVertex));
+    
     GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     GraphicsCommandList->DrawInstanced(VertexCount, 1, StartVertex, 0);
 }
 
 void FDX12CommandList::Present() {
+    FLog::Log(ELogLevel::Info, "Presenting frame...");
     ThrowIfFailed(SwapChain->Present(1, 0));
     WaitForGPU();
+    FLog::Log(ELogLevel::Info, "Frame presented");
 }
 
 void FDX12CommandList::WaitForGPU() {
-    ThrowIfFailed(CommandQueue->Signal(Fence.Get(), FenceValue));
-    
-    if (Fence->GetCompletedValue() < FenceValue) {
-        ThrowIfFailed(Fence->SetEventOnCompletion(FenceValue, FenceEvent));
-        WaitForSingleObject(FenceEvent, INFINITE);
-    }
-    
+    const UINT64 currentFenceValue = FenceValue;
+    ThrowIfFailed(CommandQueue->Signal(Fence.Get(), currentFenceValue));
     FenceValue++;
+    
+    if (Fence->GetCompletedValue() < currentFenceValue) {
+        ThrowIfFailed(Fence->SetEventOnCompletion(currentFenceValue, FenceEvent));
+        WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
+    }
 }
 
 // FDX12RHI implementation
@@ -282,6 +305,8 @@ FRHICommandList* FDX12RHI::GetCommandList() {
 }
 
 FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data) {
+    FLog::Log(ELogLevel::Info, std::string("Creating vertex buffer - Size: ") + std::to_string(Size) + " bytes");
+    
     // Create upload heap
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
@@ -302,12 +327,16 @@ FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data) {
         ThrowIfFailed(vertexBuffer->Map(0, &readRange, &pVertexDataBegin));
         memcpy(pVertexDataBegin, Data, Size);
         vertexBuffer->Unmap(0, nullptr);
+        FLog::Log(ELogLevel::Info, "Vertex data copied to buffer");
     }
     
+    FLog::Log(ELogLevel::Info, "Vertex buffer created successfully");
     return new FDX12Buffer(vertexBuffer.Detach());
 }
 
 FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
+    FLog::Log(ELogLevel::Info, "Creating graphics pipeline state...");
+    
     // Simple shader code
     const char* shaderCode = R"(
         struct VSInput {
@@ -340,19 +369,21 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
                          "VSMain", "vs_5_0", 0, 0, &vertexShader, &error))) {
         if (error) {
-            FLog::Log(ELogLevel::Error, static_cast<char*>(error->GetBufferPointer()));
+            FLog::Log(ELogLevel::Error, std::string("Vertex shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
         }
         return nullptr;
     }
+    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully");
     
     // Compile pixel shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
                          "PSMain", "ps_5_0", 0, 0, &pixelShader, &error))) {
         if (error) {
-            FLog::Log(ELogLevel::Error, static_cast<char*>(error->GetBufferPointer()));
+            FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
         }
         return nullptr;
     }
+    FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
     
     // Create root signature
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
@@ -362,6 +393,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
     ComPtr<ID3D12RootSignature> rootSignature;
     ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
     ThrowIfFailed(Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
+    
+    FLog::Log(ELogLevel::Info, "Root signature created");
     
     // Define input layout
     D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
@@ -375,7 +408,12 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
     psoDesc.pRootSignature = rootSignature.Get();
     psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
-    psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    
+    // Rasterizer state - DISABLE BACKFACE CULLING to ensure triangle is visible
+    CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
+    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;  // Don't cull any faces
+    psoDesc.RasterizerState = rasterizerDesc;
+    
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.DepthStencilState.DepthEnable = FALSE;
     psoDesc.DepthStencilState.StencilEnable = FALSE;
@@ -388,15 +426,9 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState() {
     ComPtr<ID3D12PipelineState> pipelineState;
     ThrowIfFailed(Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineState)));
     
+    FLog::Log(ELogLevel::Info, "Graphics pipeline state created successfully");
+    
     return new FDX12PipelineState(pipelineState.Detach(), rootSignature.Detach());
-}
-
-void FDX12RHI::BeginFrame() {
-    CommandList->BeginFrame();
-}
-
-void FDX12RHI::EndFrame() {
-    CommandList->EndFrame();
 }
 
 // Factory function

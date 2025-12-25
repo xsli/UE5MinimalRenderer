@@ -527,12 +527,12 @@ struct CD3DX12_DEPTH_STENCIL_DESC2 : public D3D12_DEPTH_STENCIL_DESC2
         D3D12_STENCIL_OP frontStencilDepthFailOp,
         D3D12_STENCIL_OP frontStencilPassOp,
         D3D12_COMPARISON_FUNC frontStencilFunc,
-        UINT8 frontStencilReadMask,
-        UINT8 frontStencilWriteMask,
         D3D12_STENCIL_OP backStencilFailOp,
         D3D12_STENCIL_OP backStencilDepthFailOp,
         D3D12_STENCIL_OP backStencilPassOp,
         D3D12_COMPARISON_FUNC backStencilFunc,
+        UINT8 frontStencilReadMask,
+        UINT8 frontStencilWriteMask,
         UINT8 backStencilReadMask,
         UINT8 backStencilWriteMask,
         BOOL depthBoundsTestEnable ) noexcept
@@ -562,20 +562,20 @@ struct CD3DX12_DEPTH_STENCIL_DESC2 : public D3D12_DEPTH_STENCIL_DESC2
     operator D3D12_DEPTH_STENCIL_DESC() const noexcept
     {
         D3D12_DEPTH_STENCIL_DESC D;
-        D.DepthEnable = DepthEnable;
-        D.DepthWriteMask = DepthWriteMask;
-        D.DepthFunc = DepthFunc;
-        D.StencilEnable = StencilEnable;
-        D.StencilReadMask = FrontFace.StencilReadMask;
-        D.StencilWriteMask = FrontFace.StencilWriteMask;
-        D.FrontFace.StencilFailOp = FrontFace.StencilFailOp;
+        D.DepthEnable                  = DepthEnable;
+        D.DepthWriteMask               = DepthWriteMask;
+        D.DepthFunc                    = DepthFunc;
+        D.StencilEnable                = StencilEnable;
+        D.StencilReadMask              = FrontFace.StencilReadMask;
+        D.StencilWriteMask             = FrontFace.StencilWriteMask;
+        D.FrontFace.StencilFailOp      = FrontFace.StencilFailOp;
         D.FrontFace.StencilDepthFailOp = FrontFace.StencilDepthFailOp;
-        D.FrontFace.StencilPassOp = FrontFace.StencilPassOp;
-        D.FrontFace.StencilFunc = FrontFace.StencilFunc;
-        D.BackFace.StencilFailOp = BackFace.StencilFailOp;
-        D.BackFace.StencilDepthFailOp = BackFace.StencilDepthFailOp;
-        D.BackFace.StencilPassOp = BackFace.StencilPassOp;
-        D.BackFace.StencilFunc = BackFace.StencilFunc;
+        D.FrontFace.StencilPassOp      = FrontFace.StencilPassOp;
+        D.FrontFace.StencilFunc        = FrontFace.StencilFunc;
+        D.BackFace.StencilFailOp       = BackFace.StencilFailOp;
+        D.BackFace.StencilDepthFailOp  = BackFace.StencilDepthFailOp;
+        D.BackFace.StencilPassOp       = BackFace.StencilPassOp;
+        D.BackFace.StencilFunc         = BackFace.StencilFunc;
         return D;
     }
 };
@@ -1603,6 +1603,7 @@ inline const CD3DX12_RESOURCE_DESC1* D3DX12ConditionallyExpandAPIDesc(
             {
                 LclDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
             }
+#if defined(D3D12_SDK_VERSION) && (D3D12_SDK_VERSION >= 612)
             else if (!(tightAlignmentSupported && (pDesc->Flags & D3D12_RESOURCE_FLAG_USE_TIGHT_ALIGNMENT))
                     || (pDesc->Flags & D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER))
             {
@@ -1617,6 +1618,13 @@ inline const CD3DX12_RESOURCE_DESC1* D3DX12ConditionallyExpandAPIDesc(
                 else
                     LclDesc.Alignment = D3D12_TIGHT_ALIGNMENT_MIN_PLACED_RESOURCE_ALIGNMENT;
 			}
+#else
+            else
+            {
+                LclDesc.Alignment =
+                    (pDesc->SampleDesc.Count > 1 ? D3D12_DEFAULT_MSAA_RESOURCE_PLACEMENT_ALIGNMENT : D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+            }
+#endif
         }
         return &LclDesc;
     }
@@ -1971,29 +1979,6 @@ struct CD3DX12_UNORDERED_ACCESS_VIEW_DESC : public D3D12_UNORDERED_ACCESS_VIEW_D
         return desc;
     }
 
-    static inline CD3DX12_UNORDERED_ACCESS_VIEW_DESC Tex2DMS(
-        DXGI_FORMAT Format) noexcept
-    {
-        CD3DX12_UNORDERED_ACCESS_VIEW_DESC desc;
-        desc.Format = Format;
-        desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DMS;
-        //desc.Texture2DMS.UnusedField_NothingToDefine = 0;
-        return desc;
-    }
-
-    static inline CD3DX12_UNORDERED_ACCESS_VIEW_DESC Tex2DMSArray(
-        DXGI_FORMAT Format,
-        UINT ArraySize = -1,
-        UINT FirstArraySlice = 0) noexcept
-    {
-        CD3DX12_UNORDERED_ACCESS_VIEW_DESC desc;
-        desc.Format = Format;
-        desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DMSARRAY;
-        desc.Texture2DMSArray.FirstArraySlice = FirstArraySlice;
-        desc.Texture2DMSArray.ArraySize = ArraySize;
-        return desc;
-    }
-
     static inline CD3DX12_UNORDERED_ACCESS_VIEW_DESC Tex3D(
         DXGI_FORMAT Format,
         UINT WSize = -1,
@@ -2046,26 +2031,6 @@ struct CD3DX12_RT_FORMAT_ARRAY : public D3D12_RT_FORMAT_ARRAY
         NumRenderTargets = NumFormats;
         memcpy(RTFormats, pFormats, sizeof(RTFormats));
         // assumes ARRAY_SIZE(pFormats) == ARRAY_SIZE(RTFormats)
-    }
-};
-
-//------------------------------------------------------------------------------------------------
-struct CD3DX12_SERIALIZED_ROOT_SIGNATURE_DESC : public D3D12_SERIALIZED_ROOT_SIGNATURE_DESC
-{
-    CD3DX12_SERIALIZED_ROOT_SIGNATURE_DESC() = default;
-    explicit CD3DX12_SERIALIZED_ROOT_SIGNATURE_DESC(const D3D12_SERIALIZED_ROOT_SIGNATURE_DESC& o) noexcept :
-        D3D12_SERIALIZED_ROOT_SIGNATURE_DESC(o)
-    {
-    }
-    explicit CD3DX12_SERIALIZED_ROOT_SIGNATURE_DESC( CD3DX12_DEFAULT ) noexcept
-    {
-        pSerializedBlob = nullptr;
-        SerializedBlobSizeInBytes = 0;
-    }
-    explicit CD3DX12_SERIALIZED_ROOT_SIGNATURE_DESC( const void* pData, SIZE_T size) noexcept
-    {
-        pSerializedBlob = pData;
-        SerializedBlobSizeInBytes = size;
     }
 };
 

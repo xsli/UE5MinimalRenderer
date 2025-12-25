@@ -13,6 +13,8 @@ void FTriangleObject::Tick(float DeltaTime) {
 }
 
 FSceneProxy* FTriangleObject::CreateSceneProxy(FRHI* RHI) {
+    FLog::Log(ELogLevel::Info, "Creating triangle scene proxy...");
+    
     // Define triangle vertices
     FVertex vertices[] = {
         { FVector(0.0f, 0.5f, 0.0f), FColor(1.0f, 0.0f, 0.0f, 1.0f) },   // Top - Red
@@ -20,11 +22,24 @@ FSceneProxy* FTriangleObject::CreateSceneProxy(FRHI* RHI) {
         { FVector(-0.5f, -0.5f, 0.0f), FColor(0.0f, 0.0f, 1.0f, 1.0f) }  // Left - Blue
     };
     
+    FLog::Log(ELogLevel::Info, "Triangle vertices:");
+    for (int i = 0; i < 3; i++) {
+        FLog::Log(ELogLevel::Info, std::string("  Vertex ") + std::to_string(i) + 
+            ": Pos(" + std::to_string(vertices[i].Position.X) + ", " + 
+            std::to_string(vertices[i].Position.Y) + ", " + 
+            std::to_string(vertices[i].Position.Z) + ") Color(" +
+            std::to_string(vertices[i].Color.R) + ", " + 
+            std::to_string(vertices[i].Color.G) + ", " + 
+            std::to_string(vertices[i].Color.B) + ")");
+    }
+    
     // Create vertex buffer
     FRHIBuffer* vertexBuffer = RHI->CreateVertexBuffer(sizeof(vertices), vertices);
     
     // Create pipeline state
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState();
+    
+    FLog::Log(ELogLevel::Info, "Triangle scene proxy created");
     
     // Create and return scene proxy
     return new FTriangleMeshProxy(vertexBuffer, pso, 3);
@@ -121,6 +136,13 @@ void FGame::Shutdown() {
 }
 
 void FGame::Tick(float DeltaTime) {
+    static int tickCount = 0;
+    tickCount++;
+    
+    if (tickCount <= 3) {
+        FLog::Log(ELogLevel::Info, std::string("FGame::Tick ") + std::to_string(tickCount));
+    }
+    
     // Game thread tick
     if (World) {
         World->Tick(DeltaTime);

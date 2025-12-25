@@ -69,9 +69,6 @@ public:
     // Resource creation - caller takes ownership and is responsible for deletion
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIPipelineState* CreateGraphicsPipelineState() = 0;
-    
-    virtual void BeginFrame() = 0;
-    virtual void EndFrame() = 0;
 };
 
 // Factory function to create platform-specific RHI

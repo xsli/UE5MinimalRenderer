@@ -15,6 +15,7 @@ FTriangleMeshProxy::~FTriangleMeshProxy() {
 }
 
 void FTriangleMeshProxy::Render(FRHICommandList* RHICmdList) {
+    FLog::Log(ELogLevel::Info, "FTriangleMeshProxy::Render called");
     RHICmdList->SetPipelineState(PipelineState);
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FVertex));
     RHICmdList->DrawPrimitive(VertexCount, 0);
@@ -42,13 +43,19 @@ void FRenderer::Shutdown() {
 }
 
 void FRenderer::RenderFrame() {
+    static int renderFrameCount = 0;
+    renderFrameCount++;
+    
+    if (renderFrameCount <= 3) {
+        FLog::Log(ELogLevel::Info, std::string("=== RenderFrame ") + std::to_string(renderFrameCount) + " ===");
+    }
+    
     // This simulates UE5's parallel rendering architecture
     // In real UE5, this would kick off a render thread task
     
     FRHICommandList* RHICmdList = RHI->GetCommandList();
     
     // Begin rendering
-    RHI->BeginFrame();
     RHICmdList->BeginFrame();
     
     // Clear screen
@@ -59,7 +66,6 @@ void FRenderer::RenderFrame() {
     
     // End rendering
     RHICmdList->EndFrame();
-    RHI->EndFrame();
     
     // Present
     RHICmdList->Present();
@@ -67,6 +73,7 @@ void FRenderer::RenderFrame() {
 
 void FRenderer::AddSceneProxy(FSceneProxy* Proxy) {
     SceneProxies.push_back(Proxy);
+    FLog::Log(ELogLevel::Info, std::string("AddSceneProxy - Total proxies: ") + std::to_string(SceneProxies.size()));
 }
 
 void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy) {
@@ -77,6 +84,8 @@ void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy) {
 }
 
 void FRenderer::RenderScene(FRHICommandList* RHICmdList) {
+    FLog::Log(ELogLevel::Info, std::string("RenderScene - Rendering ") + std::to_string(SceneProxies.size()) + " proxies");
+    
     // Render all scene proxies
     for (FSceneProxy* Proxy : SceneProxies) {
         Proxy->Render(RHICmdList);

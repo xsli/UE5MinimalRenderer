@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../RHI/RHI.h"
-#include "d3dx12.h"
 #include <d3d12.h>
 #include <dxgi1_6.h>
-#include <wrl/client.h>
+#include <wrl.h>
 #include <vector>
+#include "d3dx12.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -85,9 +85,6 @@ public:
     virtual FRHICommandList* GetCommandList() override;
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineState() override;
-    
-    virtual void BeginFrame() override;
-    virtual void EndFrame() override;
     
 private:
     ComPtr<IDXGIFactory4> Factory;
