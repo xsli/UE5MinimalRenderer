@@ -32,12 +32,37 @@ public:
     // Get camera position
     const FVector& GetPosition() const { return Position; }
     
+    // UE5-style camera controls
+    // LMB drag: Move forward/backward and rotate left/right
+    void MoveForwardBackward(float Delta);
+    void RotateYaw(float Delta);
+    
+    // RMB drag: Rotate camera (pitch and yaw)
+    void RotatePitch(float Delta);
+    
+    // LMB+RMB or MMB drag: Pan camera (move left/right/up/down without rotation)
+    void PanRight(float Delta);
+    void PanUp(float Delta);
+    
+    // Mouse wheel: Zoom in/out (move camera forward/backward)
+    void Zoom(float Delta);
+    
 private:
     void UpdateMatrices() const;
+    void UpdateOrientation();
     
     FVector Position;
     FVector LookAtTarget;
     FVector UpVector;
+    
+    // Camera orientation (in radians)
+    float Pitch;  // Rotation around right axis (up/down)
+    float Yaw;    // Rotation around up axis (left/right)
+    
+    // Camera vectors
+    FVector Forward;
+    FVector Right;
+    FVector Up;
     
     float FovY;
     float AspectRatio;

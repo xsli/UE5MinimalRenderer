@@ -63,6 +63,9 @@ public:
     void Shutdown();
     void Tick(float DeltaTime);
     
+    // Get camera for input handling
+    FCamera* GetCamera();
+    
 private:
     std::unique_ptr<FRHI> RHI;
     std::unique_ptr<FRenderer> Renderer;

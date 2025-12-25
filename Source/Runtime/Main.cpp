@@ -1,11 +1,39 @@
 #include "../Game/Game.h"
 #include <Windows.h>
+#include <windowsx.h>
 #include <chrono>
+
+// Input state tracking
+struct FInputState {
+    bool bLeftMouseDown = false;
+    bool bRightMouseDown = false;
+    bool bMiddleMouseDown = false;
+    int LastMouseX = 0;
+    int LastMouseY = 0;
+    
+    // Keyboard state
+    bool bKeyW = false;
+    bool bKeyA = false;
+    bool bKeyS = false;
+    bool bKeyD = false;
+    bool bKeyQ = false;
+    bool bKeyE = false;
+};
+
+// Camera sensitivity settings
+namespace CameraSettings {
+    constexpr float MovementSpeed = 0.01f;
+    constexpr float RotationSpeed = 0.005f;
+    constexpr float PanSpeed = 0.01f;
+    constexpr float ZoomSpeed = 0.5f;
+    constexpr float KeyboardMoveSpeed = 2.0f;  // Units per second
+}
 
 // Global game instance and timing
 static FGame* g_Game = nullptr;
 static auto g_LastTime = std::chrono::high_resolution_clock::now();
 static int g_FrameCount = 0;
+static FInputState g_InputState;
 
 // Window procedure
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -13,6 +41,125 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
+        
+        // Mouse button down events
+        case WM_LBUTTONDOWN:
+            g_InputState.bLeftMouseDown = true;
+            g_InputState.LastMouseX = GET_X_LPARAM(lParam);
+            g_InputState.LastMouseY = GET_Y_LPARAM(lParam);
+            SetCapture(hwnd);  // Capture mouse to receive events outside window
+            return 0;
+            
+        case WM_RBUTTONDOWN:
+            g_InputState.bRightMouseDown = true;
+            g_InputState.LastMouseX = GET_X_LPARAM(lParam);
+            g_InputState.LastMouseY = GET_Y_LPARAM(lParam);
+            SetCapture(hwnd);
+            return 0;
+            
+        case WM_MBUTTONDOWN:
+            g_InputState.bMiddleMouseDown = true;
+            g_InputState.LastMouseX = GET_X_LPARAM(lParam);
+            g_InputState.LastMouseY = GET_Y_LPARAM(lParam);
+            SetCapture(hwnd);
+            return 0;
+        
+        // Mouse button up events
+        case WM_LBUTTONUP:
+            g_InputState.bLeftMouseDown = false;
+            if (!g_InputState.bRightMouseDown && !g_InputState.bMiddleMouseDown) {
+                ReleaseCapture();
+            }
+            return 0;
+            
+        case WM_RBUTTONUP:
+            g_InputState.bRightMouseDown = false;
+            if (!g_InputState.bLeftMouseDown && !g_InputState.bMiddleMouseDown) {
+                ReleaseCapture();
+            }
+            return 0;
+            
+        case WM_MBUTTONUP:
+            g_InputState.bMiddleMouseDown = false;
+            if (!g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown) {
+                ReleaseCapture();
+            }
+            return 0;
+        
+        // Mouse move event
+        case WM_MOUSEMOVE:
+            {
+                if (g_Game && (g_InputState.bLeftMouseDown || g_InputState.bRightMouseDown || g_InputState.bMiddleMouseDown)) {
+                    FCamera* camera = g_Game->GetCamera();
+                    if (camera) {
+                        int currentX = GET_X_LPARAM(lParam);
+                        int currentY = GET_Y_LPARAM(lParam);
+                        int deltaX = currentX - g_InputState.LastMouseX;
+                        int deltaY = currentY - g_InputState.LastMouseY;
+                        
+                        // LMB + RMB or MMB: Pan camera
+                        if ((g_InputState.bLeftMouseDown && g_InputState.bRightMouseDown) || g_InputState.bMiddleMouseDown) {
+                            camera->PanRight(deltaX * CameraSettings::PanSpeed);
+                            camera->PanUp(-deltaY * CameraSettings::PanSpeed);  // Invert Y for natural movement
+                        }
+                        // LMB only: Move forward/backward and rotate left/right
+                        else if (g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown) {
+                            camera->MoveForwardBackward(-deltaY * CameraSettings::MovementSpeed);  // Y movement controls forward/back
+                            camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);  // X movement controls left/right rotation
+                        }
+                        // RMB only: Rotate camera
+                        else if (g_InputState.bRightMouseDown && !g_InputState.bLeftMouseDown) {
+                            camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);
+                            camera->RotatePitch(deltaY * CameraSettings::RotationSpeed);
+                        }
+                        
+                        g_InputState.LastMouseX = currentX;
+                        g_InputState.LastMouseY = currentY;
+                    }
+                }
+                return 0;
+            }
+        
+        // Mouse wheel event
+        case WM_MOUSEWHEEL:
+            {
+                if (g_Game) {
+                    FCamera* camera = g_Game->GetCamera();
+                    if (camera) {
+                        int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+                        float zoomAmount = delta / 120.0f;  // Standard wheel delta is 120 per notch
+                        camera->Zoom(zoomAmount * CameraSettings::ZoomSpeed);
+                    }
+                }
+                return 0;
+            }
+        
+        // Keyboard events
+        case WM_KEYDOWN:
+            {
+                switch (wParam) {
+                    case 'W': g_InputState.bKeyW = true; return 0;
+                    case 'A': g_InputState.bKeyA = true; return 0;
+                    case 'S': g_InputState.bKeyS = true; return 0;
+                    case 'D': g_InputState.bKeyD = true; return 0;
+                    case 'Q': g_InputState.bKeyQ = true; return 0;
+                    case 'E': g_InputState.bKeyE = true; return 0;
+                }
+                return 0;
+            }
+        
+        case WM_KEYUP:
+            {
+                switch (wParam) {
+                    case 'W': g_InputState.bKeyW = false; return 0;
+                    case 'A': g_InputState.bKeyA = false; return 0;
+                    case 'S': g_InputState.bKeyS = false; return 0;
+                    case 'D': g_InputState.bKeyD = false; return 0;
+                    case 'Q': g_InputState.bKeyQ = false; return 0;
+                    case 'E': g_InputState.bKeyE = false; return 0;
+                }
+                return 0;
+            }
             
         case WM_PAINT:
             {
@@ -30,6 +177,34 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     if (g_FrameCount <= 3) {
                         FLog::Log(ELogLevel::Info, std::string("Frame ") + std::to_string(g_FrameCount) + 
                             " - DeltaTime: " + std::to_string(deltaTime));
+                    }
+                    
+                    // Process keyboard input for camera movement
+                    FCamera* camera = g_Game->GetCamera();
+                    if (camera) {
+                        float moveAmount = CameraSettings::KeyboardMoveSpeed * deltaTime;
+                        
+                        // WASD movement (UE5 style)
+                        if (g_InputState.bKeyW) {
+                            camera->MoveForwardBackward(moveAmount);
+                        }
+                        if (g_InputState.bKeyS) {
+                            camera->MoveForwardBackward(-moveAmount);
+                        }
+                        if (g_InputState.bKeyD) {
+                            camera->PanRight(moveAmount);
+                        }
+                        if (g_InputState.bKeyA) {
+                            camera->PanRight(-moveAmount);
+                        }
+                        
+                        // QE for up/down movement
+                        if (g_InputState.bKeyE) {
+                            camera->PanUp(moveAmount);
+                        }
+                        if (g_InputState.bKeyQ) {
+                            camera->PanUp(-moveAmount);
+                        }
                     }
                     
                     // Game tick (includes rendering)

@@ -260,3 +260,10 @@ void FGame::Tick(float DeltaTime) {
         Renderer->RenderFrame();
     }
 }
+
+FCamera* FGame::GetCamera() {
+    if (Renderer) {
+        return Renderer->GetCamera();
+    }
+    return nullptr;
+}
