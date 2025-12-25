@@ -39,13 +39,13 @@ private:
 class FCubeMeshProxy : public FSceneProxy {
 public:
     FCubeMeshProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer, FRHIBuffer* InConstantBuffer,
-                   FRHIPipelineState* InPSO, uint32 InIndexCount, const FMatrix4x4& InModelMatrix);
+                   FRHIPipelineState* InPSO, uint32 InIndexCount, FCamera* InCamera);
     virtual ~FCubeMeshProxy() override;
     
     virtual void Render(FRHICommandList* RHICmdList) override;
     virtual uint32 GetTriangleCount() const override;
     
-    void UpdateTransform(const FMatrix4x4& InModelMatrix);
+    void UpdateModelMatrix(const FMatrix4x4& InModelMatrix);
     
 private:
     FRHIBuffer* VertexBuffer;
@@ -53,6 +53,7 @@ private:
     FRHIBuffer* ConstantBuffer;
     FRHIPipelineState* PipelineState;
     uint32 IndexCount;
+    FCamera* Camera;
     FMatrix4x4 ModelMatrix;
 };
 

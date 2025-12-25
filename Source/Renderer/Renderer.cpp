@@ -29,9 +29,9 @@ uint32 FTriangleMeshProxy::GetTriangleCount() const {
 
 // FCubeMeshProxy implementation
 FCubeMeshProxy::FCubeMeshProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer, FRHIBuffer* InConstantBuffer,
-                               FRHIPipelineState* InPSO, uint32 InIndexCount, const FMatrix4x4& InModelMatrix)
+                               FRHIPipelineState* InPSO, uint32 InIndexCount, FCamera* InCamera)
     : VertexBuffer(InVertexBuffer), IndexBuffer(InIndexBuffer), ConstantBuffer(InConstantBuffer),
-      PipelineState(InPSO), IndexCount(InIndexCount), ModelMatrix(InModelMatrix) {
+      PipelineState(InPSO), IndexCount(InIndexCount), Camera(InCamera), ModelMatrix(FMatrix4x4::Identity()) {
 }
 
 FCubeMeshProxy::~FCubeMeshProxy() {
@@ -43,6 +43,19 @@ FCubeMeshProxy::~FCubeMeshProxy() {
 
 void FCubeMeshProxy::Render(FRHICommandList* RHICmdList) {
     FLog::Log(ELogLevel::Info, "FCubeMeshProxy::Render called");
+    
+    // Calculate MVP matrix with current model matrix
+    FMatrix4x4 viewProjection = Camera->GetViewProjectionMatrix();
+    FMatrix4x4 mvp = ModelMatrix * viewProjection;
+    
+    // Transpose for HLSL (column-major)
+    FMatrix4x4 mvpTransposed = mvp.Transpose();
+    
+    // Update constant buffer with current MVP
+    void* cbData = ConstantBuffer->Map();
+    memcpy(cbData, &mvpTransposed.Matrix, sizeof(DirectX::XMMATRIX));
+    ConstantBuffer->Unmap();
+    
     RHICmdList->SetPipelineState(PipelineState);
     RHICmdList->SetConstantBuffer(ConstantBuffer, 0);
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FVertex));
@@ -54,7 +67,7 @@ uint32 FCubeMeshProxy::GetTriangleCount() const {
     return IndexCount / 3;  // Assumes triangle list topology
 }
 
-void FCubeMeshProxy::UpdateTransform(const FMatrix4x4& InModelMatrix) {
+void FCubeMeshProxy::UpdateModelMatrix(const FMatrix4x4& InModelMatrix) {
     ModelMatrix = InModelMatrix;
 }
 

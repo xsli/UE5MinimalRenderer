@@ -47,7 +47,7 @@ FSceneProxy* FTriangleObject::CreateSceneProxy(FRHI* RHI) {
 
 // FCubeObject implementation
 FCubeObject::FCubeObject(FRenderer* InRenderer)
-    : Renderer(InRenderer), RotationAngle(0.0f) {
+    : Renderer(InRenderer), CubeProxy(nullptr), RotationAngle(0.0f) {
 }
 
 FCubeObject::~FCubeObject() {
@@ -56,6 +56,17 @@ FCubeObject::~FCubeObject() {
 void FCubeObject::Tick(float DeltaTime) {
     // Rotate the cube
     RotationAngle += DeltaTime * 0.5f;  // Rotate at 0.5 radians per second
+    
+    // Update the cube's model matrix if proxy exists
+    if (CubeProxy) {
+        // Create rotation matrix (rotate around Y axis)
+        FMatrix4x4 rotationY = FMatrix4x4::RotationY(RotationAngle);
+        // Also rotate a bit around X for more interesting view
+        FMatrix4x4 rotationX = FMatrix4x4::RotationX(RotationAngle * 0.3f);
+        FMatrix4x4 modelMatrix = rotationX * rotationY;
+        
+        CubeProxy->UpdateModelMatrix(modelMatrix);
+    }
 }
 
 FSceneProxy* FCubeObject::CreateSceneProxy(FRHI* RHI) {
@@ -132,24 +143,13 @@ FSceneProxy* FCubeObject::CreateSceneProxy(FRHI* RHI) {
     // Create pipeline state with depth testing enabled
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    // Get initial model matrix (identity for now, will be updated in Tick)
-    FMatrix4x4 modelMatrix = FMatrix4x4::Identity();
-    
-    // Update constant buffer with MVP matrix
-    FMatrix4x4 viewProjection = Renderer->GetCamera()->GetViewProjectionMatrix();
-    FMatrix4x4 mvp = modelMatrix * viewProjection;
-    
-    // Transpose for HLSL (column-major)
-    FMatrix4x4 mvpTransposed = mvp.Transpose();
-    
-    void* cbData = constantBuffer->Map();
-    memcpy(cbData, &mvpTransposed.Matrix, sizeof(DirectX::XMMATRIX));
-    constantBuffer->Unmap();
-    
     FLog::Log(ELogLevel::Info, "Cube scene proxy created");
     
-    // Create and return scene proxy
-    return new FCubeMeshProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 36, modelMatrix);
+    // Create and store scene proxy reference
+    CubeProxy = new FCubeMeshProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 36, Renderer->GetCamera());
+    
+    // Return the proxy
+    return CubeProxy;
 }
 
 // FGameWorld implementation

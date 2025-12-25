@@ -31,6 +31,7 @@ public:
     
 private:
     FRenderer* Renderer;
+    FCubeMeshProxy* CubeProxy;
     float RotationAngle;
 };
 
