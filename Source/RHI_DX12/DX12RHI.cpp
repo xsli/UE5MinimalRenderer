@@ -7,6 +7,9 @@
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "dwrite.lib")
 
 // Helper function for checking HRESULT
 inline void ThrowIfFailed(HRESULT hr) {
@@ -106,6 +109,9 @@ FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* I
     if (FenceEvent == nullptr) {
         ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
     }
+    
+    // Initialize text rendering
+    InitializeTextRendering(InDevice, InSwapChain);
 }
 
 FDX12CommandList::~FDX12CommandList() {
@@ -201,6 +207,162 @@ void FDX12CommandList::WaitForGPU() {
     if (Fence->GetCompletedValue() < currentFenceValue) {
         ThrowIfFailed(Fence->SetEventOnCompletion(currentFenceValue, FenceEvent));
         WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
+    }
+}
+
+void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwapChain3* InSwapChain) {
+    FLog::Log(ELogLevel::Info, "Initializing text rendering (D2D/DWrite)...");
+    
+    try {
+        // Create D3D11 device
+        ComPtr<ID3D11Device> d3d11Device;
+        D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0 };
+        UINT deviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+        
+        ThrowIfFailed(D3D11CreateDevice(
+            nullptr,
+            D3D_DRIVER_TYPE_HARDWARE,
+            nullptr,
+            deviceFlags,
+            featureLevels,
+            _countof(featureLevels),
+            D3D11_SDK_VERSION,
+            &d3d11Device,
+            nullptr,
+            &D3D11DeviceContext
+        ));
+        
+        ThrowIfFailed(d3d11Device.As(&D3D11Device));
+        
+        // Create D3D11On12 device
+        ComPtr<IUnknown> d3d12CommandQueue;
+        ThrowIfFailed(CommandQueue.As(&d3d12CommandQueue));
+        
+        IUnknown* ppQueues[] = { d3d12CommandQueue.Get() };
+        ThrowIfFailed(D3D11On12CreateDevice(
+            InDevice,
+            deviceFlags,
+            featureLevels,
+            _countof(featureLevels),
+            ppQueues,
+            _countof(ppQueues),
+            0,
+            &d3d11Device,
+            &D3D11DeviceContext,
+            nullptr
+        ));
+        
+        ThrowIfFailed(d3d11Device.As(&D3D11On12Device));
+        
+        // Create D2D factory
+        D2D1_FACTORY_OPTIONS factoryOptions = {};
+        ThrowIfFailed(D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory3), &factoryOptions, &D2DFactory));
+        
+        // Create D2D device
+        ComPtr<IDXGIDevice> dxgiDevice;
+        ThrowIfFailed(D3D11On12Device.As(&dxgiDevice));
+        ThrowIfFailed(D2DFactory->CreateDevice(dxgiDevice.Get(), &D2DDevice));
+        
+        // Create D2D device context
+        ThrowIfFailed(D2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &D2DDeviceContext));
+        
+        // Create DWrite factory
+        ThrowIfFailed(DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), &DWriteFactory));
+        
+        // Wrap D3D12 render targets for D3D11
+        D3D11_RESOURCE_FLAGS d3d11Flags = { D3D11_BIND_RENDER_TARGET };
+        for (uint32 i = 0; i < FrameCount; i++) {
+            ThrowIfFailed(D3D11On12Device->CreateWrappedResource(
+                RenderTargets[i].Get(),
+                &d3d11Flags,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+                D3D12_RESOURCE_STATE_RENDER_TARGET,
+                IID_PPV_ARGS(&WrappedBackBuffers[i])
+            ));
+            
+            // Create D2D bitmap render target
+            ComPtr<IDXGISurface> dxgiSurface;
+            ThrowIfFailed(WrappedBackBuffers[i].As(&dxgiSurface));
+            
+            D2D1_BITMAP_PROPERTIES1 bitmapProperties = D2D1::BitmapProperties1(
+                D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+                D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)
+            );
+            
+            ThrowIfFailed(D2DDeviceContext->CreateBitmapFromDxgiSurface(
+                dxgiSurface.Get(),
+                &bitmapProperties,
+                &D2DRenderTargets[i]
+            ));
+        }
+        
+        FLog::Log(ELogLevel::Info, "Text rendering initialized successfully");
+    }
+    catch (const std::exception& e) {
+        FLog::Log(ELogLevel::Error, std::string("Failed to initialize text rendering: ") + e.what());
+    }
+}
+
+void FDX12CommandList::DrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) {
+    if (!D2DDeviceContext || !DWriteFactory) {
+        return;
+    }
+    
+    try {
+        // Acquire wrapped resource
+        D3D11On12Device->AcquireWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+        
+        // Set D2D render target
+        D2DDeviceContext->SetTarget(D2DRenderTargets[FrameIndex].Get());
+        D2DDeviceContext->BeginDraw();
+        
+        // Create text format
+        ComPtr<IDWriteTextFormat> textFormat;
+        ThrowIfFailed(DWriteFactory->CreateTextFormat(
+            L"Arial",
+            nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            FontSize,
+            L"en-us",
+            &textFormat
+        ));
+        
+        // Create brush
+        ComPtr<ID2D1SolidColorBrush> brush;
+        ThrowIfFailed(D2DDeviceContext->CreateSolidColorBrush(
+            D2D1::ColorF(Color.R, Color.G, Color.B, Color.A),
+            &brush
+        ));
+        
+        // Convert string to wstring
+        std::wstring wText(Text.begin(), Text.end());
+        
+        // Draw text
+        D2D1_RECT_F layoutRect = D2D1::RectF(
+            Position.X,
+            Position.Y,
+            Position.X + 500.0f,  // Assume max width
+            Position.Y + FontSize * 2.0f
+        );
+        
+        D2DDeviceContext->DrawTextW(
+            wText.c_str(),
+            static_cast<UINT32>(wText.length()),
+            textFormat.Get(),
+            &layoutRect,
+            brush.Get()
+        );
+        
+        ThrowIfFailed(D2DDeviceContext->EndDraw());
+        
+        // Release wrapped resource
+        D3D11On12Device->ReleaseWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+        D3D11DeviceContext->Flush();
+    }
+    catch (const std::exception& e) {
+        FLog::Log(ELogLevel::Error, std::string("DrawText error: ") + e.what());
     }
 }
 

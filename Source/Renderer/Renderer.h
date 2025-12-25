@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../RHI/RHI.h"
+#include "RenderStats.h"
 #include <memory>
 
 // Render commands that can be enqueued from game thread
@@ -15,6 +16,7 @@ class FSceneProxy {
 public:
     virtual ~FSceneProxy() = default;
     virtual void Render(FRHICommandList* RHICmdList) = 0;
+    virtual uint32 GetTriangleCount() const = 0;
 };
 
 // Triangle mesh scene proxy
@@ -24,6 +26,7 @@ public:
     virtual ~FTriangleMeshProxy() override;
     
     virtual void Render(FRHICommandList* RHICmdList) override;
+    virtual uint32 GetTriangleCount() const override;
     
 private:
     FRHIBuffer* VertexBuffer;
@@ -47,9 +50,14 @@ public:
     void AddSceneProxy(FSceneProxy* Proxy);
     void RemoveSceneProxy(FSceneProxy* Proxy);
     
+    // Get statistics
+    const FRenderStats& GetStats() const { return Stats; }
+    
 private:
     void RenderScene(FRHICommandList* RHICmdList);
+    void RenderStats(FRHICommandList* RHICmdList);
     
     FRHI* RHI;
     std::vector<FSceneProxy*> SceneProxies;
+    FRenderStats Stats;
 };

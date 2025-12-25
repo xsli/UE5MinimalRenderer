@@ -52,6 +52,9 @@ public:
     virtual void SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, uint32 Stride) = 0;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) = 0;
     virtual void Present() = 0;
+    
+    // Text rendering
+    virtual void DrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) = 0;
 };
 
 // RHI Interface - factory for creating RHI resources
