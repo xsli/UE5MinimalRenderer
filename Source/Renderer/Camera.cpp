@@ -42,14 +42,14 @@ void FCamera::SetPerspective(float FovYRadians, float InAspectRatio, float InNea
 
 FMatrix4x4 FCamera::GetViewMatrix() const {
     if (bViewMatrixDirty) {
-        const_cast<FCamera*>(this)->UpdateMatrices();
+        UpdateMatrices();
     }
     return ViewMatrix;
 }
 
 FMatrix4x4 FCamera::GetProjectionMatrix() const {
     if (bProjectionMatrixDirty) {
-        const_cast<FCamera*>(this)->UpdateMatrices();
+        UpdateMatrices();
     }
     return ProjectionMatrix;
 }
@@ -58,7 +58,7 @@ FMatrix4x4 FCamera::GetViewProjectionMatrix() const {
     return GetViewMatrix() * GetProjectionMatrix();
 }
 
-void FCamera::UpdateMatrices() {
+void FCamera::UpdateMatrices() const {
     if (bViewMatrixDirty) {
         ViewMatrix = FMatrix4x4::LookAtLH(Position, LookAtTarget, UpVector);
         bViewMatrixDirty = false;

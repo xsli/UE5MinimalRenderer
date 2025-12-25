@@ -33,7 +33,7 @@ public:
     const FVector& GetPosition() const { return Position; }
     
 private:
-    void UpdateMatrices();
+    void UpdateMatrices() const;
     
     FVector Position;
     FVector LookAtTarget;
@@ -44,9 +44,9 @@ private:
     float NearPlane;
     float FarPlane;
     
-    FMatrix4x4 ViewMatrix;
-    FMatrix4x4 ProjectionMatrix;
+    mutable FMatrix4x4 ViewMatrix;
+    mutable FMatrix4x4 ProjectionMatrix;
     
-    bool bViewMatrixDirty;
-    bool bProjectionMatrixDirty;
+    mutable bool bViewMatrixDirty;
+    mutable bool bProjectionMatrixDirty;
 };

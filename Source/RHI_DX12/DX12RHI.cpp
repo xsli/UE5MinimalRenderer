@@ -654,8 +654,9 @@ FRHIBuffer* FDX12RHI::CreateIndexBuffer(uint32 Size, const void* Data) {
 FRHIBuffer* FDX12RHI::CreateConstantBuffer(uint32 Size) {
     FLog::Log(ELogLevel::Info, std::string("Creating constant buffer - Size: ") + std::to_string(Size) + " bytes");
     
-    // Constant buffers must be 256-byte aligned
-    uint32 alignedSize = (Size + 255) & ~255;
+    // Constant buffers must be 256-byte aligned (D3D12 requirement)
+    static constexpr uint32 CONSTANT_BUFFER_ALIGNMENT = 256;
+    uint32 alignedSize = (Size + CONSTANT_BUFFER_ALIGNMENT - 1) & ~(CONSTANT_BUFFER_ALIGNMENT - 1);
     
     // Create upload heap
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
