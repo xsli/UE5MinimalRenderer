@@ -36,7 +36,8 @@ static int g_FrameCount = 0;
 static FInputState g_InputState;
 
 // Window procedure
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
     switch (uMsg) {
         case WM_DESTROY:
             PostQuitMessage(0);
@@ -210,10 +211,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     // Game tick (includes rendering)
                     try {
                         g_Game->Tick(deltaTime);
-                    } catch (const std::exception& e) {
+                    }
+                    catch (const std::exception& e) {
                         FLog::Log(ELogLevel::Error, std::string("Exception in game.Tick: ") + e.what());
                         PostQuitMessage(1);
-                    } catch (...) {
+                    }
+                    catch (...) {
                         FLog::Log(ELogLevel::Error, "Unknown exception in game.Tick");
                         PostQuitMessage(1);
                     }
@@ -229,7 +232,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 }
 
 // Main entry point
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
     // Window dimensions
     const uint32 Width = 1280;
     const uint32 Height = 720;

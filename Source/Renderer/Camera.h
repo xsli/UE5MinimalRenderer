@@ -30,7 +30,8 @@ public:
     FMatrix4x4 GetViewProjectionMatrix() const;
     
     // Get camera position
-    const FVector& GetPosition() const { return Position; }
+    const FVector& GetPosition() const
+{ return Position; }
     
     // UE5-style camera controls
     // LMB drag: Move forward/backward and rotate left/right

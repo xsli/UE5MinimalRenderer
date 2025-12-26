@@ -6,10 +6,12 @@
 
 // FTriangleMeshProxy implementation
 FTriangleMeshProxy::FTriangleMeshProxy(FRHIBuffer* InVertexBuffer, FRHIPipelineState* InPSO, uint32 InVertexCount)
-    : VertexBuffer(InVertexBuffer), PipelineState(InPSO), VertexCount(InVertexCount) {
+    : VertexBuffer(InVertexBuffer), PipelineState(InPSO), VertexCount(InVertexCount)
+{
 }
 
-FTriangleMeshProxy::~FTriangleMeshProxy() {
+FTriangleMeshProxy::~FTriangleMeshProxy()
+{
     // Note: Raw delete is intentional here. The proxy owns these RHI resources
     // and is responsible for their lifetime. This matches the RHI design pattern
     // where resources are created via factory methods and owned by their users.
@@ -17,14 +19,16 @@ FTriangleMeshProxy::~FTriangleMeshProxy() {
     delete PipelineState;
 }
 
-void FTriangleMeshProxy::Render(FRHICommandList* RHICmdList) {
+void FTriangleMeshProxy::Render(FRHICommandList* RHICmdList)
+{
     FLog::Log(ELogLevel::Info, "FTriangleMeshProxy::Render called");
     RHICmdList->SetPipelineState(PipelineState);
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FVertex));
     RHICmdList->DrawPrimitive(VertexCount, 0);
 }
 
-uint32 FTriangleMeshProxy::GetTriangleCount() const {
+uint32 FTriangleMeshProxy::GetTriangleCount() const
+{
     return VertexCount / 3;  // Assumes triangle list topology
 }
 
@@ -32,17 +36,20 @@ uint32 FTriangleMeshProxy::GetTriangleCount() const {
 FCubeMeshProxy::FCubeMeshProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer, FRHIBuffer* InConstantBuffer,
                                FRHIPipelineState* InPSO, uint32 InIndexCount, FCamera* InCamera)
     : VertexBuffer(InVertexBuffer), IndexBuffer(InIndexBuffer), ConstantBuffer(InConstantBuffer),
-      PipelineState(InPSO), IndexCount(InIndexCount), Camera(InCamera), ModelMatrix(FMatrix4x4::Identity()) {
+      PipelineState(InPSO), IndexCount(InIndexCount), Camera(InCamera), ModelMatrix(FMatrix4x4::Identity())
+{
 }
 
-FCubeMeshProxy::~FCubeMeshProxy() {
+FCubeMeshProxy::~FCubeMeshProxy()
+{
     delete VertexBuffer;
     delete IndexBuffer;
     delete ConstantBuffer;
     delete PipelineState;
 }
 
-void FCubeMeshProxy::Render(FRHICommandList* RHICmdList) {
+void FCubeMeshProxy::Render(FRHICommandList* RHICmdList)
+{
     FLog::Log(ELogLevel::Info, "FCubeMeshProxy::Render called");
     
     // Calculate MVP matrix with current model matrix
@@ -64,23 +71,28 @@ void FCubeMeshProxy::Render(FRHICommandList* RHICmdList) {
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
 }
 
-uint32 FCubeMeshProxy::GetTriangleCount() const {
+uint32 FCubeMeshProxy::GetTriangleCount() const
+{
     return IndexCount / 3;  // Assumes triangle list topology
 }
 
-void FCubeMeshProxy::UpdateModelMatrix(const FMatrix4x4& InModelMatrix) {
+void FCubeMeshProxy::UpdateModelMatrix(const FMatrix4x4& InModelMatrix)
+{
     ModelMatrix = InModelMatrix;
 }
 
 // FRenderer implementation
 FRenderer::FRenderer(FRHI* InRHI)
-    : RHI(InRHI) {
+    : RHI(InRHI)
+{
 }
 
-FRenderer::~FRenderer() {
+FRenderer::~FRenderer()
+{
 }
 
-void FRenderer::Initialize() {
+void FRenderer::Initialize()
+{
     // Create camera
     Camera = std::make_unique<FCamera>();
     Camera->SetPosition(FVector(0.0f, 2.0f, -8.0f));
@@ -93,7 +105,8 @@ void FRenderer::Initialize() {
     FLog::Log(ELogLevel::Info, "Renderer initialized");
 }
 
-void FRenderer::Shutdown() {
+void FRenderer::Shutdown()
+{
     if (RenderScene) {
         RenderScene->ClearProxies();
         RenderScene.reset();
@@ -102,7 +115,8 @@ void FRenderer::Shutdown() {
     FLog::Log(ELogLevel::Info, "Renderer shutdown");
 }
 
-void FRenderer::RenderFrame() {
+void FRenderer::RenderFrame()
+{
     static int renderFrameCount = 0;
     renderFrameCount++;
     
@@ -146,7 +160,8 @@ void FRenderer::RenderFrame() {
     Stats.EndFrame();
 }
 
-void FRenderer::UpdateFromScene(FScene* GameScene) {
+void FRenderer::UpdateFromScene(FScene* GameScene)
+{
     // This is the sync point between game and render thread
     // In real UE5, this would be more sophisticated with command queues
     if (GameScene && RenderScene) {
@@ -154,21 +169,24 @@ void FRenderer::UpdateFromScene(FScene* GameScene) {
     }
 }
 
-void FRenderer::AddSceneProxy(FSceneProxy* Proxy) {
+void FRenderer::AddSceneProxy(FSceneProxy* Proxy)
+{
     // Legacy method for compatibility
     if (RenderScene) {
         RenderScene->AddProxy(Proxy);
     }
 }
 
-void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy) {
+void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy)
+{
     // Legacy method for compatibility
     if (RenderScene) {
         RenderScene->RemoveProxy(Proxy);
     }
 }
 
-void FRenderer::RenderStats(FRHICommandList* RHICmdList) {
+void FRenderer::RenderStats(FRHICommandList* RHICmdList)
+{
     // Draw statistics overlay
     float yPos = 10.0f;
     const float fontSize = 18.0f;

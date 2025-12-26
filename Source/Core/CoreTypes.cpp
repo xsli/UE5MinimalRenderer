@@ -3,7 +3,8 @@
 
 static std::ofstream logFile;
 
-void FLog::Log(ELogLevel Level, const std::string& Message) {
+void FLog::Log(ELogLevel Level, const std::string& Message)
+{
     // Open log file on first use
     if (!logFile.is_open()) {
         logFile.open("UE5MinimalRenderer.log", std::ios::out | std::ios::trunc);

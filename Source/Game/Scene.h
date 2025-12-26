@@ -24,7 +24,8 @@ public:
     void Render(FRHICommandList* RHICmdList, FRenderStats& Stats);
     
     // Get proxy list
-    const std::vector<FSceneProxy*>& GetProxies() const { return Proxies; }
+    const std::vector<FSceneProxy*>& GetProxies() const
+{ return Proxies; }
     
 private:
     std::vector<FSceneProxy*> Proxies;

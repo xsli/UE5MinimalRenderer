@@ -15,11 +15,13 @@ struct FTransform {
     FTransform()
         : Position(0.0f, 0.0f, 0.0f)
         , Rotation(0.0f, 0.0f, 0.0f)
-        , Scale(1.0f, 1.0f, 1.0f) {
+        , Scale(1.0f, 1.0f, 1.0f)
+{
     }
     
     // Get transformation matrix
-    FMatrix4x4 GetMatrix() const {
+    FMatrix4x4 GetMatrix() const
+{
         FMatrix4x4 scale = FMatrix4x4::Scaling(Scale.X, Scale.Y, Scale.Z);
         FMatrix4x4 rotationX = FMatrix4x4::RotationX(Rotation.X);
         FMatrix4x4 rotationY = FMatrix4x4::RotationY(Rotation.Y);
@@ -47,20 +49,24 @@ public:
     
     // Transform accessors
     void SetTransform(const FTransform& InTransform) { Transform = InTransform; MarkTransformDirty(); }
-    const FTransform& GetTransform() const { return Transform; }
+    const FTransform& GetTransform() const
+{ return Transform; }
     // Warning: Direct access doesn't automatically mark dirty - call MarkTransformDirty() manually if modifying
     FTransform& GetTransform() { return Transform; }
     
     // Color accessor
     void SetColor(const FColor& InColor) { Color = InColor; MarkDirty(); }
-    const FColor& GetColor() const { return Color; }
+    const FColor& GetColor() const
+{ return Color; }
     
     // Dirty tracking
     // Two-level system: transform-only changes vs full recreation needed
     // When bIsDirty is true, the proxy must be recreated (ignores bTransformDirty)
     // When only bTransformDirty is true, just update the proxy's transform
-    bool IsDirty() const { return bIsDirty; }
-    bool IsTransformDirty() const { return bTransformDirty; }
+    bool IsDirty() const
+{ return bIsDirty; }
+    bool IsTransformDirty() const
+{ return bTransformDirty; }
     void MarkDirty() { bIsDirty = true; bTransformDirty = false; }  // Full dirty takes precedence
     void MarkTransformDirty() { bTransformDirty = true; }  // Only transform changed
     void ClearDirty() { bIsDirty = false; bTransformDirty = false; }

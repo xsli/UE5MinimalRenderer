@@ -7,13 +7,16 @@
 FCamera* g_Camera = nullptr;
 
 // FGame implementation
-FGame::FGame() {
+FGame::FGame()
+{
 }
 
-FGame::~FGame() {
+FGame::~FGame()
+{
 }
 
-bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height) {
+bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
+{
     FLog::Log(ELogLevel::Info, "Initializing game...");
     
     // Create RHI
@@ -89,7 +92,8 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height) {
     return true;
 }
 
-void FGame::Shutdown() {
+void FGame::Shutdown()
+{
     FLog::Log(ELogLevel::Info, "Shutting down game...");
     
     if (Scene) {
@@ -112,7 +116,8 @@ void FGame::Shutdown() {
     FLog::Log(ELogLevel::Info, "Game shutdown complete");
 }
 
-void FGame::Tick(float DeltaTime) {
+void FGame::Tick(float DeltaTime)
+{
     static int tickCount = 0;
     tickCount++;
     
@@ -134,7 +139,8 @@ void FGame::Tick(float DeltaTime) {
     }
 }
 
-FCamera* FGame::GetCamera() {
+FCamera* FGame::GetCamera()
+{
     if (Renderer) {
         return Renderer->GetCamera();
     }

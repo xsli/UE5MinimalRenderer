@@ -11,17 +11,20 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(FRHIBuffer* InVertexBuffer, FRHIBuffe
     , PipelineState(InPSO)
     , IndexCount(InIndexCount)
     , Camera(InCamera)
-    , ModelMatrix(InTransform.GetMatrix()) {
+    , ModelMatrix(InTransform.GetMatrix())
+{
 }
 
-FPrimitiveSceneProxy::~FPrimitiveSceneProxy() {
+FPrimitiveSceneProxy::~FPrimitiveSceneProxy()
+{
     delete VertexBuffer;
     delete IndexBuffer;
     delete ConstantBuffer;
     delete PipelineState;
 }
 
-void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList) {
+void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
+{
     // Calculate MVP matrix
     FMatrix4x4 viewProjection = Camera->GetViewProjectionMatrix();
     FMatrix4x4 mvp = ModelMatrix * viewProjection;
@@ -42,10 +45,12 @@ void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList) {
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
 }
 
-uint32 FPrimitiveSceneProxy::GetTriangleCount() const {
+uint32 FPrimitiveSceneProxy::GetTriangleCount() const
+{
     return IndexCount / 3;
 }
 
-void FPrimitiveSceneProxy::UpdateTransform(const FTransform& InTransform) {
+void FPrimitiveSceneProxy::UpdateTransform(const FTransform& InTransform)
+{
     ModelMatrix = InTransform.GetMatrix();
 }

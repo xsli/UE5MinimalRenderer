@@ -10,12 +10,14 @@ FRenderStats::FRenderStats()
     LastFPSUpdateTime = std::chrono::high_resolution_clock::now();
 }
 
-void FRenderStats::BeginFrame() {
+void FRenderStats::BeginFrame()
+{
     FrameStartTime = std::chrono::high_resolution_clock::now();
     TriangleCount = 0;  // Reset triangle count for this frame
 }
 
-void FRenderStats::EndFrame() {
+void FRenderStats::EndFrame()
+{
     FrameCount++;
     FramesSinceLastFPSUpdate++;
     
@@ -33,6 +35,7 @@ void FRenderStats::EndFrame() {
     }
 }
 
-void FRenderStats::AddTriangles(uint32 Count) {
+void FRenderStats::AddTriangles(uint32 Count)
+{
     TriangleCount += Count;
 }
