@@ -1,30 +1,41 @@
 # UE5MinimalRenderer
-Minimal renderer mimicking UE5 parallel rendering architecture
+
+Minimal renderer mimicking UE5 parallel rendering architecture.
 
 ## Overview
+
 This project demonstrates a simplified version of Unreal Engine 5's parallel rendering architecture with the following layers:
-- **Game Layer**: Game logic and tick loop
-- **Renderer Layer**: Scene management and render command processing
+- **Game Layer**: Scene management with primitives (cube, sphere, cylinder, plane)
+- **Renderer Layer**: Camera system, scene proxies, and render command processing
 - **RHI (Render Hardware Interface)**: Platform-agnostic rendering interface
-- **DX12 Backend**: DirectX 12 implementation
+- **DX12 Backend**: DirectX 12 implementation with depth buffer and text rendering
 
 ## Demo
-The project renders a **3D rotating cube** with different colored faces:
-- Front face: Red
-- Back face: Green
-- Top face: Blue
-- Bottom face: Yellow
-- Right face: Magenta
-- Left face: Cyan
 
-The cube rotates continuously and demonstrates:
+The project renders a **3D scene with multiple rotating primitives**:
+- **Red Cube**: Auto-rotating box
+- **Blue Sphere**: UV sphere with smooth shading
+- **Green Cylinder**: Cylindrical primitive
+- **Gray Ground Plane**: Static ground surface
+- Additional colored objects demonstrating the scene system
+
+Features demonstrated:
 - 3D camera system with perspective projection
 - Model-View-Projection (MVP) matrix transformations
 - Depth testing and depth buffer
-- Indexed rendering
-- DirectX left-handed coordinate system
+- Indexed rendering with multiple primitive types
+- UE5-style interactive camera controls
+- Real-time statistics overlay (FPS, frame time, triangle count)
 
-A real-time statistics overlay displays FPS, frame time, and triangle count.
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture and design patterns |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
+| [TODO.md](TODO.md) | Planned features and improvements |
+| [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md) | Interactive camera controls guide |
+| [BUILD_TEST.md](BUILD_TEST.md) | Build and testing instructions |
 
 ## Interactive Camera Controls
 
@@ -84,7 +95,9 @@ Source/
 │   ├── Camera.*    # 3D camera with view/projection matrices
 │   └── Renderer.*  # Scene management and rendering
 ├── Game/           # Game logic layer
-│   └── Game.*      # Cube object and game world
+│   ├── Scene.*     # Scene and primitive management
+│   ├── Primitive.* # Cube, sphere, cylinder, plane primitives
+│   └── Game.*      # Main game class
 └── Runtime/        # Application entry point
 ```
 
@@ -102,7 +115,14 @@ All required dependencies are included in the repository:
 - **Interactive Controls**: UE5-style mouse controls for camera navigation
 - **Transformation Pipeline**: Model → View → Projection transformations
 - **Depth Testing**: Proper occlusion with 32-bit depth buffer
-- **Indexed Rendering**: Efficient cube rendering with index buffer
+- **Indexed Rendering**: Efficient rendering with index buffers
+- **Multiple Primitives**: Cube, sphere, cylinder, and plane support
+
+### Scene Management
+- **FScene**: Game thread primitive management
+- **FPrimitive**: Base class with transform system
+- **FPrimitiveSceneProxy**: Unified render thread representation
+- **Auto-rotation**: Per-primitive rotation support
 
 ### Rendering Pipeline
 - **Vertex Shader**: MVP matrix transformation in HLSL
@@ -110,7 +130,7 @@ All required dependencies are included in the repository:
 - **Constant Buffers**: 256-byte aligned GPU buffers
 - **Text Overlay**: Statistics rendered with Direct2D/DirectWrite
 
-For detailed implementation information, see [3D_IMPLEMENTATION.md](3D_IMPLEMENTATION.md).
+For detailed implementation information, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Flow
 1. **Game Thread**: Creates game objects and ticks the world

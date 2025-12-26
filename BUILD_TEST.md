@@ -1,83 +1,180 @@
 # Build and Test Instructions
 
-This project is Windows-only and requires DirectX 12. The implementation includes:
+This document provides comprehensive build, run, and testing instructions for UE5MinimalRenderer.
 
-## New Features Added
+## System Requirements
 
-### 1. Text Rendering API
-- Added `DrawText` method to `FRHICommandList` interface
-- Implemented using DirectWrite and Direct2D on DirectX 12
-- Supports configurable:
-  - Text content (std::string)
-  - Position (FVector2D)
-  - Font size (float)
-  - Color (FColor with RGBA)
+### Operating System
+- Windows 10 version 1903 (May 2019 Update) or later
+- Windows 11 (recommended)
 
-### 2. Statistics Tracking
-- Created `FRenderStats` class to track:
-  - Frame count (total frames rendered)
-  - FPS (frames per second, updated every 0.5s)
-  - Frame time (milliseconds per frame)
-  - Triangle count (triangles rendered per frame)
+### Software Requirements
+- **Visual Studio 2019 or 2022** with:
+  - Desktop development with C++
+  - Windows 10 SDK (version 10.0.19041.0 or later)
+  - C++ CMake tools for Windows
+- **CMake 3.20 or later**
+- **DirectX 12 capable GPU**
 
-### 3. Statistics Display
-- Statistics are rendered as an overlay in yellow text
-- Display includes:
-  - Frame: [frame number]
-  - FPS: [frames per second]
-  - Frame Time: [ms]
-  - Triangles: [triangle count]
+### Hardware Requirements
+- DirectX 12 capable graphics card:
+  - NVIDIA: GeForce GTX 900 series or newer
+  - AMD: Radeon R9 200 series or newer
+  - Intel: 6th generation Core (Skylake) or newer with integrated graphics
 
-## Building on Windows
+---
 
+## Building
+
+### Option 1: Using the Build Script (Recommended)
 ```batch
-# Run the build script
 build.bat
+```
 
-# Or manually:
+This will:
+1. Create a `build` directory
+2. Generate Visual Studio solution
+3. Build the Release configuration
+4. Output executable to `build/Source/Runtime/Release/UE5MinimalRenderer.exe`
+
+### Option 2: Manual CMake Build
+```batch
 mkdir build
 cd build
 cmake .. -G "Visual Studio 17 2022" -A x64
 cmake --build . --config Release
 ```
 
+### Option 3: Using Visual Studio IDE
+```batch
+mkdir build
+cd build
+cmake .. -G "Visual Studio 17 2022" -A x64
+start UE5MinimalRenderer.sln
+```
+Then build in Visual Studio (Ctrl+Shift+B).
+
+---
+
 ## Running
 
+From the build directory:
 ```batch
-cd build\Source\Runtime\Release
+cd Source\Runtime\Release
 UE5MinimalRenderer.exe
 ```
 
-## Expected Result
+Or double-click the executable in Windows Explorer.
 
-You should see:
-1. The colored triangle rendering as before
-2. A yellow statistics overlay in the top-left corner showing:
-   - Current frame number
-   - FPS (updated every 0.5 seconds)
-   - Frame time in milliseconds
-   - Number of triangles (should be 1 for the single triangle)
+---
 
-## Implementation Details
+## Expected Output
 
-### Text Rendering Architecture
-- Uses D3D11on12 to bridge DirectX 12 and Direct2D/DirectWrite
-- Wraps D3D12 render targets for D2D rendering
-- Text is rendered after 3D scene, before present
-- Each text draw call:
-  1. Acquires wrapped D3D11 resource
-  2. Sets D2D render target
-  3. Creates text format and brush
-  4. Draws text
-  5. Releases wrapped resource
+### Console Output
+```
+[INFO] Initializing game...
+[INFO] DX12 RHI initialized successfully
+[INFO] Renderer initialized
+[INFO] Scene initialized with primitives
+[INFO] Game initialized successfully
+[INFO] Starting main loop...
+```
 
-### Statistics Tracking
-- `BeginFrame()`: Starts timing and resets triangle count
-- `EndFrame()`: Calculates frame time and updates FPS
-- `AddTriangles()`: Accumulates triangles from scene proxies
-- FPS calculation: Averaged over 0.5-second intervals
+### Window Display
+- **Window Title**: "UE5 Minimal Renderer"
+- **Window Size**: 1280x720
+- **Background Color**: Dark blue (RGB: 0.2, 0.3, 0.4)
 
-### Integration Points
-- `Renderer.cpp`: Calls stats methods and renders overlay
-- `FSceneProxy`: Added `GetTriangleCount()` virtual method
-- `FTriangleMeshProxy`: Returns vertex count / 3
+### 3D Scene
+- Multiple rotating primitives (cube, sphere, cylinder, etc.)
+- Proper depth sorting (faces occlude correctly)
+- Each primitive with distinct color
+
+### Statistics Overlay (Top-Left)
+```
+Frame: 12345
+FPS: 60.0
+Frame Time: 16.67 ms
+Triangles: [count]
+```
+
+---
+
+## Verification Checklist
+
+- [ ] Build completes without errors
+- [ ] Application window opens
+- [ ] Dark blue background is visible
+- [ ] 3D primitives are rendered correctly
+- [ ] Primitives rotate smoothly
+- [ ] Depth testing works (no face overlap artifacts)
+- [ ] Statistics overlay appears in top-left (yellow text)
+- [ ] Camera controls respond to mouse input
+- [ ] No console errors during runtime
+- [ ] Application exits cleanly when window is closed
+
+---
+
+## Camera Controls Testing
+
+Test each control mode:
+1. **LMB + Drag**: Move forward/backward, rotate left/right
+2. **RMB + Drag**: Free-look (pitch and yaw)
+3. **MMB + Drag** or **LMB+RMB + Drag**: Pan without rotation
+4. **Mouse Wheel**: Zoom in/out
+
+See [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md) for detailed information.
+
+---
+
+## Troubleshooting
+
+### Build Errors
+
+**Error: "Cannot find d3d12.lib"**
+- Solution: Install Windows 10 SDK through Visual Studio Installer
+
+**Error: "CMake not found"**
+- Solution: Install CMake from https://cmake.org/download/ or through Visual Studio
+
+**Error: "MSBuild not found"**
+- Solution: Run from Visual Studio Developer Command Prompt
+
+### Runtime Errors
+
+**Error: "Failed to create D3D12 device"**
+- Your GPU may not support DirectX 12
+- Update your graphics drivers
+- Check if your GPU is in the compatible hardware list
+
+**Error: "DirectX 12 operation failed"**
+- Update graphics drivers to the latest version
+- Enable Developer Mode in Windows Settings
+- Check Windows Update for graphics driver updates
+
+**Black Screen / No Primitives**
+- Check console for error messages
+- Verify DirectX 12 runtime is installed
+- Try Debug build for more detailed errors
+
+---
+
+## Debug Build
+
+For more detailed error messages:
+```batch
+cmake --build . --config Debug
+cd Source\Runtime\Debug
+UE5MinimalRenderer.exe
+```
+
+Debug builds enable D3D12 debug layer which provides detailed validation messages.
+
+---
+
+## Performance Notes
+
+- Expected frame rate: 60 FPS (vsync enabled)
+- GPU usage should be minimal for this demo
+- CPU usage should be low
+- Text rendering adds ~0.4ms per frame overhead
