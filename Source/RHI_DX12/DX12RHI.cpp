@@ -38,8 +38,8 @@ FDX12Buffer::FDX12Buffer(ID3D12Resource* InResource, EBufferType InType)
             ", Size: " + std::to_string(VertexBufferView.SizeInBytes) + 
             ", Stride: " + std::to_string(VertexBufferView.StrideInBytes));
     }
-else if (BufferType == EBufferType::Index)
-{
+    else if (BufferType == EBufferType::Index)
+    {
         IndexBufferView.BufferLocation = Resource->GetGPUVirtualAddress();
         IndexBufferView.SizeInBytes = static_cast<UINT>(desc.Width);
         IndexBufferView.Format = DXGI_FORMAT_R32_UINT;  // 32-bit indices
@@ -48,8 +48,8 @@ else if (BufferType == EBufferType::Index)
             std::to_string(IndexBufferView.BufferLocation) + 
             ", Size: " + std::to_string(IndexBufferView.SizeInBytes));
     }
-else if (BufferType == EBufferType::Constant)
-{
+    else if (BufferType == EBufferType::Constant)
+    {
         FLog::Log(ELogLevel::Info, std::string("FDX12Buffer (Constant) created - GPU Address: 0x") + 
             std::to_string(Resource->GetGPUVirtualAddress()) + 
             ", Size: " + std::to_string(desc.Width));
@@ -208,8 +208,8 @@ void FDX12CommandList::ClearRenderTarget(const FColor& Color)
         CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DSVHeap->GetCPUDescriptorHandleForHeapStart());
         GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
     }
-else
-{
+    else
+    {
         GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
     }
 }
@@ -834,8 +834,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
         
         rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
-else
-{
+    else
+    {
         rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
     
@@ -874,8 +874,8 @@ else
         psoDesc.DepthStencilState.StencilEnable = FALSE;
         psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
     }
-else
-{
+    else
+    {
         psoDesc.DepthStencilState.DepthEnable = FALSE;
         psoDesc.DepthStencilState.StencilEnable = FALSE;
     }

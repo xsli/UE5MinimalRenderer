@@ -114,8 +114,8 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene)
                 // No changes - reuse existing proxy as-is
                 newProxyMap[Primitive] = existingProxyIt->second;
             }
-else if (Primitive->IsTransformDirty() && !Primitive->IsDirty())
-{
+            else if (Primitive->IsTransformDirty() && !Primitive->IsDirty())
+            {
                 // Only transform changed - update proxy transform without recreating
                 // Safe cast: all proxies in PrimitiveProxyMap are FPrimitiveSceneProxy instances
                 FPrimitiveSceneProxy* proxy = static_cast<FPrimitiveSceneProxy*>(existingProxyIt->second);
@@ -123,8 +123,8 @@ else if (Primitive->IsTransformDirty() && !Primitive->IsDirty())
                 newProxyMap[Primitive] = existingProxyIt->second;
                 Primitive->ClearDirty();
             }
-else
-{
+            else
+            {
                 // Full dirty (color changed or other property) - recreate proxy
                 RenderScene->RemoveProxy(existingProxyIt->second);
                 delete existingProxyIt->second;
@@ -138,8 +138,8 @@ else
                 }
             }
         }
-else
-{
+        else
+        {
             // No existing proxy - create new one
             FPrimitiveSceneProxy* newProxy = Primitive->CreateSceneProxy(RHI);
             if (newProxy)
