@@ -14,7 +14,8 @@
 FPrimitive::FPrimitive()
     : Transform()
     , Color(1.0f, 1.0f, 1.0f, 1.0f)
-    , bIsDirty(true) {  // Start as dirty so proxy is created on first update
+    , bIsDirty(true)  // Start as dirty so proxy is created on first update
+    , bTransformDirty(false) {
 }
 
 void FPrimitive::Tick(float DeltaTime) {
@@ -34,7 +35,7 @@ void FCubePrimitive::Tick(float DeltaTime) {
     if (bAutoRotate) {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
         Transform.Rotation.X += DeltaTime * RotationSpeed * 0.3f;
-        MarkDirty();  // Mark as dirty when transform changes
+        MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
 }
 
@@ -120,7 +121,7 @@ FSpherePrimitive::~FSpherePrimitive() {
 void FSpherePrimitive::Tick(float DeltaTime) {
     if (bAutoRotate) {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
-        MarkDirty();  // Mark as dirty when transform changes
+        MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
 }
 
@@ -188,7 +189,7 @@ FCylinderPrimitive::~FCylinderPrimitive() {
 void FCylinderPrimitive::Tick(float DeltaTime) {
     if (bAutoRotate) {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
-        MarkDirty();  // Mark as dirty when transform changes
+        MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
 }
 

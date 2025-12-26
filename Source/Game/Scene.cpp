@@ -78,7 +78,7 @@ void FScene::Tick(float DeltaTime) {
 
 void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
     // Dirty tracking implementation: only recreate proxies for changed primitives
-    // This avoids unnecessary GPU resource allocation/deallocation each frame
+    // Transform-only changes just update the proxy's transform without recreation
     
     // Track which proxies are still valid
     std::unordered_map<FPrimitive*, FSceneProxy*> newProxyMap;
@@ -86,17 +86,31 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
     for (FPrimitive* Primitive : Primitives) {
         auto existingProxyIt = PrimitiveProxyMap.find(Primitive);
         
-        if (existingProxyIt != PrimitiveProxyMap.end() && !Primitive->IsDirty()) {
-            // Primitive exists and is not dirty - reuse existing proxy
-            newProxyMap[Primitive] = existingProxyIt->second;
-        } else {
-            // Primitive is dirty or doesn't have a proxy - create new one
-            if (existingProxyIt != PrimitiveProxyMap.end()) {
-                // Remove old proxy from render scene
+        if (existingProxyIt != PrimitiveProxyMap.end()) {
+            // Proxy exists - check what kind of update is needed
+            if (!Primitive->IsDirty() && !Primitive->IsTransformDirty()) {
+                // No changes - reuse existing proxy as-is
+                newProxyMap[Primitive] = existingProxyIt->second;
+            } else if (Primitive->IsTransformDirty() && !Primitive->IsDirty()) {
+                // Only transform changed - update proxy transform without recreating
+                FPrimitiveSceneProxy* proxy = static_cast<FPrimitiveSceneProxy*>(existingProxyIt->second);
+                proxy->UpdateTransform(Primitive->GetTransform());
+                newProxyMap[Primitive] = existingProxyIt->second;
+                Primitive->ClearDirty();
+            } else {
+                // Full dirty (color changed or other property) - recreate proxy
                 RenderScene->RemoveProxy(existingProxyIt->second);
                 delete existingProxyIt->second;
+                
+                FPrimitiveSceneProxy* newProxy = Primitive->CreateSceneProxy(RHI);
+                if (newProxy) {
+                    RenderScene->AddProxy(newProxy);
+                    newProxyMap[Primitive] = newProxy;
+                    Primitive->ClearDirty();
+                }
             }
-            
+        } else {
+            // No existing proxy - create new one
             FPrimitiveSceneProxy* newProxy = Primitive->CreateSceneProxy(RHI);
             if (newProxy) {
                 RenderScene->AddProxy(newProxy);
