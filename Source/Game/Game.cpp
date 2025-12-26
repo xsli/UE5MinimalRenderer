@@ -8,6 +8,8 @@ FCamera* g_Camera = nullptr;
 
 // FGame implementation
 FGame::FGame()
+    : bMultiThreaded(true)  // Enable multi-threading by default
+    , GameFrameNumber(0)
 {
 }
 
@@ -18,6 +20,9 @@ FGame::~FGame()
 bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
 {
     FLog::Log(ELogLevel::Info, "Initializing game...");
+    
+    // Register main thread as the game thread
+    FThreadManager::Get().SetCurrentThread(ENamedThreads::GameThread);
     
     // Create RHI
     RHI.reset(CreateDX12RHI());
@@ -89,6 +94,29 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
     // Update render scene with all primitives
     Renderer->UpdateFromScene(Scene.get());
     
+    // Initialize multi-threading if enabled
+    if (bMultiThreaded)
+    {
+        FLog::Log(ELogLevel::Info, "Initializing multi-threaded rendering...");
+        
+        // Initialize task graph
+        FTaskGraph::Get();
+        
+        // Initialize frame sync manager
+        FFrameSyncManager::Get();
+        
+        // Setup and start render thread
+        FRenderThread::Get().SetRenderer(Renderer.get());
+        FRenderThread::Get().SetRHI(RHI.get());
+        FRenderThread::Get().Start();
+        
+        // Setup and start RHI thread
+        FRHIThread::Get().SetRHI(RHI.get());
+        FRHIThread::Get().Start();
+        
+        FLog::Log(ELogLevel::Info, "Multi-threaded rendering initialized");
+    }
+    
     FLog::Log(ELogLevel::Info, "Game initialized successfully with multiple primitives");
     return true;
 }
@@ -96,6 +124,20 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
 void FGame::Shutdown()
 {
     FLog::Log(ELogLevel::Info, "Shutting down game...");
+    
+    // Stop multi-threading first
+    if (bMultiThreaded)
+    {
+        FLog::Log(ELogLevel::Info, "Stopping multi-threaded systems...");
+        
+        // Wait for pending frame to complete
+        FRenderThread::Get().WaitForFrameComplete();
+        FRHIThread::Get().WaitForFrameComplete();
+        
+        // Stop threads
+        FRenderThread::Get().Stop();
+        FRHIThread::Get().Stop();
+    }
     
     if (Scene)
     {
@@ -122,12 +164,24 @@ void FGame::Shutdown()
 
 void FGame::Tick(float DeltaTime)
 {
+    if (bMultiThreaded)
+    {
+        TickMultiThreaded(DeltaTime);
+    }
+    else
+    {
+        TickSingleThreaded(DeltaTime);
+    }
+}
+
+void FGame::TickSingleThreaded(float DeltaTime)
+{
     static int tickCount = 0;
     tickCount++;
     
     if (tickCount <= 3)
     {
-        FLog::Log(ELogLevel::Info, std::string("FGame::Tick ") + std::to_string(tickCount));
+        FLog::Log(ELogLevel::Info, std::string("FGame::Tick (SingleThreaded) ") + std::to_string(tickCount));
     }
     
     // Game thread tick - update primitives
@@ -144,6 +198,53 @@ void FGame::Tick(float DeltaTime)
     {
         Renderer->RenderFrame();
     }
+}
+
+void FGame::TickMultiThreaded(float DeltaTime)
+{
+    static int tickCount = 0;
+    tickCount++;
+    
+    if (tickCount <= 3)
+    {
+        FLog::Log(ELogLevel::Info, std::string("FGame::Tick (MultiThreaded) ") + std::to_string(tickCount));
+    }
+    
+    // Begin frame synchronization - may wait if game is too far ahead
+    FFrameSyncManager::Get().GameThread_BeginFrame();
+    
+    ++GameFrameNumber;
+    
+    // Game thread tick - update primitives
+    if (Scene)
+    {
+        Scene->Tick(DeltaTime);
+        
+        // Update render scene on game thread (prepare data for render thread)
+        Renderer->UpdateFromScene(Scene.get());
+    }
+    
+    // Capture renderer and RHI pointers for lambda
+    FRenderer* RendererPtr = Renderer.get();
+    
+    // Enqueue render commands for this frame
+    // The render thread will execute these
+    ENQUEUE_RENDER_COMMAND(RenderFrame)([RendererPtr]() 
+    {
+        // Begin render frame on render thread
+        FFrameSyncManager::Get().RenderThread_BeginFrame();
+        
+        if (RendererPtr)
+        {
+            RendererPtr->RenderFrame();
+        }
+        
+        // End render frame
+        FFrameSyncManager::Get().RenderThread_EndFrame();
+    });
+    
+    // End frame - signal render thread that commands are ready
+    FFrameSyncManager::Get().GameThread_EndFrame();
 }
 
 FCamera* FGame::GetCamera()
