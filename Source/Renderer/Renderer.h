@@ -57,6 +57,10 @@ private:
     FMatrix4x4 ModelMatrix;
 };
 
+// Forward declarations
+class FScene;
+class FRenderScene;
+
 // Renderer - manages render thread and scene rendering
 class FRenderer {
 public:
@@ -69,7 +73,10 @@ public:
     // Called from game thread to render a frame
     void RenderFrame();
     
-    // Scene management
+    // Update render scene from game scene (sync point)
+    void UpdateFromScene(FScene* GameScene);
+    
+    // Scene management (legacy, kept for compatibility)
     void AddSceneProxy(FSceneProxy* Proxy);
     void RemoveSceneProxy(FSceneProxy* Proxy);
     
@@ -80,11 +87,10 @@ public:
     FCamera* GetCamera() { return Camera.get(); }
     
 private:
-    void RenderScene(FRHICommandList* RHICmdList);
     void RenderStats(FRHICommandList* RHICmdList);
     
     FRHI* RHI;
-    std::vector<FSceneProxy*> SceneProxies;
+    std::unique_ptr<FRenderScene> RenderScene;
     FRenderStats Stats;
     std::unique_ptr<FCamera> Camera;
 };
