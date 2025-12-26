@@ -102,7 +102,8 @@ FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* I
     
     // Create render target views
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart());
-    for (uint32 i = 0; i < FrameCount; i++) {
+    for (uint32 i = 0; i < FrameCount; i++)
+    {
         ThrowIfFailed(SwapChain->GetBuffer(i, IID_PPV_ARGS(&RenderTargets[i])));
         Device->CreateRenderTargetView(RenderTargets[i].Get(), nullptr, rtvHandle);
         rtvHandle.Offset(1, RTVDescriptorSize);
@@ -432,7 +433,8 @@ void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwap
         
         // Wrap D3D12 render targets for D3D11
         D3D11_RESOURCE_FLAGS d3d11Flags = { D3D11_BIND_RENDER_TARGET };
-        for (uint32 i = 0; i < FrameCount; i++) {
+        for (uint32 i = 0; i < FrameCount; i++)
+        {
             ThrowIfFailed(D3D11On12Device->CreateWrappedResource(
                 RenderTargets[i].Get(),
                 &d3d11Flags,
@@ -549,7 +551,8 @@ bool FDX12RHI::Initialize(void* WindowHandle, uint32 InWidth, uint32 InHeight)
         
         // Create device
         ComPtr<IDXGIAdapter1> hardwareAdapter;
-        for (UINT adapterIndex = 0; DXGI_ERROR_NOT_FOUND != Factory->EnumAdapters1(adapterIndex, &hardwareAdapter); ++adapterIndex) {
+        for (UINT adapterIndex = 0; DXGI_ERROR_NOT_FOUND != Factory->EnumAdapters1(adapterIndex, &hardwareAdapter); ++adapterIndex)
+        {
             DXGI_ADAPTER_DESC1 desc;
             hardwareAdapter->GetDesc1(&desc);
             

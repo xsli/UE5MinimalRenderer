@@ -81,8 +81,7 @@ public:
     void RemoveSceneProxy(FSceneProxy* Proxy);
     
     // Get statistics
-    const FRenderStats& GetStats() const
-{ return Stats; }
+    const FRenderStats& GetStats() const { return Stats; }
     
     // Get camera
     FCamera* GetCamera() { return Camera.get(); }

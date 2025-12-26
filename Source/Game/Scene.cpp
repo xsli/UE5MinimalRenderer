@@ -32,7 +32,8 @@ void FRenderScene::RemoveProxy(FSceneProxy* Proxy)
 void FRenderScene::ClearProxies()
 {
     // Delete all proxies
-    for (FSceneProxy* Proxy : Proxies) {
+    for (FSceneProxy* Proxy : Proxies)
+    {
         delete Proxy;
     }
     Proxies.clear();
@@ -44,7 +45,8 @@ void FRenderScene::Render(FRHICommandList* RHICmdList, FRenderStats& Stats)
     FLog::Log(ELogLevel::Info, std::string("FRenderScene::Render - Rendering ") + std::to_string(Proxies.size()) + " proxies");
     
     // Render all proxies
-    for (FSceneProxy* Proxy : Proxies) {
+    for (FSceneProxy* Proxy : Proxies)
+    {
         Proxy->Render(RHICmdList);
         Stats.AddTriangles(Proxy->GetTriangleCount());
     }
@@ -82,7 +84,8 @@ void FScene::RemovePrimitive(FPrimitive* Primitive)
 void FScene::Tick(float DeltaTime)
 {
     // Tick all primitives on game thread
-    for (FPrimitive* Primitive : Primitives) {
+    for (FPrimitive* Primitive : Primitives)
+    {
         Primitive->Tick(DeltaTime);
     }
 }
@@ -95,7 +98,8 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene)
     // Track which proxies are still valid
     std::unordered_map<FPrimitive*, FSceneProxy*> newProxyMap;
     
-    for (FPrimitive* Primitive : Primitives) {
+    for (FPrimitive* Primitive : Primitives)
+    {
         auto existingProxyIt = PrimitiveProxyMap.find(Primitive);
         
         if (existingProxyIt != PrimitiveProxyMap.end()) {
@@ -137,7 +141,8 @@ else {
     }
     
     // Remove proxies for primitives that no longer exist
-    for (auto& pair : PrimitiveProxyMap) {
+    for (auto& pair : PrimitiveProxyMap)
+    {
         if (newProxyMap.find(pair.first) == newProxyMap.end()) {
             RenderScene->RemoveProxy(pair.second);
             delete pair.second;
@@ -153,7 +158,8 @@ void FScene::Shutdown()
     FLog::Log(ELogLevel::Info, "FScene::Shutdown - Cleaning up primitives");
     
     // Delete all primitives
-    for (FPrimitive* Primitive : Primitives) {
+    for (FPrimitive* Primitive : Primitives)
+    {
         delete Primitive;
     }
     Primitives.clear();

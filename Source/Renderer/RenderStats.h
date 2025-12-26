@@ -16,14 +16,10 @@ public:
     void AddTriangles(uint32 Count);
     
     // Get statistics
-    uint64 GetFrameCount() const
-{ return FrameCount; }
-    float GetFPS() const
-{ return FPS; }
-    float GetFrameTime() const
-{ return FrameTimeMs; }
-    uint32 GetTriangleCount() const
-{ return TriangleCount; }
+    uint64 GetFrameCount() const { return FrameCount; }
+    float GetFPS() const { return FPS; }
+    float GetFrameTime() const { return FrameTimeMs; }
+    uint32 GetTriangleCount() const { return TriangleCount; }
     
 private:
     uint64 FrameCount;

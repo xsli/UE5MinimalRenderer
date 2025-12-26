@@ -26,14 +26,10 @@ public:
     virtual void* Map() override;
     virtual void Unmap() override;
     
-    ID3D12Resource* GetResource() const
-{ return Resource.Get(); }
-    D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView() const
-{ return VertexBufferView; }
-    D3D12_INDEX_BUFFER_VIEW GetIndexBufferView() const
-{ return IndexBufferView; }
-    D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() const
-{ return Resource->GetGPUVirtualAddress(); }
+    ID3D12Resource* GetResource() const { return Resource.Get(); }
+    D3D12_VERTEX_BUFFER_VIEW GetVertexBufferView() const { return VertexBufferView; }
+    D3D12_INDEX_BUFFER_VIEW GetIndexBufferView() const { return IndexBufferView; }
+    D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() const { return Resource->GetGPUVirtualAddress(); }
     
 private:
     ComPtr<ID3D12Resource> Resource;
@@ -47,10 +43,8 @@ public:
     FDX12PipelineState(ID3D12PipelineState* InPSO, ID3D12RootSignature* InRootSig);
     virtual ~FDX12PipelineState() override;
     
-    ID3D12PipelineState* GetPSO() const
-{ return PSO.Get(); }
-    ID3D12RootSignature* GetRootSignature() const
-{ return RootSignature.Get(); }
+    ID3D12PipelineState* GetPSO() const { return PSO.Get(); }
+    ID3D12RootSignature* GetRootSignature() const { return RootSignature.Get(); }
     
 private:
     ComPtr<ID3D12PipelineState> PSO;
