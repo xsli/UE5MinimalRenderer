@@ -56,9 +56,12 @@ public:
     const FColor& GetColor() const { return Color; }
     
     // Dirty tracking
+    // Two-level system: transform-only changes vs full recreation needed
+    // When bIsDirty is true, the proxy must be recreated (ignores bTransformDirty)
+    // When only bTransformDirty is true, just update the proxy's transform
     bool IsDirty() const { return bIsDirty; }
     bool IsTransformDirty() const { return bTransformDirty; }
-    void MarkDirty() { bIsDirty = true; bTransformDirty = false; }  // Full dirty clears transform dirty
+    void MarkDirty() { bIsDirty = true; bTransformDirty = false; }  // Full dirty takes precedence
     void MarkTransformDirty() { bTransformDirty = true; }  // Only transform changed
     void ClearDirty() { bIsDirty = false; bTransformDirty = false; }
     

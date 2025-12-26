@@ -93,6 +93,7 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
                 newProxyMap[Primitive] = existingProxyIt->second;
             } else if (Primitive->IsTransformDirty() && !Primitive->IsDirty()) {
                 // Only transform changed - update proxy transform without recreating
+                // Safe cast: all proxies in PrimitiveProxyMap are FPrimitiveSceneProxy instances
                 FPrimitiveSceneProxy* proxy = static_cast<FPrimitiveSceneProxy*>(existingProxyIt->second);
                 proxy->UpdateTransform(Primitive->GetTransform());
                 newProxyMap[Primitive] = existingProxyIt->second;
