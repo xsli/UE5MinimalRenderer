@@ -48,7 +48,8 @@ public:
     // Transform accessors
     void SetTransform(const FTransform& InTransform) { Transform = InTransform; MarkDirty(); }
     const FTransform& GetTransform() const { return Transform; }
-    FTransform& GetTransform() { return Transform; }  // Note: Direct access doesn't mark dirty
+    // Warning: Direct access doesn't automatically mark dirty - call MarkDirty() manually if modifying
+    FTransform& GetTransform() { return Transform; }
     
     // Color accessor
     void SetColor(const FColor& InColor) { Color = InColor; MarkDirty(); }

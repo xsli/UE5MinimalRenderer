@@ -78,12 +78,6 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
     // Dirty tracking implementation: only recreate proxies for changed primitives
     // This avoids unnecessary GPU resource allocation/deallocation each frame
     
-    static int updateCount = 0;
-    updateCount++;
-    if (updateCount <= 3) {
-        FLog::Log(ELogLevel::Info, "FScene::UpdateRenderScene - Using dirty tracking");
-    }
-    
     // Track which proxies are still valid
     std::unordered_map<FPrimitive*, FSceneProxy*> newProxyMap;
     
@@ -93,22 +87,12 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
         if (existingProxyIt != PrimitiveProxyMap.end() && !Primitive->IsDirty()) {
             // Primitive exists and is not dirty - reuse existing proxy
             newProxyMap[Primitive] = existingProxyIt->second;
-            if (updateCount <= 3) {
-                FLog::Log(ELogLevel::Info, "  Reusing proxy for unchanged primitive");
-            }
         } else {
             // Primitive is dirty or doesn't have a proxy - create new one
             if (existingProxyIt != PrimitiveProxyMap.end()) {
                 // Remove old proxy from render scene
                 RenderScene->RemoveProxy(existingProxyIt->second);
                 delete existingProxyIt->second;
-                if (updateCount <= 3) {
-                    FLog::Log(ELogLevel::Info, "  Recreating proxy for dirty primitive");
-                }
-            } else {
-                if (updateCount <= 3) {
-                    FLog::Log(ELogLevel::Info, "  Creating proxy for new primitive");
-                }
             }
             
             FPrimitiveSceneProxy* newProxy = Primitive->CreateSceneProxy(RHI);
@@ -125,9 +109,6 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
         if (newProxyMap.find(pair.first) == newProxyMap.end()) {
             RenderScene->RemoveProxy(pair.second);
             delete pair.second;
-            if (updateCount <= 3) {
-                FLog::Log(ELogLevel::Info, "  Removing proxy for deleted primitive");
-            }
         }
     }
     
