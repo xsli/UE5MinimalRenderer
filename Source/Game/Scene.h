@@ -52,5 +52,4 @@ public:
 private:
     FRHI* RHI;
     std::vector<FPrimitive*> Primitives;
-    bool bNeedsProxyUpdate;
 };

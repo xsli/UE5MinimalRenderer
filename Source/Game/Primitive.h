@@ -26,8 +26,9 @@ struct FTransform {
         FMatrix4x4 rotationZ = FMatrix4x4::RotationZ(Rotation.Z);
         FMatrix4x4 translation = FMatrix4x4::Translation(Position.X, Position.Y, Position.Z);
         
-        // Order: Scale -> Rotate -> Translate (standard graphics order)
-        // Matrix multiplication is right-to-left, so we write: Translation * Rotation * Scale
+        // Standard graphics transformation order: Scale -> Rotate -> Translate
+        // Matrix multiplication is right-to-left: Translation * Rotation * Scale
+        // Rotation order is Z*Y*X (Yaw*Pitch*Roll convention)
         return translation * rotationZ * rotationY * rotationX * scale;
     }
 };

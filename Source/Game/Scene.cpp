@@ -45,7 +45,7 @@ void FRenderScene::Render(FRHICommandList* RHICmdList, FRenderStats& Stats) {
 
 // FScene implementation
 FScene::FScene(FRHI* InRHI)
-    : RHI(InRHI), bNeedsProxyUpdate(false) {
+    : RHI(InRHI) {
 }
 
 FScene::~FScene() {
@@ -54,7 +54,6 @@ FScene::~FScene() {
 void FScene::AddPrimitive(FPrimitive* Primitive) {
     if (Primitive) {
         Primitives.push_back(Primitive);
-        bNeedsProxyUpdate = true;
         FLog::Log(ELogLevel::Info, std::string("FScene::AddPrimitive - Total primitives: ") + std::to_string(Primitives.size()));
     }
 }
@@ -63,7 +62,6 @@ void FScene::RemovePrimitive(FPrimitive* Primitive) {
     auto it = std::find(Primitives.begin(), Primitives.end(), Primitive);
     if (it != Primitives.end()) {
         Primitives.erase(it);
-        bNeedsProxyUpdate = true;
         FLog::Log(ELogLevel::Info, std::string("FScene::RemovePrimitive - Remaining primitives: ") + std::to_string(Primitives.size()));
     }
 }
@@ -76,23 +74,22 @@ void FScene::Tick(float DeltaTime) {
 }
 
 void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
-    // For this minimal implementation, we recreate all proxies on update
-    // In a real engine, this would be more sophisticated with dirty tracking
-    if (bNeedsProxyUpdate) {
-        FLog::Log(ELogLevel::Info, "FScene::UpdateRenderScene - Updating render scene");
-        
-        // Clear existing proxies
-        RenderScene->ClearProxies();
-        
-        // Create new proxies for all primitives
-        for (FPrimitive* Primitive : Primitives) {
-            FPrimitiveSceneProxy* Proxy = Primitive->CreateSceneProxy(RHI);
-            if (Proxy) {
-                RenderScene->AddProxy(Proxy);
-            }
+    // For this minimal implementation, we recreate all proxies on each update
+    // This ensures transforms are synchronized for auto-rotating primitives
+    // In a real engine, this would use dirty tracking and only update changed proxies
+    // TODO: Implement dirty tracking to avoid recreating unchanged proxies
+    
+    FLog::Log(ELogLevel::Info, "FScene::UpdateRenderScene - Updating render scene");
+    
+    // Clear existing proxies
+    RenderScene->ClearProxies();
+    
+    // Create new proxies for all primitives with current transforms
+    for (FPrimitive* Primitive : Primitives) {
+        FPrimitiveSceneProxy* Proxy = Primitive->CreateSceneProxy(RHI);
+        if (Proxy) {
+            RenderScene->AddProxy(Proxy);
         }
-        
-        bNeedsProxyUpdate = false;
     }
 }
 

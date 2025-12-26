@@ -1,5 +1,6 @@
 #include "Primitive.h"
 #include "PrimitiveSceneProxy.h"
+#include "GameGlobals.h"
 #include "../RHI/RHI.h"
 #include "../Renderer/Camera.h"
 #include <vector>
@@ -99,9 +100,6 @@ FPrimitiveSceneProxy* FCubePrimitive::CreateSceneProxy(FRHI* RHI) {
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    // TODO: Remove global camera dependency (see Game.cpp for details)
-    extern FCamera* g_Camera;
-    
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 
                                     indices.size(), g_Camera, Transform);
 }
@@ -170,7 +168,6 @@ FPrimitiveSceneProxy* FSpherePrimitive::CreateSceneProxy(FRHI* RHI) {
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    extern FCamera* g_Camera;
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
                                     indices.size(), g_Camera, Transform);
 }
@@ -273,7 +270,6 @@ FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI) {
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    extern FCamera* g_Camera;
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
                                     indices.size(), g_Camera, Transform);
 }
@@ -337,7 +333,6 @@ FPrimitiveSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI) {
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    extern FCamera* g_Camera;
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
                                     indices.size(), g_Camera, Transform);
 }
