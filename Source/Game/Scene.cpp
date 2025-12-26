@@ -75,23 +75,64 @@ void FScene::Tick(float DeltaTime) {
 }
 
 void FScene::UpdateRenderScene(FRenderScene* RenderScene) {
-    // For this minimal implementation, we recreate all proxies on each update
-    // This ensures transforms are synchronized for auto-rotating primitives
-    // In a real engine, this would use dirty tracking and only update changed proxies
-    // TODO: Implement dirty tracking to avoid recreating unchanged proxies
+    // Dirty tracking implementation: only recreate proxies for changed primitives
+    // This avoids unnecessary GPU resource allocation/deallocation each frame
     
-    FLog::Log(ELogLevel::Info, "FScene::UpdateRenderScene - Updating render scene");
+    static int updateCount = 0;
+    updateCount++;
+    if (updateCount <= 3) {
+        FLog::Log(ELogLevel::Info, "FScene::UpdateRenderScene - Using dirty tracking");
+    }
     
-    // Clear existing proxies
-    RenderScene->ClearProxies();
+    // Track which proxies are still valid
+    std::unordered_map<FPrimitive*, FSceneProxy*> newProxyMap;
     
-    // Create new proxies for all primitives with current transforms
     for (FPrimitive* Primitive : Primitives) {
-        FPrimitiveSceneProxy* Proxy = Primitive->CreateSceneProxy(RHI);
-        if (Proxy) {
-            RenderScene->AddProxy(Proxy);
+        auto existingProxyIt = PrimitiveProxyMap.find(Primitive);
+        
+        if (existingProxyIt != PrimitiveProxyMap.end() && !Primitive->IsDirty()) {
+            // Primitive exists and is not dirty - reuse existing proxy
+            newProxyMap[Primitive] = existingProxyIt->second;
+            if (updateCount <= 3) {
+                FLog::Log(ELogLevel::Info, "  Reusing proxy for unchanged primitive");
+            }
+        } else {
+            // Primitive is dirty or doesn't have a proxy - create new one
+            if (existingProxyIt != PrimitiveProxyMap.end()) {
+                // Remove old proxy from render scene
+                RenderScene->RemoveProxy(existingProxyIt->second);
+                delete existingProxyIt->second;
+                if (updateCount <= 3) {
+                    FLog::Log(ELogLevel::Info, "  Recreating proxy for dirty primitive");
+                }
+            } else {
+                if (updateCount <= 3) {
+                    FLog::Log(ELogLevel::Info, "  Creating proxy for new primitive");
+                }
+            }
+            
+            FPrimitiveSceneProxy* newProxy = Primitive->CreateSceneProxy(RHI);
+            if (newProxy) {
+                RenderScene->AddProxy(newProxy);
+                newProxyMap[Primitive] = newProxy;
+                Primitive->ClearDirty();
+            }
         }
     }
+    
+    // Remove proxies for primitives that no longer exist
+    for (auto& pair : PrimitiveProxyMap) {
+        if (newProxyMap.find(pair.first) == newProxyMap.end()) {
+            RenderScene->RemoveProxy(pair.second);
+            delete pair.second;
+            if (updateCount <= 3) {
+                FLog::Log(ELogLevel::Info, "  Removing proxy for deleted primitive");
+            }
+        }
+    }
+    
+    // Update the proxy map
+    PrimitiveProxyMap = std::move(newProxyMap);
 }
 
 void FScene::Shutdown() {
@@ -102,4 +143,7 @@ void FScene::Shutdown() {
         delete Primitive;
     }
     Primitives.clear();
+    
+    // Clear the proxy map (proxies are owned by RenderScene, will be cleaned up there)
+    PrimitiveProxyMap.clear();
 }

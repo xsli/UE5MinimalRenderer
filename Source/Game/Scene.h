@@ -2,6 +2,7 @@
 
 #include "../Renderer/Renderer.h"
 #include <vector>
+#include <unordered_map>
 
 // Forward declarations
 class FPrimitive;
@@ -52,4 +53,7 @@ public:
 private:
     FRHI* RHI;
     std::vector<FPrimitive*> Primitives;
+    
+    // Dirty tracking: maps primitives to their proxies
+    std::unordered_map<FPrimitive*, FSceneProxy*> PrimitiveProxyMap;
 };

@@ -46,17 +46,23 @@ public:
     virtual FPrimitiveSceneProxy* CreateSceneProxy(FRHI* RHI) = 0;
     
     // Transform accessors
-    void SetTransform(const FTransform& InTransform) { Transform = InTransform; }
+    void SetTransform(const FTransform& InTransform) { Transform = InTransform; MarkDirty(); }
     const FTransform& GetTransform() const { return Transform; }
-    FTransform& GetTransform() { return Transform; }
+    FTransform& GetTransform() { return Transform; }  // Note: Direct access doesn't mark dirty
     
     // Color accessor
-    void SetColor(const FColor& InColor) { Color = InColor; }
+    void SetColor(const FColor& InColor) { Color = InColor; MarkDirty(); }
     const FColor& GetColor() const { return Color; }
+    
+    // Dirty tracking
+    bool IsDirty() const { return bIsDirty; }
+    void MarkDirty() { bIsDirty = true; }
+    void ClearDirty() { bIsDirty = false; }
     
 protected:
     FTransform Transform;
     FColor Color;
+    bool bIsDirty;
 };
 
 // Cube primitive
