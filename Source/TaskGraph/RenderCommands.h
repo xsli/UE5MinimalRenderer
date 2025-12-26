@@ -301,13 +301,24 @@ private:
 
 /**
  * Macro to enqueue a render command
- * Usage: ENQUEUE_RENDER_COMMAND(CommandName)([](){ ... code ... });
+ * 
+ * The macro expands to a function call where the lambda is passed as the second argument.
+ * The closing parenthesis comes from the semicolon at the end of the statement.
+ * 
+ * Usage: ENQUEUE_RENDER_COMMAND(CommandName)([captures](){ ... code ... });
+ * 
+ * Example:
+ *   ENQUEUE_RENDER_COMMAND(UpdateTransform)([this]() {
+ *       Renderer->UpdateTransform();
+ *   });
+ * 
+ * This expands to:
+ *   FRenderCommandQueue::Get().EnqueueLambda("UpdateTransform", [this]() {
+ *       Renderer->UpdateTransform();
+ *   });
  */
 #define ENQUEUE_RENDER_COMMAND(CommandName) \
     FRenderCommandQueue::Get().EnqueueLambda(#CommandName, 
-
-#define ENQUEUE_RENDER_COMMAND_END() \
-    )
 
 /**
  * Helper macro for cleaner syntax

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libTaskGraph.a CMakeFiles/TaskGraph.dir/TaskGraph.cpp.o CMakeFiles/TaskGraph.dir/RenderCommands.cpp.o
+/usr/bin/ranlib libTaskGraph.a

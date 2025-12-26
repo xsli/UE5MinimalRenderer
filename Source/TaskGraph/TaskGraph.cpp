@@ -169,6 +169,7 @@ FTaskEvent* FTaskGraph::CreateTask(std::function<void()> Lambda)
 {
     auto Task = std::make_unique<FLambdaTask>(std::move(Lambda));
     FTaskEvent* Event = Task->GetEvent();
+    FTask* TaskPtr = Task.get();  // Get pointer before moving
     
     // Store the task for lifetime management
     {
@@ -176,8 +177,8 @@ FTaskEvent* FTaskGraph::CreateTask(std::function<void()> Lambda)
         OwnedTasks.push_back(std::move(Task));
     }
     
-    // Queue the task
-    QueueTask(OwnedTasks.back().get());
+    // Queue the task (using the pointer we captured before moving)
+    QueueTask(TaskPtr);
     
     return Event;
 }

@@ -50,6 +50,8 @@ uint32 FRenderCommandQueue::ProcessCommands()
         auto& Command = LocalCommands.front();
         if (Command)
         {
+            // Store command name before execution for safe error reporting
+            const char* CommandName = Command->GetName();
             try
             {
                 Command->Execute();
@@ -57,12 +59,12 @@ uint32 FRenderCommandQueue::ProcessCommands()
             catch (const std::exception& e)
             {
                 FLog::Log(ELogLevel::Error, std::string("Render command exception (") + 
-                    Command->GetName() + "): " + e.what());
+                    CommandName + "): " + e.what());
             }
             catch (...)
             {
                 FLog::Log(ELogLevel::Error, std::string("Render command exception (") + 
-                    Command->GetName() + "): Unknown error");
+                    CommandName + "): Unknown error");
             }
         }
         LocalCommands.pop();
@@ -88,6 +90,8 @@ bool FRenderCommandQueue::ProcessOneCommand()
     
     if (Command)
     {
+        // Store command name before execution for safe error reporting
+        const char* CommandName = Command->GetName();
         try
         {
             Command->Execute();
@@ -95,7 +99,7 @@ bool FRenderCommandQueue::ProcessOneCommand()
         catch (const std::exception& e)
         {
             FLog::Log(ELogLevel::Error, std::string("Render command exception (") + 
-                Command->GetName() + "): " + e.what());
+                CommandName + "): " + e.what());
         }
     }
     
@@ -126,6 +130,8 @@ bool FRenderCommandQueue::WaitAndProcessCommand()
     
     if (Command)
     {
+        // Store command name before execution for safe error reporting
+        const char* CommandName = Command->GetName();
         try
         {
             Command->Execute();
@@ -133,7 +139,7 @@ bool FRenderCommandQueue::WaitAndProcessCommand()
         catch (const std::exception& e)
         {
             FLog::Log(ELogLevel::Error, std::string("Render command exception (") + 
-                Command->GetName() + "): " + e.what());
+                CommandName + "): " + e.what());
         }
     }
     

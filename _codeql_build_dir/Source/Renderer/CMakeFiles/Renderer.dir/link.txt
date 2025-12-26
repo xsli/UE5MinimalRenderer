@@ -1,0 +1,2 @@
+/usr/bin/ar qc libRenderer.a CMakeFiles/Renderer.dir/Renderer.cpp.o CMakeFiles/Renderer.dir/RenderStats.cpp.o CMakeFiles/Renderer.dir/Camera.cpp.o
+/usr/bin/ranlib libRenderer.a

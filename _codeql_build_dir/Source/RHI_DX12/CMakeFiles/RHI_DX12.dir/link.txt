@@ -1,0 +1,2 @@
+/usr/bin/ar qc libRHI_DX12.a CMakeFiles/RHI_DX12.dir/DX12RHI.cpp.o
+/usr/bin/ranlib libRHI_DX12.a

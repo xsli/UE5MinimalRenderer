@@ -1,0 +1,2 @@
+/usr/bin/ar qc libRHI.a CMakeFiles/RHI.dir/RHI.cpp.o
+/usr/bin/ranlib libRHI.a
