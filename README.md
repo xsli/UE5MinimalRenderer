@@ -7,6 +7,7 @@ Minimal renderer mimicking UE5 parallel rendering architecture.
 This project demonstrates a simplified version of Unreal Engine 5's parallel rendering architecture with the following layers:
 - **Game Layer**: Scene management with primitives (cube, sphere, cylinder, plane)
 - **Renderer Layer**: Camera system, scene proxies, and render command processing
+- **TaskGraph Layer**: Multi-threading with dedicated Game, Render, and RHI threads
 - **RHI (Render Hardware Interface)**: Platform-agnostic rendering interface
 - **DX12 Backend**: DirectX 12 implementation with depth buffer and text rendering
 
@@ -20,6 +21,7 @@ The project renders a **3D scene with multiple rotating primitives**:
 - Additional colored objects demonstrating the scene system
 
 Features demonstrated:
+- **Multi-threaded rendering**: Separate Game, Render, and RHI threads
 - 3D camera system with perspective projection
 - Model-View-Projection (MVP) matrix transformations
 - Depth testing and depth buffer
@@ -50,7 +52,9 @@ For detailed control information, see [CAMERA_CONTROLS.md](CAMERA_CONTROLS.md).
 
 ## Architecture
 ```
-Game Tick → Renderer → RHI Interface → DX12 Implementation → GPU
+Game Thread → [ENQUEUE_RENDER_COMMAND] → Render Thread → RHI Thread → GPU
+     ↓                                         ↓              ↓
+Scene::Tick()                          RenderFrame()     Present()
 ```
 
 ## Building
@@ -87,6 +91,9 @@ start UE5MinimalRenderer.sln
 ```
 Source/
 ├── Core/           # Core types, math library (DirectXMath wrapper)
+├── TaskGraph/      # Multi-threading system
+│   ├── TaskGraph.* # Worker thread pool and task system
+│   └── RenderCommands.* # Render command queue and thread management
 ├── RHI/            # Render Hardware Interface (platform-agnostic)
 ├── RHI_DX12/       # DirectX 12 implementation
 │   ├── d3dx12*.h   # Microsoft DirectX 12 helper headers (included)
@@ -108,6 +115,12 @@ All required dependencies are included in the repository:
 - **Windows SDK**: Provides d3d12.lib, dxgi.lib, d3dcompiler.lib, d2d1.lib, dwrite.lib (installed with Visual Studio)
 
 ## Features
+
+### Multi-Threading
+- **TaskGraph System**: Worker thread pool for parallel task execution
+- **Separate Threads**: Dedicated Game, Render, and RHI threads
+- **Frame Synchronization**: Game can lead Render by 1 frame
+- **Render Commands**: ENQUEUE_RENDER_COMMAND macro for thread-safe command queueing
 
 ### 3D Rendering
 - **Math Library**: DirectXMath wrapper with matrix operations
@@ -133,8 +146,7 @@ All required dependencies are included in the repository:
 For detailed implementation information, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Flow
-1. **Game Thread**: Creates game objects and ticks the world
-2. **Renderer**: Processes scene proxies and generates render commands
-3. **RHI**: Provides platform-agnostic rendering interface
-4. **DX12**: Executes commands on GPU using DirectX 12
-5. **Output**: Rendered frame displayed on screen
+1. **Game Thread**: Creates game objects, ticks the world, enqueues render commands
+2. **Render Thread**: Processes render commands, updates scene proxies, generates RHI commands
+3. **RHI Thread**: Executes RHI commands, submits to GPU
+4. **GPU**: Executes DirectX 12 commands, presents frame

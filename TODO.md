@@ -29,11 +29,13 @@ This document lists planned features and improvements for the UE5MinimalRenderer
   - Material instances
 
 ### Architecture Improvements
-- [ ] **Multi-threading**
-  - Separate render thread (true UE5 parallel rendering)
-  - Thread-safe resource management
-  - Job system for parallel work
-  - Lock-free command queues
+- [x] **Multi-threading**
+  - [x] Separate render thread (true UE5 parallel rendering)
+  - [x] Separate RHI thread for GPU command submission
+  - [x] Thread-safe resource management
+  - [x] Job system for parallel work (FTaskGraph)
+  - [x] Lock-free command queues (FRenderCommandQueue)
+  - [x] Game/Render frame synchronization with 1-frame lead
 
 - [ ] **Resource Management**
   - Resource pooling for buffers and textures
