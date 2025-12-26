@@ -55,6 +55,7 @@ FScene::~FScene() {
 void FScene::AddPrimitive(FPrimitive* Primitive) {
     if (Primitive) {
         Primitives.push_back(Primitive);
+        Primitive->MarkDirty();  // Ensure new primitives get proxies created
         FLog::Log(ELogLevel::Info, std::string("FScene::AddPrimitive - Total primitives: ") + std::to_string(Primitives.size()));
     }
 }
@@ -63,6 +64,7 @@ void FScene::RemovePrimitive(FPrimitive* Primitive) {
     auto it = std::find(Primitives.begin(), Primitives.end(), Primitive);
     if (it != Primitives.end()) {
         Primitives.erase(it);
+        // Note: Proxy cleanup happens automatically in UpdateRenderScene
         FLog::Log(ELogLevel::Info, std::string("FScene::RemovePrimitive - Remaining primitives: ") + std::to_string(Primitives.size()));
     }
 }
