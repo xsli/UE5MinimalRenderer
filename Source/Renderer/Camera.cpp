@@ -25,7 +25,8 @@ FCamera::FCamera()
     
     // Normalize
     float length = std::sqrt(direction.X * direction.X + direction.Y * direction.Y + direction.Z * direction.Z);
-    if (length > 0.0001f) {
+    if (length > 0.0001f)
+    {
         direction.X /= length;
         direction.Y /= length;
         direction.Z /= length;
@@ -76,7 +77,8 @@ void FCamera::SetPerspective(float FovYRadians, float InAspectRatio, float InNea
 
 FMatrix4x4 FCamera::GetViewMatrix() const
 {
-    if (bViewMatrixDirty) {
+    if (bViewMatrixDirty)
+    {
         UpdateMatrices();
     }
     return ViewMatrix;
@@ -84,7 +86,8 @@ FMatrix4x4 FCamera::GetViewMatrix() const
 
 FMatrix4x4 FCamera::GetProjectionMatrix() const
 {
-    if (bProjectionMatrixDirty) {
+    if (bProjectionMatrixDirty)
+    {
         UpdateMatrices();
     }
     return ProjectionMatrix;
@@ -97,12 +100,14 @@ FMatrix4x4 FCamera::GetViewProjectionMatrix() const
 
 void FCamera::UpdateMatrices() const
 {
-    if (bViewMatrixDirty) {
+    if (bViewMatrixDirty)
+    {
         ViewMatrix = FMatrix4x4::LookAtLH(Position, LookAtTarget, UpVector);
         bViewMatrixDirty = false;
     }
     
-    if (bProjectionMatrixDirty) {
+    if (bProjectionMatrixDirty)
+    {
         ProjectionMatrix = FMatrix4x4::PerspectiveFovLH(FovY, AspectRatio, NearPlane, FarPlane);
         bProjectionMatrixDirty = false;
     }
@@ -117,7 +122,8 @@ void FCamera::UpdateOrientation()
     
     // Normalize forward
     float length = std::sqrt(Forward.X * Forward.X + Forward.Y * Forward.Y + Forward.Z * Forward.Z);
-    if (length > 0.0001f) {
+    if (length > 0.0001f)
+    {
         Forward.X /= length;
         Forward.Y /= length;
         Forward.Z /= length;
@@ -131,7 +137,8 @@ void FCamera::UpdateOrientation()
     
     // Normalize right
     length = std::sqrt(Right.X * Right.X + Right.Y * Right.Y + Right.Z * Right.Z);
-    if (length > 0.0001f) {
+    if (length > 0.0001f)
+    {
         Right.X /= length;
         Right.Y /= length;
         Right.Z /= length;

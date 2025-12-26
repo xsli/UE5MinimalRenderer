@@ -28,7 +28,8 @@ void FRenderStats::EndFrame()
     
     // Update FPS every 0.5 seconds
     auto timeSinceLastUpdate = std::chrono::duration<float>(frameEndTime - LastFPSUpdateTime);
-    if (timeSinceLastUpdate.count() >= 0.5f) {
+    if (timeSinceLastUpdate.count() >= 0.5f)
+    {
         FPS = FramesSinceLastFPSUpdate / timeSinceLastUpdate.count();
         LastFPSUpdateTime = frameEndTime;
         FramesSinceLastFPSUpdate = 0;

@@ -14,7 +14,8 @@ FRenderScene::~FRenderScene()
 
 void FRenderScene::AddProxy(FSceneProxy* Proxy)
 {
-    if (Proxy) {
+    if (Proxy)
+    {
         Proxies.push_back(Proxy);
         FLog::Log(ELogLevel::Info, std::string("FRenderScene::AddProxy - Total proxies: ") + std::to_string(Proxies.size()));
     }
@@ -23,7 +24,8 @@ void FRenderScene::AddProxy(FSceneProxy* Proxy)
 void FRenderScene::RemoveProxy(FSceneProxy* Proxy)
 {
     auto it = std::find(Proxies.begin(), Proxies.end(), Proxy);
-    if (it != Proxies.end()) {
+    if (it != Proxies.end())
+    {
         Proxies.erase(it);
         FLog::Log(ELogLevel::Info, std::string("FRenderScene::RemoveProxy - Remaining proxies: ") + std::to_string(Proxies.size()));
     }
@@ -64,7 +66,8 @@ FScene::~FScene()
 
 void FScene::AddPrimitive(FPrimitive* Primitive)
 {
-    if (Primitive) {
+    if (Primitive)
+    {
         Primitives.push_back(Primitive);
         Primitive->MarkDirty();  // Ensure new primitives get proxies created
         FLog::Log(ELogLevel::Info, std::string("FScene::AddPrimitive - Total primitives: ") + std::to_string(Primitives.size()));
@@ -74,7 +77,8 @@ void FScene::AddPrimitive(FPrimitive* Primitive)
 void FScene::RemovePrimitive(FPrimitive* Primitive)
 {
     auto it = std::find(Primitives.begin(), Primitives.end(), Primitive);
-    if (it != Primitives.end()) {
+    if (it != Primitives.end())
+    {
         Primitives.erase(it);
         // Note: Proxy cleanup happens automatically in UpdateRenderScene
         FLog::Log(ELogLevel::Info, std::string("FScene::RemovePrimitive - Remaining primitives: ") + std::to_string(Primitives.size()));
@@ -102,13 +106,16 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene)
     {
         auto existingProxyIt = PrimitiveProxyMap.find(Primitive);
         
-        if (existingProxyIt != PrimitiveProxyMap.end()) {
+        if (existingProxyIt != PrimitiveProxyMap.end())
+        {
             // Proxy exists - check what kind of update is needed
-            if (!Primitive->IsDirty() && !Primitive->IsTransformDirty()) {
+            if (!Primitive->IsDirty() && !Primitive->IsTransformDirty())
+            {
                 // No changes - reuse existing proxy as-is
                 newProxyMap[Primitive] = existingProxyIt->second;
             }
-else if (Primitive->IsTransformDirty() && !Primitive->IsDirty()) {
+else if (Primitive->IsTransformDirty() && !Primitive->IsDirty())
+{
                 // Only transform changed - update proxy transform without recreating
                 // Safe cast: all proxies in PrimitiveProxyMap are FPrimitiveSceneProxy instances
                 FPrimitiveSceneProxy* proxy = static_cast<FPrimitiveSceneProxy*>(existingProxyIt->second);
@@ -116,23 +123,27 @@ else if (Primitive->IsTransformDirty() && !Primitive->IsDirty()) {
                 newProxyMap[Primitive] = existingProxyIt->second;
                 Primitive->ClearDirty();
             }
-else {
+else
+{
                 // Full dirty (color changed or other property) - recreate proxy
                 RenderScene->RemoveProxy(existingProxyIt->second);
                 delete existingProxyIt->second;
                 
                 FPrimitiveSceneProxy* newProxy = Primitive->CreateSceneProxy(RHI);
-                if (newProxy) {
+                if (newProxy)
+                {
                     RenderScene->AddProxy(newProxy);
                     newProxyMap[Primitive] = newProxy;
                     Primitive->ClearDirty();
                 }
             }
         }
-else {
+else
+{
             // No existing proxy - create new one
             FPrimitiveSceneProxy* newProxy = Primitive->CreateSceneProxy(RHI);
-            if (newProxy) {
+            if (newProxy)
+            {
                 RenderScene->AddProxy(newProxy);
                 newProxyMap[Primitive] = newProxy;
                 Primitive->ClearDirty();
@@ -143,7 +154,8 @@ else {
     // Remove proxies for primitives that no longer exist
     for (auto& pair : PrimitiveProxyMap)
     {
-        if (newProxyMap.find(pair.first) == newProxyMap.end()) {
+        if (newProxyMap.find(pair.first) == newProxyMap.end())
+        {
             RenderScene->RemoveProxy(pair.second);
             delete pair.second;
         }

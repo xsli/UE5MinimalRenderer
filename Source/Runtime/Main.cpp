@@ -38,7 +38,8 @@ static FInputState g_InputState;
 // Window procedure
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    switch (uMsg) {
+    switch (uMsg)
+    {
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
@@ -68,21 +69,24 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         // Mouse button up events
         case WM_LBUTTONUP:
             g_InputState.bLeftMouseDown = false;
-            if (!g_InputState.bRightMouseDown && !g_InputState.bMiddleMouseDown) {
+            if (!g_InputState.bRightMouseDown && !g_InputState.bMiddleMouseDown)
+            {
                 ReleaseCapture();
             }
             return 0;
             
         case WM_RBUTTONUP:
             g_InputState.bRightMouseDown = false;
-            if (!g_InputState.bLeftMouseDown && !g_InputState.bMiddleMouseDown) {
+            if (!g_InputState.bLeftMouseDown && !g_InputState.bMiddleMouseDown)
+            {
                 ReleaseCapture();
             }
             return 0;
             
         case WM_MBUTTONUP:
             g_InputState.bMiddleMouseDown = false;
-            if (!g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown) {
+            if (!g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown)
+            {
                 ReleaseCapture();
             }
             return 0;
@@ -90,26 +94,31 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         // Mouse move event
         case WM_MOUSEMOVE:
             {
-                if (g_Game && (g_InputState.bLeftMouseDown || g_InputState.bRightMouseDown || g_InputState.bMiddleMouseDown)) {
+                if (g_Game && (g_InputState.bLeftMouseDown || g_InputState.bRightMouseDown || g_InputState.bMiddleMouseDown))
+                {
                     FCamera* camera = g_Game->GetCamera();
-                    if (camera) {
+                    if (camera)
+                    {
                         int currentX = GET_X_LPARAM(lParam);
                         int currentY = GET_Y_LPARAM(lParam);
                         int deltaX = currentX - g_InputState.LastMouseX;
                         int deltaY = currentY - g_InputState.LastMouseY;
                         
                         // LMB + RMB or MMB: Pan camera
-                        if ((g_InputState.bLeftMouseDown && g_InputState.bRightMouseDown) || g_InputState.bMiddleMouseDown) {
+                        if ((g_InputState.bLeftMouseDown && g_InputState.bRightMouseDown) || g_InputState.bMiddleMouseDown)
+                        {
                             camera->PanRight(deltaX * CameraSettings::PanSpeed);
                             camera->PanUp(-deltaY * CameraSettings::PanSpeed);  // Invert Y for natural movement
                         }
                         // LMB only: Move forward/backward and rotate left/right
-                        else if (g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown) {
+                        else if (g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown)
+                        {
                             camera->MoveForwardBackward(-deltaY * CameraSettings::MovementSpeed);  // Y movement controls forward/back
                             camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);  // X movement controls left/right rotation
                         }
                         // RMB only: Rotate camera
-                        else if (g_InputState.bRightMouseDown && !g_InputState.bLeftMouseDown) {
+                        else if (g_InputState.bRightMouseDown && !g_InputState.bLeftMouseDown)
+                        {
                             camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);
                             camera->RotatePitch(deltaY * CameraSettings::RotationSpeed);
                         }
@@ -124,9 +133,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         // Mouse wheel event
         case WM_MOUSEWHEEL:
             {
-                if (g_Game) {
+                if (g_Game)
+                {
                     FCamera* camera = g_Game->GetCamera();
-                    if (camera) {
+                    if (camera)
+                    {
                         int delta = GET_WHEEL_DELTA_WPARAM(wParam);
                         float zoomAmount = delta / 120.0f;  // Standard wheel delta is 120 per notch
                         camera->Zoom(zoomAmount * CameraSettings::ZoomSpeed);
@@ -138,7 +149,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         // Keyboard events
         case WM_KEYDOWN:
             {
-                switch (wParam) {
+                switch (wParam)
+                {
                     case 'W': g_InputState.bKeyW = true; return 0;
                     case 'A': g_InputState.bKeyA = true; return 0;
                     case 'S': g_InputState.bKeyS = true; return 0;
@@ -151,7 +163,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         
         case WM_KEYUP:
             {
-                switch (wParam) {
+                switch (wParam)
+                {
                     case 'W': g_InputState.bKeyW = false; return 0;
                     case 'A': g_InputState.bKeyA = false; return 0;
                     case 'S': g_InputState.bKeyS = false; return 0;
@@ -167,7 +180,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 // Don't use BeginPaint/EndPaint as we're doing our own rendering
                 ValidateRect(hwnd, NULL);
                 
-                if (g_Game) {
+                if (g_Game)
+                {
                     // Calculate delta time
                     auto currentTime = std::chrono::high_resolution_clock::now();
                     float deltaTime = std::chrono::duration<float>(currentTime - g_LastTime).count();
@@ -175,48 +189,59 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     
                     // Log first few frames
                     g_FrameCount++;
-                    if (g_FrameCount <= 3) {
+                    if (g_FrameCount <= 3)
+                    {
                         FLog::Log(ELogLevel::Info, std::string("Frame ") + std::to_string(g_FrameCount) + 
                             " - DeltaTime: " + std::to_string(deltaTime));
                     }
                     
                     // Process keyboard input for camera movement
                     FCamera* camera = g_Game->GetCamera();
-                    if (camera) {
+                    if (camera)
+                    {
                         float moveAmount = CameraSettings::KeyboardMoveSpeed * deltaTime;
                         
                         // WASD movement (UE5 style)
-                        if (g_InputState.bKeyW) {
+                        if (g_InputState.bKeyW)
+                        {
                             camera->MoveForwardBackward(moveAmount);
                         }
-                        if (g_InputState.bKeyS) {
+                        if (g_InputState.bKeyS)
+                        {
                             camera->MoveForwardBackward(-moveAmount);
                         }
-                        if (g_InputState.bKeyD) {
+                        if (g_InputState.bKeyD)
+                        {
                             camera->PanRight(moveAmount);
                         }
-                        if (g_InputState.bKeyA) {
+                        if (g_InputState.bKeyA)
+                        {
                             camera->PanRight(-moveAmount);
                         }
                         
                         // QE for up/down movement
-                        if (g_InputState.bKeyE) {
+                        if (g_InputState.bKeyE)
+                        {
                             camera->PanUp(moveAmount);
                         }
-                        if (g_InputState.bKeyQ) {
+                        if (g_InputState.bKeyQ)
+                        {
                             camera->PanUp(-moveAmount);
                         }
                     }
                     
                     // Game tick (includes rendering)
-                    try {
+                    try
+                    {
                         g_Game->Tick(deltaTime);
                     }
-                    catch (const std::exception& e) {
+                    catch (const std::exception& e)
+                    {
                         FLog::Log(ELogLevel::Error, std::string("Exception in game.Tick: ") + e.what());
                         PostQuitMessage(1);
                     }
-                    catch (...) {
+                    catch (...)
+                    {
                         FLog::Log(ELogLevel::Error, "Unknown exception in game.Tick");
                         PostQuitMessage(1);
                     }
@@ -247,7 +272,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.lpszClassName = "UE5MinimalRendererClass";
     
-    if (!RegisterClassExA(&wc)) {
+    if (!RegisterClassExA(&wc))
+    {
         MessageBoxA(NULL, "Window Registration Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
@@ -267,7 +293,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         NULL, NULL, hInstance, NULL
     );
     
-    if (!hwnd) {
+    if (!hwnd)
+    {
         MessageBoxA(NULL, "Window Creation Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
@@ -279,7 +306,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     FGame game;
     g_Game = &game;
     
-    if (!game.Initialize(hwnd, Width, Height)) {
+    if (!game.Initialize(hwnd, Width, Height))
+    {
         MessageBoxA(NULL, "Game Initialization Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
@@ -294,7 +322,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     
     // Standard Windows message loop
     MSG msg = {};
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }

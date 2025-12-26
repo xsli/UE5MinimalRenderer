@@ -14,7 +14,8 @@
 // Helper function for checking HRESULT
 inline void ThrowIfFailed(HRESULT hr)
 {
-    if (FAILED(hr)) {
+    if (FAILED(hr))
+    {
         throw std::runtime_error("DirectX 12 operation failed");
     }
 }
@@ -26,7 +27,8 @@ FDX12Buffer::FDX12Buffer(ID3D12Resource* InResource, EBufferType InType)
     
     D3D12_RESOURCE_DESC desc = Resource->GetDesc();
     
-    if (BufferType == EBufferType::Vertex) {
+    if (BufferType == EBufferType::Vertex)
+    {
         VertexBufferView.BufferLocation = Resource->GetGPUVirtualAddress();
         VertexBufferView.SizeInBytes = static_cast<UINT>(desc.Width);
         VertexBufferView.StrideInBytes = sizeof(FVertex);
@@ -36,7 +38,8 @@ FDX12Buffer::FDX12Buffer(ID3D12Resource* InResource, EBufferType InType)
             ", Size: " + std::to_string(VertexBufferView.SizeInBytes) + 
             ", Stride: " + std::to_string(VertexBufferView.StrideInBytes));
     }
-else if (BufferType == EBufferType::Index) {
+else if (BufferType == EBufferType::Index)
+{
         IndexBufferView.BufferLocation = Resource->GetGPUVirtualAddress();
         IndexBufferView.SizeInBytes = static_cast<UINT>(desc.Width);
         IndexBufferView.Format = DXGI_FORMAT_R32_UINT;  // 32-bit indices
@@ -45,7 +48,8 @@ else if (BufferType == EBufferType::Index) {
             std::to_string(IndexBufferView.BufferLocation) + 
             ", Size: " + std::to_string(IndexBufferView.SizeInBytes));
     }
-else if (BufferType == EBufferType::Constant) {
+else if (BufferType == EBufferType::Constant)
+{
         FLog::Log(ELogLevel::Info, std::string("FDX12Buffer (Constant) created - GPU Address: 0x") + 
             std::to_string(Resource->GetGPUVirtualAddress()) + 
             ", Size: " + std::to_string(desc.Width));
@@ -132,7 +136,8 @@ FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* I
     FenceValue = 1;
     
     FenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-    if (FenceEvent == nullptr) {
+    if (FenceEvent == nullptr)
+    {
         ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()));
     }
     
@@ -198,18 +203,21 @@ void FDX12CommandList::ClearRenderTarget(const FColor& Color)
     GraphicsCommandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
     
     // Set render target with depth stencil
-    if (DSVHeap) {
+    if (DSVHeap)
+    {
         CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DSVHeap->GetCPUDescriptorHandleForHeapStart());
         GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
     }
-else {
+else
+{
         GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
     }
 }
 
 void FDX12CommandList::ClearDepthStencil()
 {
-    if (DSVHeap) {
+    if (DSVHeap)
+    {
         CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DSVHeap->GetCPUDescriptorHandleForHeapStart());
         GraphicsCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
         FLog::Log(ELogLevel::Info, "ClearDepthStencil called");
@@ -282,7 +290,8 @@ void FDX12CommandList::FlushCommandsFor2D()
 {
 	FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: Submitting 3D rendering commands");
 
-	try {
+	try
+	{
 		// Close and execute D3D12 command list
 		ThrowIfFailed(GraphicsCommandList->Close());
 		ID3D12CommandList* ppCommandLists[] = { GraphicsCommandList.Get() };
@@ -291,7 +300,8 @@ void FDX12CommandList::FlushCommandsFor2D()
 		// Wait for D3D12 to finish rendering
 		const UINT64 fenceValueForD2D = FenceValue++;
 		ThrowIfFailed(CommandQueue->Signal(Fence.Get(), fenceValueForD2D));
-		if (Fence->GetCompletedValue() < fenceValueForD2D) {
+		if (Fence->GetCompletedValue() < fenceValueForD2D)
+		{
 			ThrowIfFailed(Fence->SetEventOnCompletion(fenceValueForD2D, FenceEvent));
 			WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
 		}
@@ -306,7 +316,8 @@ void FDX12CommandList::FlushCommandsFor2D()
 
 		FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: 3D commands submitted, ready for 2D rendering");
 	}
-catch (const std::exception& e) {
+catch (const std::exception& e)
+{
 		FLog::Log(ELogLevel::Error, std::string("FlushCommandsFor2D error: ") + e.what());
 		throw;
 	}
@@ -365,7 +376,8 @@ void FDX12CommandList::WaitForGPU()
     ThrowIfFailed(CommandQueue->Signal(Fence.Get(), currentFenceValue));
     FenceValue++;
     
-    if (Fence->GetCompletedValue() < currentFenceValue) {
+    if (Fence->GetCompletedValue() < currentFenceValue)
+    {
         ThrowIfFailed(Fence->SetEventOnCompletion(currentFenceValue, FenceEvent));
         WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
     }
@@ -375,7 +387,8 @@ void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwap
 {
     FLog::Log(ELogLevel::Info, "Initializing text rendering (D2D/DWrite)...");
     
-    try {
+    try
+    {
         // Create D3D11 device
         ComPtr<ID3D11Device> d3d11Device;
         D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0 };
@@ -461,19 +474,22 @@ void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwap
         
         FLog::Log(ELogLevel::Info, "Text rendering initialized successfully");
     }
-catch (const std::exception& e) {
+catch (const std::exception& e)
+{
         FLog::Log(ELogLevel::Error, std::string("Failed to initialize text rendering: ") + e.what());
     }
 }
 
 void FDX12CommandList::RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color)
 {
-	if (!D2DDeviceContext || !DWriteFactory) {
+	if (!D2DDeviceContext || !DWriteFactory)
+	{
 		FLog::Log(ELogLevel::Warning, "D2D/DWrite not initialized");
 		return;
 	}
 
-	try {
+	try
+	{
 		FLog::Log(ELogLevel::Info, std::string("RHIDrawText: '") + Text + "'");
 
 		// Now it's safe to use D2D
@@ -513,7 +529,8 @@ void FDX12CommandList::RHIDrawText(const std::string& Text, const FVector2D& Pos
 
 		FLog::Log(ELogLevel::Info, "Text rendered successfully");
 	}
-catch (const std::exception& e) {
+catch (const std::exception& e)
+{
 		FLog::Log(ELogLevel::Error, std::string("DrawText error: ") + e.what());
 	}
 }
@@ -534,13 +551,15 @@ bool FDX12RHI::Initialize(void* WindowHandle, uint32 InWidth, uint32 InHeight)
     Width = InWidth;
     Height = InHeight;
     
-    try {
+    try
+    {
         UINT dxgiFactoryFlags = 0;
         
 #ifdef _DEBUG
         // Enable debug layer
         ComPtr<ID3D12Debug> debugController;
-        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
+        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+        {
             debugController->EnableDebugLayer();
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
         }
@@ -556,16 +575,19 @@ bool FDX12RHI::Initialize(void* WindowHandle, uint32 InWidth, uint32 InHeight)
             DXGI_ADAPTER_DESC1 desc;
             hardwareAdapter->GetDesc1(&desc);
             
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            {
                 continue;
             }
             
-            if (SUCCEEDED(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&Device)))) {
+            if (SUCCEEDED(D3D12CreateDevice(hardwareAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&Device))))
+            {
                 break;
             }
         }
         
-        if (!Device) {
+        if (!Device)
+        {
             FLog::Log(ELogLevel::Error, "Failed to create D3D12 device");
             return false;
         }
@@ -606,7 +628,8 @@ bool FDX12RHI::Initialize(void* WindowHandle, uint32 InWidth, uint32 InHeight)
         return true;
         
     }
-catch (const std::exception& e) {
+catch (const std::exception& e)
+{
         FLog::Log(ELogLevel::Error, std::string("Failed to initialize DX12: ") + e.what());
         return false;
     }
@@ -644,7 +667,8 @@ FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data)
         IID_PPV_ARGS(&vertexBuffer)));
     
     // Copy data
-    if (Data) {
+    if (Data)
+    {
         void* pVertexDataBegin;
         CD3DX12_RANGE readRange(0, 0);
         ThrowIfFailed(vertexBuffer->Map(0, &readRange, &pVertexDataBegin));
@@ -675,7 +699,8 @@ FRHIBuffer* FDX12RHI::CreateIndexBuffer(uint32 Size, const void* Data)
         IID_PPV_ARGS(&indexBuffer)));
     
     // Copy data
-    if (Data) {
+    if (Data)
+    {
         void* pIndexDataBegin;
         CD3DX12_RANGE readRange(0, 0);
         ThrowIfFailed(indexBuffer->Map(0, &readRange, &pIndexDataBegin));
@@ -778,7 +803,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
                          "VSMain", "vs_5_0", 0, 0, &vertexShader, &error)))
 {
-        if (error) {
+        if (error)
+        {
             FLog::Log(ELogLevel::Error, std::string("Vertex shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
         }
         return nullptr;
@@ -789,7 +815,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
                          "PSMain", "ps_5_0", 0, 0, &pixelShader, &error)))
 {
-        if (error) {
+        if (error)
+        {
             FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
         }
         return nullptr;
@@ -799,14 +826,16 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     // Create root signature
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     
-    if (bEnableDepth) {
+    if (bEnableDepth)
+    {
         // Root parameter for MVP constant buffer
         CD3DX12_ROOT_PARAMETER rootParameters[1];
         rootParameters[0].InitAsConstantBufferView(0); // b0 register
         
         rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
-else {
+else
+{
         rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
     
@@ -837,14 +866,16 @@ else {
     
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     
-    if (bEnableDepth) {
+    if (bEnableDepth)
+    {
         psoDesc.DepthStencilState.DepthEnable = TRUE;
         psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
         psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
         psoDesc.DepthStencilState.StencilEnable = FALSE;
         psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
     }
-else {
+else
+{
         psoDesc.DepthStencilState.DepthEnable = FALSE;
         psoDesc.DepthStencilState.StencilEnable = FALSE;
     }

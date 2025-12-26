@@ -21,7 +21,8 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
     
     // Create RHI
     RHI.reset(CreateDX12RHI());
-    if (!RHI->Initialize(WindowHandle, Width, Height)) {
+    if (!RHI->Initialize(WindowHandle, Width, Height))
+    {
         FLog::Log(ELogLevel::Error, "Failed to initialize RHI");
         return false;
     }
@@ -96,17 +97,20 @@ void FGame::Shutdown()
 {
     FLog::Log(ELogLevel::Info, "Shutting down game...");
     
-    if (Scene) {
+    if (Scene)
+    {
         Scene->Shutdown();
         Scene.reset();
     }
     
-    if (Renderer) {
+    if (Renderer)
+    {
         Renderer->Shutdown();
         Renderer.reset();
     }
     
-    if (RHI) {
+    if (RHI)
+    {
         RHI->Shutdown();
         RHI.reset();
     }
@@ -121,12 +125,14 @@ void FGame::Tick(float DeltaTime)
     static int tickCount = 0;
     tickCount++;
     
-    if (tickCount <= 3) {
+    if (tickCount <= 3)
+    {
         FLog::Log(ELogLevel::Info, std::string("FGame::Tick ") + std::to_string(tickCount));
     }
     
     // Game thread tick - update primitives
-    if (Scene) {
+    if (Scene)
+    {
         Scene->Tick(DeltaTime);
         
         // Update render scene (in real UE5, this would be a sync point)
@@ -134,14 +140,16 @@ void FGame::Tick(float DeltaTime)
     }
     
     // Render thread work (in UE5 this would be on a separate thread)
-    if (Renderer) {
+    if (Renderer)
+    {
         Renderer->RenderFrame();
     }
 }
 
 FCamera* FGame::GetCamera()
 {
-    if (Renderer) {
+    if (Renderer)
+    {
         return Renderer->GetCamera();
     }
     return nullptr;

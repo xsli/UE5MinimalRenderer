@@ -107,7 +107,8 @@ void FRenderer::Initialize()
 
 void FRenderer::Shutdown()
 {
-    if (RenderScene) {
+    if (RenderScene)
+    {
         RenderScene->ClearProxies();
         RenderScene.reset();
     }
@@ -120,7 +121,8 @@ void FRenderer::RenderFrame()
     static int renderFrameCount = 0;
     renderFrameCount++;
     
-    if (renderFrameCount <= 3) {
+    if (renderFrameCount <= 3)
+    {
         FLog::Log(ELogLevel::Info, std::string("=== RenderFrame ") + std::to_string(renderFrameCount) + " ===");
     }
     
@@ -140,7 +142,8 @@ void FRenderer::RenderFrame()
     RHICmdList->ClearDepthStencil();
     
     // Render scene using render scene
-    if (RenderScene) {
+    if (RenderScene)
+    {
         RenderScene->Render(RHICmdList, Stats);
     }
 
@@ -164,7 +167,8 @@ void FRenderer::UpdateFromScene(FScene* GameScene)
 {
     // This is the sync point between game and render thread
     // In real UE5, this would be more sophisticated with command queues
-    if (GameScene && RenderScene) {
+    if (GameScene && RenderScene)
+    {
         GameScene->UpdateRenderScene(RenderScene.get());
     }
 }
@@ -172,7 +176,8 @@ void FRenderer::UpdateFromScene(FScene* GameScene)
 void FRenderer::AddSceneProxy(FSceneProxy* Proxy)
 {
     // Legacy method for compatibility
-    if (RenderScene) {
+    if (RenderScene)
+    {
         RenderScene->AddProxy(Proxy);
     }
 }
@@ -180,7 +185,8 @@ void FRenderer::AddSceneProxy(FSceneProxy* Proxy)
 void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy)
 {
     // Legacy method for compatibility
-    if (RenderScene) {
+    if (RenderScene)
+    {
         RenderScene->RemoveProxy(Proxy);
     }
 }

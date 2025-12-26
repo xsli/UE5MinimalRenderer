@@ -37,7 +37,8 @@ FCubePrimitive::~FCubePrimitive()
 
 void FCubePrimitive::Tick(float DeltaTime)
 {
-    if (bAutoRotate) {
+    if (bAutoRotate)
+    {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
         Transform.Rotation.X += DeltaTime * RotationSpeed * 0.3f;
         MarkTransformDirty();  // Only transform changed, no need to recreate proxy
@@ -128,7 +129,8 @@ FSpherePrimitive::~FSpherePrimitive()
 
 void FSpherePrimitive::Tick(float DeltaTime)
 {
-    if (bAutoRotate) {
+    if (bAutoRotate)
+    {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
         MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
@@ -204,7 +206,8 @@ FCylinderPrimitive::~FCylinderPrimitive()
 
 void FCylinderPrimitive::Tick(float DeltaTime)
 {
-    if (bAutoRotate) {
+    if (bAutoRotate)
+    {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
         MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
