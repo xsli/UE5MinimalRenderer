@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "../Game/Scene.h"
 #include <algorithm>
 #include <string>
 #include <cstdio>  // for snprintf
@@ -82,18 +83,21 @@ FRenderer::~FRenderer() {
 void FRenderer::Initialize() {
     // Create camera
     Camera = std::make_unique<FCamera>();
-    Camera->SetPosition(FVector(0.0f, 0.0f, -5.0f));
+    Camera->SetPosition(FVector(0.0f, 2.0f, -8.0f));
     Camera->SetLookAt(FVector(0.0f, 0.0f, 0.0f));
     Camera->SetPerspective(DirectX::XM_PIDIV4, 16.0f / 9.0f, 0.1f, 100.0f);
+    
+    // Create render scene
+    RenderScene = std::make_unique<FRenderScene>();
     
     FLog::Log(ELogLevel::Info, "Renderer initialized");
 }
 
 void FRenderer::Shutdown() {
-    for (FSceneProxy* Proxy : SceneProxies) {
-        delete Proxy;
+    if (RenderScene) {
+        RenderScene->ClearProxies();
+        RenderScene.reset();
     }
-    SceneProxies.clear();
     
     FLog::Log(ELogLevel::Info, "Renderer shutdown");
 }
@@ -121,8 +125,10 @@ void FRenderer::RenderFrame() {
     RHICmdList->ClearRenderTarget(FColor(0.2f, 0.3f, 0.4f, 1.0f));
     RHICmdList->ClearDepthStencil();
     
-    // Render scene
-    RenderScene(RHICmdList);
+    // Render scene using render scene
+    if (RenderScene) {
+        RenderScene->Render(RHICmdList, Stats);
+    }
 
 	// === CRITICAL: Flush 3D commands before 2D rendering ===
 	RHICmdList->FlushCommandsFor2D();
@@ -140,25 +146,25 @@ void FRenderer::RenderFrame() {
     Stats.EndFrame();
 }
 
-void FRenderer::AddSceneProxy(FSceneProxy* Proxy) {
-    SceneProxies.push_back(Proxy);
-    FLog::Log(ELogLevel::Info, std::string("AddSceneProxy - Total proxies: ") + std::to_string(SceneProxies.size()));
-}
-
-void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy) {
-    auto it = std::find(SceneProxies.begin(), SceneProxies.end(), Proxy);
-    if (it != SceneProxies.end()) {
-        SceneProxies.erase(it);
+void FRenderer::UpdateFromScene(FScene* GameScene) {
+    // This is the sync point between game and render thread
+    // In real UE5, this would be more sophisticated with command queues
+    if (GameScene && RenderScene) {
+        GameScene->UpdateRenderScene(RenderScene.get());
     }
 }
 
-void FRenderer::RenderScene(FRHICommandList* RHICmdList) {
-    FLog::Log(ELogLevel::Info, std::string("RenderScene - Rendering ") + std::to_string(SceneProxies.size()) + " proxies");
-    
-    // Render all scene proxies
-    for (FSceneProxy* Proxy : SceneProxies) {
-        Proxy->Render(RHICmdList);
-        Stats.AddTriangles(Proxy->GetTriangleCount());
+void FRenderer::AddSceneProxy(FSceneProxy* Proxy) {
+    // Legacy method for compatibility
+    if (RenderScene) {
+        RenderScene->AddProxy(Proxy);
+    }
+}
+
+void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy) {
+    // Legacy method for compatibility
+    if (RenderScene) {
+        RenderScene->RemoveProxy(Proxy);
     }
 }
 
