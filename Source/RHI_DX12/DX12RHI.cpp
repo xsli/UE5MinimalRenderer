@@ -824,12 +824,14 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
     
     // Create root signature
+    // NOTE: rootParameters must be declared outside the if block to remain valid
+    // when D3D12SerializeRootSignature is called (it stores a pointer, not a copy)
+    CD3DX12_ROOT_PARAMETER rootParameters[1];
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     
     if (bEnableDepth)
     {
         // Root parameter for MVP constant buffer
-        CD3DX12_ROOT_PARAMETER rootParameters[1];
         rootParameters[0].InitAsConstantBufferView(0); // b0 register
         
         rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
