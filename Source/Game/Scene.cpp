@@ -1,5 +1,6 @@
 #include "Scene.h"
 #include "Primitive.h"
+#include "PrimitiveSceneProxy.h"
 #include <algorithm>
 
 // FRenderScene implementation

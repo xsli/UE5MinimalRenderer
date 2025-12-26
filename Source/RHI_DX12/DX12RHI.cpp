@@ -250,7 +250,8 @@ void FDX12CommandList::DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex
 
 void FDX12CommandList::Present() {
     FLog::Log(ELogLevel::Info, "Presenting frame...");
-    ThrowIfFailed(SwapChain->Present(1, 0));
+    // disable vsync
+    ThrowIfFailed(SwapChain->Present(0, 0));
     WaitForGPU();
     FLog::Log(ELogLevel::Info, "Frame presented");
 }
