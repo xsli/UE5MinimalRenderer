@@ -9,19 +9,22 @@ class FRHIPipelineState;
 class FRHITexture;
 
 // Vertex data structure
-struct FVertex {
+struct FVertex 
+{
     FVector Position;
     FColor Color;
 };
 
 // RHI Resource base class
-class FRHIResource {
+class FRHIResource 
+{
 public:
     virtual ~FRHIResource() = default;
 };
 
 // RHI Buffer
-class FRHIBuffer : public FRHIResource {
+class FRHIBuffer : public FRHIResource 
+{
 public:
     virtual ~FRHIBuffer() = default;
     virtual void* Map() = 0;
@@ -29,19 +32,22 @@ public:
 };
 
 // RHI Texture
-class FRHITexture : public FRHIResource {
+class FRHITexture : public FRHIResource 
+{
 public:
     virtual ~FRHITexture() = default;
 };
 
 // Pipeline state
-class FRHIPipelineState : public FRHIResource {
+class FRHIPipelineState : public FRHIResource 
+{
 public:
     virtual ~FRHIPipelineState() = default;
 };
 
 // Command list for recording GPU commands
-class FRHICommandList {
+class FRHICommandList 
+{
 public:
     virtual ~FRHICommandList() = default;
     
@@ -68,7 +74,8 @@ public:
 // RHI Interface - factory for creating RHI resources
 // Note: Resource ownership model - resources created by FRHI are owned by the caller
 // and must be deleted when no longer needed. This matches traditional graphics API patterns.
-class FRHI {
+class FRHI 
+{
 public:
     virtual ~FRHI() = default;
     

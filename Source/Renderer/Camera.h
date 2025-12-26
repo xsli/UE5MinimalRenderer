@@ -3,7 +3,8 @@
 #include "../Core/CoreTypes.h"
 
 // 3D Camera using DirectX coordinate system (left-handed, Y-up)
-class FCamera {
+class FCamera 
+{
 public:
     FCamera();
     ~FCamera();

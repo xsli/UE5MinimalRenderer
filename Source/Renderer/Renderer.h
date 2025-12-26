@@ -6,14 +6,16 @@
 #include <memory>
 
 // Render commands that can be enqueued from game thread
-class FRenderCommand {
+class FRenderCommand 
+{
 public:
     virtual ~FRenderCommand() = default;
     virtual void Execute(FRHICommandList* RHICmdList) = 0;
 };
 
 // Scene proxy - represents renderable object
-class FSceneProxy {
+class FSceneProxy 
+{
 public:
     virtual ~FSceneProxy() = default;
     virtual void Render(FRHICommandList* RHICmdList) = 0;
@@ -21,7 +23,8 @@ public:
 };
 
 // Triangle mesh scene proxy
-class FTriangleMeshProxy : public FSceneProxy {
+class FTriangleMeshProxy : public FSceneProxy 
+{
 public:
     FTriangleMeshProxy(FRHIBuffer* InVertexBuffer, FRHIPipelineState* InPSO, uint32 InVertexCount);
     virtual ~FTriangleMeshProxy() override;
@@ -36,7 +39,8 @@ private:
 };
 
 // Cube mesh scene proxy (indexed rendering with MVP matrix)
-class FCubeMeshProxy : public FSceneProxy {
+class FCubeMeshProxy : public FSceneProxy 
+{
 public:
     FCubeMeshProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer, FRHIBuffer* InConstantBuffer,
                    FRHIPipelineState* InPSO, uint32 InIndexCount, FCamera* InCamera);
@@ -62,7 +66,8 @@ class FScene;
 class FRenderScene;
 
 // Renderer - manages render thread and scene rendering
-class FRenderer {
+class FRenderer 
+{
 public:
     FRenderer(FRHI* InRHI);
     ~FRenderer();

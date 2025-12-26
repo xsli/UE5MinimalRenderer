@@ -316,8 +316,8 @@ void FDX12CommandList::FlushCommandsFor2D()
 
 		FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: 3D commands submitted, ready for 2D rendering");
 	}
-catch (const std::exception& e)
-{
+	catch (const std::exception& e)
+	{
 		FLog::Log(ELogLevel::Error, std::string("FlushCommandsFor2D error: ") + e.what());
 		throw;
 	}
@@ -474,10 +474,10 @@ void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwap
         
         FLog::Log(ELogLevel::Info, "Text rendering initialized successfully");
     }
-catch (const std::exception& e)
-{
-        FLog::Log(ELogLevel::Error, std::string("Failed to initialize text rendering: ") + e.what());
-    }
+	catch (const std::exception& e)
+	{
+		FLog::Log(ELogLevel::Error, std::string("Failed to initialize text rendering: ") + e.what());
+	}
 }
 
 void FDX12CommandList::RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color)
@@ -529,8 +529,8 @@ void FDX12CommandList::RHIDrawText(const std::string& Text, const FVector2D& Pos
 
 		FLog::Log(ELogLevel::Info, "Text rendered successfully");
 	}
-catch (const std::exception& e)
-{
+	catch (const std::exception& e)
+	{
 		FLog::Log(ELogLevel::Error, std::string("DrawText error: ") + e.what());
 	}
 }
@@ -628,11 +628,11 @@ bool FDX12RHI::Initialize(void* WindowHandle, uint32 InWidth, uint32 InHeight)
         return true;
         
     }
-catch (const std::exception& e)
-{
-        FLog::Log(ELogLevel::Error, std::string("Failed to initialize DX12: ") + e.what());
-        return false;
-    }
+	catch (const std::exception& e)
+	{
+		FLog::Log(ELogLevel::Error, std::string("Failed to initialize DX12: ") + e.what());
+		return false;
+	}
 }
 
 void FDX12RHI::Shutdown()
@@ -847,7 +847,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     FLog::Log(ELogLevel::Info, "Root signature created");
     
     // Define input layout
-    D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
+    D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = 
+    {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };

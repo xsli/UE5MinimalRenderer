@@ -10,7 +10,8 @@ class FRHI;
 
 // FRenderScene - Render thread scene representation
 // Contains proxies for actual rendering
-class FRenderScene {
+class FRenderScene 
+{
 public:
     FRenderScene();
     ~FRenderScene();

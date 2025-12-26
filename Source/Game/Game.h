@@ -4,7 +4,8 @@
 #include "Scene.h"
 
 // Main game class
-class FGame {
+class FGame 
+{
 public:
     FGame();
     ~FGame();

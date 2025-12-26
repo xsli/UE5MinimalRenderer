@@ -10,7 +10,8 @@ struct FTransform;
 
 // Base primitive scene proxy - render thread representation
 // Inherits from FSceneProxy to maintain compatibility with the renderer
-class FPrimitiveSceneProxy : public FSceneProxy {
+class FPrimitiveSceneProxy : public FSceneProxy 
+{
 public:
     FPrimitiveSceneProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer, 
                          FRHIBuffer* InConstantBuffer, FRHIPipelineState* InPSO,

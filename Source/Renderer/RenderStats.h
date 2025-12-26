@@ -4,7 +4,8 @@
 #include <chrono>
 
 // Render statistics tracker
-class FRenderStats {
+class FRenderStats 
+{
 public:
     FRenderStats();
     

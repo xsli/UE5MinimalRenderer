@@ -4,7 +4,8 @@
 #include <chrono>
 
 // Input state tracking
-struct FInputState {
+struct FInputState 
+{
     bool bLeftMouseDown = false;
     bool bRightMouseDown = false;
     bool bMiddleMouseDown = false;
@@ -21,7 +22,8 @@ struct FInputState {
 };
 
 // Camera sensitivity settings
-namespace CameraSettings {
+namespace CameraSettings 
+{
     constexpr float MovementSpeed = 0.01f;
     constexpr float RotationSpeed = 0.005f;
     constexpr float PanSpeed = 0.01f;

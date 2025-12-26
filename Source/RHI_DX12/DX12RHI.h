@@ -12,9 +12,11 @@
 
 using Microsoft::WRL::ComPtr;
 
-class FDX12Buffer : public FRHIBuffer {
+class FDX12Buffer : public FRHIBuffer 
+{
 public:
-    enum class EBufferType {
+    enum class EBufferType 
+    {
         Vertex,
         Index,
         Constant
@@ -38,7 +40,8 @@ private:
     D3D12_INDEX_BUFFER_VIEW IndexBufferView;
 };
 
-class FDX12PipelineState : public FRHIPipelineState {
+class FDX12PipelineState : public FRHIPipelineState 
+{
 public:
     FDX12PipelineState(ID3D12PipelineState* InPSO, ID3D12RootSignature* InRootSig);
     virtual ~FDX12PipelineState() override;
@@ -51,7 +54,8 @@ private:
     ComPtr<ID3D12RootSignature> RootSignature;
 };
 
-class FDX12CommandList : public FRHICommandList {
+class FDX12CommandList : public FRHICommandList 
+{
 public:
     FDX12CommandList(ID3D12Device* Device, ID3D12CommandQueue* Queue, IDXGISwapChain3* SwapChain, uint32 Width, uint32 Height);
     virtual ~FDX12CommandList() override;
@@ -114,7 +118,8 @@ private:
     bool bCommandsFlushedFor2D;
 };
 
-class FDX12RHI : public FRHI {
+class FDX12RHI : public FRHI 
+{
 public:
     FDX12RHI();
     virtual ~FDX12RHI() override;
