@@ -1,2 +1,0 @@
-/usr/bin/ar qc libGame.a CMakeFiles/Game.dir/Game.cpp.o CMakeFiles/Game.dir/Scene.cpp.o CMakeFiles/Game.dir/Primitive.cpp.o CMakeFiles/Game.dir/PrimitiveSceneProxy.cpp.o
-/usr/bin/ranlib libGame.a
