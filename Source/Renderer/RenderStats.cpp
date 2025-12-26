@@ -10,12 +10,14 @@ FRenderStats::FRenderStats()
     LastFPSUpdateTime = std::chrono::high_resolution_clock::now();
 }
 
-void FRenderStats::BeginFrame() {
+void FRenderStats::BeginFrame()
+{
     FrameStartTime = std::chrono::high_resolution_clock::now();
     TriangleCount = 0;  // Reset triangle count for this frame
 }
 
-void FRenderStats::EndFrame() {
+void FRenderStats::EndFrame()
+{
     FrameCount++;
     FramesSinceLastFPSUpdate++;
     
@@ -26,13 +28,15 @@ void FRenderStats::EndFrame() {
     
     // Update FPS every 0.5 seconds
     auto timeSinceLastUpdate = std::chrono::duration<float>(frameEndTime - LastFPSUpdateTime);
-    if (timeSinceLastUpdate.count() >= 0.5f) {
+    if (timeSinceLastUpdate.count() >= 0.5f)
+    {
         FPS = FramesSinceLastFPSUpdate / timeSinceLastUpdate.count();
         LastFPSUpdateTime = frameEndTime;
         FramesSinceLastFPSUpdate = 0;
     }
 }
 
-void FRenderStats::AddTriangles(uint32 Count) {
+void FRenderStats::AddTriangles(uint32 Count)
+{
     TriangleCount += Count;
 }

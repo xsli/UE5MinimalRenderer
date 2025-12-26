@@ -15,11 +15,13 @@ struct FTransform {
     FTransform()
         : Position(0.0f, 0.0f, 0.0f)
         , Rotation(0.0f, 0.0f, 0.0f)
-        , Scale(1.0f, 1.0f, 1.0f) {
+        , Scale(1.0f, 1.0f, 1.0f)
+{
     }
     
     // Get transformation matrix
-    FMatrix4x4 GetMatrix() const {
+    FMatrix4x4 GetMatrix() const
+{
         FMatrix4x4 scale = FMatrix4x4::Scaling(Scale.X, Scale.Y, Scale.Z);
         FMatrix4x4 rotationX = FMatrix4x4::RotationX(Rotation.X);
         FMatrix4x4 rotationY = FMatrix4x4::RotationY(Rotation.Y);

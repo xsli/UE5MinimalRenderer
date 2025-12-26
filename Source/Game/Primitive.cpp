@@ -15,31 +15,38 @@ FPrimitive::FPrimitive()
     : Transform()
     , Color(1.0f, 1.0f, 1.0f, 1.0f)
     , bIsDirty(true)  // Start as dirty so proxy is created on first update
-    , bTransformDirty(false) {
+    , bTransformDirty(false)
+{
 }
 
-void FPrimitive::Tick(float DeltaTime) {
+void FPrimitive::Tick(float DeltaTime)
+{
     // Base implementation does nothing
 }
 
 // FCubePrimitive implementation
 FCubePrimitive::FCubePrimitive()
     : bAutoRotate(true)
-    , RotationSpeed(0.5f) {
+    , RotationSpeed(0.5f)
+{
 }
 
-FCubePrimitive::~FCubePrimitive() {
+FCubePrimitive::~FCubePrimitive()
+{
 }
 
-void FCubePrimitive::Tick(float DeltaTime) {
-    if (bAutoRotate) {
+void FCubePrimitive::Tick(float DeltaTime)
+{
+    if (bAutoRotate)
+    {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
         Transform.Rotation.X += DeltaTime * RotationSpeed * 0.3f;
         MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
 }
 
-FPrimitiveSceneProxy* FCubePrimitive::CreateSceneProxy(FRHI* RHI) {
+FPrimitiveSceneProxy* FCubePrimitive::CreateSceneProxy(FRHI* RHI)
+{
     FLog::Log(ELogLevel::Info, "Creating cube primitive proxy...");
     
     // Define cube vertices (24 vertices, 4 per face for proper normals)
@@ -112,32 +119,39 @@ FSpherePrimitive::FSpherePrimitive(uint32 InSegments, uint32 InRings)
     : Segments(InSegments)
     , Rings(InRings)
     , bAutoRotate(true)
-    , RotationSpeed(0.3f) {
+    , RotationSpeed(0.3f)
+{
 }
 
-FSpherePrimitive::~FSpherePrimitive() {
+FSpherePrimitive::~FSpherePrimitive()
+{
 }
 
-void FSpherePrimitive::Tick(float DeltaTime) {
-    if (bAutoRotate) {
+void FSpherePrimitive::Tick(float DeltaTime)
+{
+    if (bAutoRotate)
+    {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
         MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
 }
 
-FPrimitiveSceneProxy* FSpherePrimitive::CreateSceneProxy(FRHI* RHI) {
+FPrimitiveSceneProxy* FSpherePrimitive::CreateSceneProxy(FRHI* RHI)
+{
     FLog::Log(ELogLevel::Info, "Creating sphere primitive proxy...");
     
     std::vector<FVertex> vertices;
     std::vector<uint32> indices;
     
     // Generate sphere vertices using UV sphere algorithm
-    for (uint32 ring = 0; ring <= Rings; ++ring) {
+    for (uint32 ring = 0; ring <= Rings; ++ring)
+    {
         float phi = M_PI * float(ring) / float(Rings);  // 0 to PI
         float y = cosf(phi);
         float ringRadius = sinf(phi);
         
-        for (uint32 seg = 0; seg <= Segments; ++seg) {
+        for (uint32 seg = 0; seg <= Segments; ++seg)
+        {
             float theta = 2.0f * M_PI * float(seg) / float(Segments);  // 0 to 2PI
             float x = ringRadius * cosf(theta);
             float z = ringRadius * sinf(theta);
@@ -147,8 +161,10 @@ FPrimitiveSceneProxy* FSpherePrimitive::CreateSceneProxy(FRHI* RHI) {
     }
     
     // Generate indices
-    for (uint32 ring = 0; ring < Rings; ++ring) {
-        for (uint32 seg = 0; seg < Segments; ++seg) {
+    for (uint32 ring = 0; ring < Rings; ++ring)
+    {
+        for (uint32 seg = 0; seg < Segments; ++seg)
+        {
             uint32 current = ring * (Segments + 1) + seg;
             uint32 next = current + Segments + 1;
             
@@ -180,20 +196,25 @@ FPrimitiveSceneProxy* FSpherePrimitive::CreateSceneProxy(FRHI* RHI) {
 FCylinderPrimitive::FCylinderPrimitive(uint32 InSegments)
     : Segments(InSegments)
     , bAutoRotate(true)
-    , RotationSpeed(0.4f) {
+    , RotationSpeed(0.4f)
+{
 }
 
-FCylinderPrimitive::~FCylinderPrimitive() {
+FCylinderPrimitive::~FCylinderPrimitive()
+{
 }
 
-void FCylinderPrimitive::Tick(float DeltaTime) {
-    if (bAutoRotate) {
+void FCylinderPrimitive::Tick(float DeltaTime)
+{
+    if (bAutoRotate)
+    {
         Transform.Rotation.Y += DeltaTime * RotationSpeed;
         MarkTransformDirty();  // Only transform changed, no need to recreate proxy
     }
 }
 
-FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI) {
+FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI)
+{
     FLog::Log(ELogLevel::Info, "Creating cylinder primitive proxy...");
     
     std::vector<FVertex> vertices;
@@ -203,7 +224,8 @@ FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI) {
     const float radius = 0.5f;
     
     // Generate side vertices
-    for (uint32 seg = 0; seg <= Segments; ++seg) {
+    for (uint32 seg = 0; seg <= Segments; ++seg)
+    {
         float theta = 2.0f * M_PI * float(seg) / float(Segments);
         float x = radius * cosf(theta);
         float z = radius * sinf(theta);
@@ -214,7 +236,8 @@ FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI) {
     }
     
     // Generate side indices
-    for (uint32 seg = 0; seg < Segments; ++seg) {
+    for (uint32 seg = 0; seg < Segments; ++seg)
+    {
         uint32 top1 = seg * 2;
         uint32 bottom1 = seg * 2 + 1;
         uint32 top2 = (seg + 1) * 2;
@@ -233,7 +256,8 @@ FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI) {
     // Add top cap
     uint32 topCenterIdx = vertices.size();
     vertices.push_back({ FVector(0.0f, height * 0.5f, 0.0f), Color });
-    for (uint32 seg = 0; seg < Segments; ++seg) {
+    for (uint32 seg = 0; seg < Segments; ++seg)
+    {
         float theta1 = 2.0f * M_PI * float(seg) / float(Segments);
         float theta2 = 2.0f * M_PI * float(seg + 1) / float(Segments);
         
@@ -251,7 +275,8 @@ FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI) {
     // Add bottom cap
     uint32 bottomCenterIdx = vertices.size();
     vertices.push_back({ FVector(0.0f, -height * 0.5f, 0.0f), Color });
-    for (uint32 seg = 0; seg < Segments; ++seg) {
+    for (uint32 seg = 0; seg < Segments; ++seg)
+    {
         float theta1 = 2.0f * M_PI * float(seg) / float(Segments);
         float theta2 = 2.0f * M_PI * float(seg + 1) / float(Segments);
         
@@ -281,17 +306,21 @@ FPrimitiveSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI) {
 
 // FPlanePrimitive implementation
 FPlanePrimitive::FPlanePrimitive(uint32 InSubdivisions)
-    : Subdivisions(InSubdivisions) {
+    : Subdivisions(InSubdivisions)
+{
 }
 
-FPlanePrimitive::~FPlanePrimitive() {
+FPlanePrimitive::~FPlanePrimitive()
+{
 }
 
-void FPlanePrimitive::Tick(float DeltaTime) {
+void FPlanePrimitive::Tick(float DeltaTime)
+{
     // Planes typically don't auto-rotate
 }
 
-FPrimitiveSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI) {
+FPrimitiveSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI)
+{
     FLog::Log(ELogLevel::Info, "Creating plane primitive proxy...");
     
     std::vector<FVertex> vertices;
@@ -301,8 +330,10 @@ FPrimitiveSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI) {
     const uint32 divs = Subdivisions + 1;
     
     // Generate grid vertices
-    for (uint32 z = 0; z <= Subdivisions; ++z) {
-        for (uint32 x = 0; x <= Subdivisions; ++x) {
+    for (uint32 z = 0; z <= Subdivisions; ++z)
+    {
+        for (uint32 x = 0; x <= Subdivisions; ++x)
+        {
             float px = (float(x) / float(Subdivisions) - 0.5f) * size;
             float pz = (float(z) / float(Subdivisions) - 0.5f) * size;
             
@@ -311,8 +342,10 @@ FPrimitiveSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI) {
     }
     
     // Generate indices
-    for (uint32 z = 0; z < Subdivisions; ++z) {
-        for (uint32 x = 0; x < Subdivisions; ++x) {
+    for (uint32 z = 0; z < Subdivisions; ++z)
+    {
+        for (uint32 x = 0; x < Subdivisions; ++x)
+        {
             uint32 topLeft = z * divs + x;
             uint32 topRight = topLeft + 1;
             uint32 bottomLeft = (z + 1) * divs + x;

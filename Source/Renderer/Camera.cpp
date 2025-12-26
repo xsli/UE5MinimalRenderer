@@ -25,7 +25,8 @@ FCamera::FCamera()
     
     // Normalize
     float length = std::sqrt(direction.X * direction.X + direction.Y * direction.Y + direction.Z * direction.Z);
-    if (length > 0.0001f) {
+    if (length > 0.0001f)
+    {
         direction.X /= length;
         direction.Y /= length;
         direction.Z /= length;
@@ -43,25 +44,30 @@ FCamera::FCamera()
     UpdateOrientation();
 }
 
-FCamera::~FCamera() {
+FCamera::~FCamera()
+{
 }
 
-void FCamera::SetPosition(const FVector& InPosition) {
+void FCamera::SetPosition(const FVector& InPosition)
+{
     Position = InPosition;
     bViewMatrixDirty = true;
 }
 
-void FCamera::SetLookAt(const FVector& Target) {
+void FCamera::SetLookAt(const FVector& Target)
+{
     LookAtTarget = Target;
     bViewMatrixDirty = true;
 }
 
-void FCamera::SetUpVector(const FVector& Up) {
+void FCamera::SetUpVector(const FVector& Up)
+{
     UpVector = Up;
     bViewMatrixDirty = true;
 }
 
-void FCamera::SetPerspective(float FovYRadians, float InAspectRatio, float InNearPlane, float InFarPlane) {
+void FCamera::SetPerspective(float FovYRadians, float InAspectRatio, float InNearPlane, float InFarPlane)
+{
     FovY = FovYRadians;
     AspectRatio = InAspectRatio;
     NearPlane = InNearPlane;
@@ -69,37 +75,46 @@ void FCamera::SetPerspective(float FovYRadians, float InAspectRatio, float InNea
     bProjectionMatrixDirty = true;
 }
 
-FMatrix4x4 FCamera::GetViewMatrix() const {
-    if (bViewMatrixDirty) {
+FMatrix4x4 FCamera::GetViewMatrix() const
+{
+    if (bViewMatrixDirty)
+    {
         UpdateMatrices();
     }
     return ViewMatrix;
 }
 
-FMatrix4x4 FCamera::GetProjectionMatrix() const {
-    if (bProjectionMatrixDirty) {
+FMatrix4x4 FCamera::GetProjectionMatrix() const
+{
+    if (bProjectionMatrixDirty)
+    {
         UpdateMatrices();
     }
     return ProjectionMatrix;
 }
 
-FMatrix4x4 FCamera::GetViewProjectionMatrix() const {
+FMatrix4x4 FCamera::GetViewProjectionMatrix() const
+{
     return GetViewMatrix() * GetProjectionMatrix();
 }
 
-void FCamera::UpdateMatrices() const {
-    if (bViewMatrixDirty) {
+void FCamera::UpdateMatrices() const
+{
+    if (bViewMatrixDirty)
+    {
         ViewMatrix = FMatrix4x4::LookAtLH(Position, LookAtTarget, UpVector);
         bViewMatrixDirty = false;
     }
     
-    if (bProjectionMatrixDirty) {
+    if (bProjectionMatrixDirty)
+    {
         ProjectionMatrix = FMatrix4x4::PerspectiveFovLH(FovY, AspectRatio, NearPlane, FarPlane);
         bProjectionMatrixDirty = false;
     }
 }
 
-void FCamera::UpdateOrientation() {
+void FCamera::UpdateOrientation()
+{
     // Calculate forward vector from pitch and yaw
     Forward.X = std::sin(Yaw) * std::cos(Pitch);
     Forward.Y = -std::sin(Pitch);
@@ -107,7 +122,8 @@ void FCamera::UpdateOrientation() {
     
     // Normalize forward
     float length = std::sqrt(Forward.X * Forward.X + Forward.Y * Forward.Y + Forward.Z * Forward.Z);
-    if (length > 0.0001f) {
+    if (length > 0.0001f)
+    {
         Forward.X /= length;
         Forward.Y /= length;
         Forward.Z /= length;
@@ -121,7 +137,8 @@ void FCamera::UpdateOrientation() {
     
     // Normalize right
     length = std::sqrt(Right.X * Right.X + Right.Y * Right.Y + Right.Z * Right.Z);
-    if (length > 0.0001f) {
+    if (length > 0.0001f)
+    {
         Right.X /= length;
         Right.Y /= length;
         Right.Z /= length;
@@ -144,7 +161,8 @@ void FCamera::UpdateOrientation() {
 // UE5-style camera controls
 
 // LMB drag: Move forward/backward
-void FCamera::MoveForwardBackward(float Delta) {
+void FCamera::MoveForwardBackward(float Delta)
+{
     Position.X += Forward.X * Delta;
     Position.Y += Forward.Y * Delta;
     Position.Z += Forward.Z * Delta;
@@ -152,13 +170,15 @@ void FCamera::MoveForwardBackward(float Delta) {
 }
 
 // LMB drag: Rotate left/right (yaw)
-void FCamera::RotateYaw(float Delta) {
+void FCamera::RotateYaw(float Delta)
+{
     Yaw += Delta;
     UpdateOrientation();
 }
 
 // RMB drag: Rotate camera pitch
-void FCamera::RotatePitch(float Delta) {
+void FCamera::RotatePitch(float Delta)
+{
     Pitch += Delta;
     
     // Clamp pitch to avoid flipping
@@ -170,7 +190,8 @@ void FCamera::RotatePitch(float Delta) {
 }
 
 // LMB+RMB or MMB drag: Pan right
-void FCamera::PanRight(float Delta) {
+void FCamera::PanRight(float Delta)
+{
     Position.X += Right.X * Delta;
     Position.Y += Right.Y * Delta;
     Position.Z += Right.Z * Delta;
@@ -178,7 +199,8 @@ void FCamera::PanRight(float Delta) {
 }
 
 // LMB+RMB or MMB drag: Pan up
-void FCamera::PanUp(float Delta) {
+void FCamera::PanUp(float Delta)
+{
     Position.X += Up.X * Delta;
     Position.Y += Up.Y * Delta;
     Position.Z += Up.Z * Delta;
@@ -186,7 +208,8 @@ void FCamera::PanUp(float Delta) {
 }
 
 // Mouse wheel: Zoom
-void FCamera::Zoom(float Delta) {
+void FCamera::Zoom(float Delta)
+{
     Position.X += Forward.X * Delta;
     Position.Y += Forward.Y * Delta;
     Position.Z += Forward.Z * Delta;
