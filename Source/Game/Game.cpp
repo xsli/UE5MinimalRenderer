@@ -3,7 +3,11 @@
 #include "../RHI_DX12/DX12RHI.h"
 
 // Global camera pointer for primitive proxy creation
-// This is a temporary solution - in a real engine, this would be passed through context
+// TODO: This is a temporary workaround. In a production engine, the camera should be:
+//   1. Passed through CreateSceneProxy() parameters, OR
+//   2. Passed through a scene context object, OR
+//   3. Stored in FRenderScene and accessed via a getter
+// Current approach breaks dependency injection and makes testing harder.
 FCamera* g_Camera = nullptr;
 
 // FGame implementation

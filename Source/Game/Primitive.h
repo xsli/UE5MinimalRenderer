@@ -20,14 +20,15 @@ struct FTransform {
     
     // Get transformation matrix
     FMatrix4x4 GetMatrix() const {
-        FMatrix4x4 translation = FMatrix4x4::Translation(Position.X, Position.Y, Position.Z);
+        FMatrix4x4 scale = FMatrix4x4::Scaling(Scale.X, Scale.Y, Scale.Z);
         FMatrix4x4 rotationX = FMatrix4x4::RotationX(Rotation.X);
         FMatrix4x4 rotationY = FMatrix4x4::RotationY(Rotation.Y);
         FMatrix4x4 rotationZ = FMatrix4x4::RotationZ(Rotation.Z);
-        FMatrix4x4 scale = FMatrix4x4::Scaling(Scale.X, Scale.Y, Scale.Z);
+        FMatrix4x4 translation = FMatrix4x4::Translation(Position.X, Position.Y, Position.Z);
         
-        // Order: Scale -> Rotate -> Translate
-        return scale * rotationX * rotationY * rotationZ * translation;
+        // Order: Scale -> Rotate -> Translate (standard graphics order)
+        // Matrix multiplication is right-to-left, so we write: Translation * Rotation * Scale
+        return translation * rotationZ * rotationY * rotationX * scale;
     }
 };
 

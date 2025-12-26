@@ -99,9 +99,8 @@ FPrimitiveSceneProxy* FCubePrimitive::CreateSceneProxy(FRHI* RHI) {
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    // Get camera from RHI context (we'll need to pass this properly)
-    // For now, we'll get it from the renderer
-    extern FCamera* g_Camera;  // Temporary solution
+    // TODO: Remove global camera dependency (see Game.cpp for details)
+    extern FCamera* g_Camera;
     
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 
                                     indices.size(), g_Camera, Transform);

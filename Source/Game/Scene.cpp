@@ -9,14 +9,14 @@ FRenderScene::FRenderScene() {
 FRenderScene::~FRenderScene() {
 }
 
-void FRenderScene::AddProxy(FPrimitiveSceneProxy* Proxy) {
+void FRenderScene::AddProxy(FSceneProxy* Proxy) {
     if (Proxy) {
         Proxies.push_back(Proxy);
         FLog::Log(ELogLevel::Info, std::string("FRenderScene::AddProxy - Total proxies: ") + std::to_string(Proxies.size()));
     }
 }
 
-void FRenderScene::RemoveProxy(FPrimitiveSceneProxy* Proxy) {
+void FRenderScene::RemoveProxy(FSceneProxy* Proxy) {
     auto it = std::find(Proxies.begin(), Proxies.end(), Proxy);
     if (it != Proxies.end()) {
         Proxies.erase(it);
@@ -26,7 +26,7 @@ void FRenderScene::RemoveProxy(FPrimitiveSceneProxy* Proxy) {
 
 void FRenderScene::ClearProxies() {
     // Delete all proxies
-    for (FPrimitiveSceneProxy* Proxy : Proxies) {
+    for (FSceneProxy* Proxy : Proxies) {
         delete Proxy;
     }
     Proxies.clear();
@@ -37,7 +37,7 @@ void FRenderScene::Render(FRHICommandList* RHICmdList, FRenderStats& Stats) {
     FLog::Log(ELogLevel::Info, std::string("FRenderScene::Render - Rendering ") + std::to_string(Proxies.size()) + " proxies");
     
     // Render all proxies
-    for (FPrimitiveSceneProxy* Proxy : Proxies) {
+    for (FSceneProxy* Proxy : Proxies) {
         Proxy->Render(RHICmdList);
         Stats.AddTriangles(Proxy->GetTriangleCount());
     }

@@ -5,7 +5,6 @@
 
 // Forward declarations
 class FPrimitive;
-class FPrimitiveSceneProxy;
 class FRHI;
 
 // FRenderScene - Render thread scene representation
@@ -16,18 +15,18 @@ public:
     ~FRenderScene();
     
     // Proxy management (called from render thread or during sync)
-    void AddProxy(FPrimitiveSceneProxy* Proxy);
-    void RemoveProxy(FPrimitiveSceneProxy* Proxy);
+    void AddProxy(FSceneProxy* Proxy);
+    void RemoveProxy(FSceneProxy* Proxy);
     void ClearProxies();
     
     // Rendering
     void Render(FRHICommandList* RHICmdList, FRenderStats& Stats);
     
     // Get proxy list
-    const std::vector<FPrimitiveSceneProxy*>& GetProxies() const { return Proxies; }
+    const std::vector<FSceneProxy*>& GetProxies() const { return Proxies; }
     
 private:
-    std::vector<FPrimitiveSceneProxy*> Proxies;
+    std::vector<FSceneProxy*> Proxies;
 };
 
 // FScene - Game thread scene representation
