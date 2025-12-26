@@ -241,6 +241,90 @@ Before Commit Checklist:
 [ ] README reflects new features or changes
 ```
 
+## Using Unreal Engine Documentation
+
+### Context7 MCP Tool for UE5 Reference
+
+When working with Unreal Engine concepts, rendering systems, or UE5-specific patterns, **ALWAYS use the Context7 MCP tool** to access official Unreal Engine documentation.
+
+#### Tool Usage
+
+**CRITICAL**: Use the correct library ID format:
+- ✅ **Correct**: `unreal-engine` (or search first with `resolve-library-id`)
+- ❌ **Incorrect**: `/epicgames/unrealengine` (this will fail)
+
+**Steps to access UE documentation:**
+
+1. **Search for the library** (if unsure of exact ID):
+   ```
+   Use resolve-library-id tool with libraryName: "unreal engine"
+   This returns the correct Context7-compatible ID
+   ```
+
+2. **Query documentation** with specific topics:
+   ```
+   Use get-library-docs tool with:
+   - context7CompatibleLibraryID: "unreal-engine"
+   - topic: Your specific query (e.g., "FScene rendering", "RDG render graph")
+   - mode: "code" for API references, "info" for conceptual guides
+   ```
+
+#### When to Use Context7
+
+**ALWAYS** use Context7 when encountering:
+- Unreal Engine keywords: `FScene`, `RDG`, `FRHICommandList`, `FPrimitiveSceneProxy`
+- Rendering architecture questions: Render graph, scene proxies, parallel rendering
+- UE5-specific patterns: Tick groups, game thread vs render thread
+- RHI abstraction layer design patterns
+- Material system, shader compilation, or graphics pipeline
+
+#### Search Topics for This Project
+
+Use these **specific topics** when querying UE documentation for this renderer:
+
+**Core Rendering Classes:**
+- `FScene` - Scene representation and management
+- `FPrimitiveSceneProxy` - Renderable object proxies
+- `FSceneRenderer` - Frame rendering coordination
+- `RDG` or `Render Dependency Graph` - Modern UE5 rendering graph system
+
+**RHI and Graphics:**
+- `FRHICommandList` - Command recording and execution
+- `RHI abstraction` - Platform-agnostic rendering interface
+- `DirectX 12 RHI` - DX12 backend implementation patterns
+- `Vertex buffer` and `Index buffer` - Geometry resource management
+
+**Architecture Patterns:**
+- `Game thread rendering` - Thread separation patterns
+- `Parallel rendering` - UE5's multi-threaded rendering
+- `Proxy pattern rendering` - Scene proxy design
+- `Command pattern graphics` - Deferred command execution
+
+#### Example Workflow
+
+```
+User asks: "How should I implement a new primitive type in UE5 style?"
+
+1. Call resolve-library-id with "unreal engine"
+2. Call get-library-docs with:
+   - ID: "unreal-engine"
+   - topic: "FPrimitiveSceneProxy primitive rendering"
+   - mode: "code"
+3. Review returned documentation for CreateSceneProxy patterns
+4. Implement following UE5 conventions from documentation
+5. Update project documentation with findings
+```
+
+#### Benefits
+
+- **Authoritative source**: Official UE5 documentation and best practices
+- **Up-to-date patterns**: Current rendering architecture (not outdated tutorials)
+- **Precise API references**: Exact function signatures and usage
+- **Avoid errors**: Correct implementation patterns from the start
+- **Architectural consistency**: Align with real UE5 design decisions
+
+**Note**: This project is educational, so when UE5 documentation shows complex production patterns (e.g., full RDG implementation), adapt to our simplified architecture while maintaining the core design principles.
+
 ## Development Workflow
 
 ### Making Changes
