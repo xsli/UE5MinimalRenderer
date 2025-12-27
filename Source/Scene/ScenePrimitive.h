@@ -241,39 +241,6 @@ private:
 // ============================================================================
 
 /**
- * FGizmoPrimitive - UE-style coordinate axis visualization
- * X axis = Red, Y axis = Green, Z axis = Blue
- * Special primitive that can render in screen space
- */
-class FGizmoPrimitive : public FPrimitive
-{
-public:
-    FGizmoPrimitive(float InAxisLength = 1.5f);
-    virtual ~FGizmoPrimitive() override = default;
-
-    virtual void Tick(float DeltaTime) override;
-    virtual FSceneProxy* CreateSceneProxy(FRHI* RHI, FLightScene* LightScene) override;
-
-    // Screen-space rendering mode (renders in a corner)
-    void SetScreenSpace(bool bEnable) { bScreenSpace = bEnable; }
-    bool IsScreenSpace() const { return bScreenSpace; }
-    
-    // Set screen corner (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
-    void SetScreenCorner(int Corner) { ScreenCorner = Corner; }
-    int GetScreenCorner() const { return ScreenCorner; }
-    
-    // Set gizmo size in pixels for screen-space mode
-    void SetGizmoSize(float Size) { GizmoSize = Size; }
-    float GetGizmoSize() const { return GizmoSize; }
-
-private:
-    float AxisLength;
-    bool bScreenSpace;
-    int ScreenCorner;  // 2 = bottom-left (default)
-    float GizmoSize;   // Size in pixels for screen-space mode (default: 40)
-};
-
-/**
  * Animation type for demo primitives
  */
 enum class EAnimationType

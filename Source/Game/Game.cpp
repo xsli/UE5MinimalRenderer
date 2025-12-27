@@ -14,8 +14,6 @@ FLightScene* g_LightScene = nullptr;
 FGame::FGame()
     : bMultiThreaded(true)  // Enable multi-threading by default
     , GameFrameNumber(0)
-    , ScreenGizmo(nullptr)
-    , ScreenGizmoProxy(nullptr)
 {
 }
 
@@ -124,27 +122,6 @@ void FGame::SetupScene()
     pointLight2->SetIntensity(0.6f);  // Reduced from 1.5
     pointLight2->SetRadius(8.0f);
     LightScene->AddLight(pointLight2);
-    
-    // ==========================================
-    // WORLD GIZMO (at origin, part of scene)
-    // ==========================================
-    
-    FGizmoPrimitive* worldGizmo = new FGizmoPrimitive(1.5f);
-    worldGizmo->SetScreenSpace(false);  // World-space gizmo at origin
-    worldGizmo->SetPosition(FVector(0.0f, 0.0f, 0.0f));
-    Scene->AddPrimitive(worldGizmo);
-    
-    // ==========================================
-    // SCREEN-SPACE GIZMO (bottom-left corner)
-    // ==========================================
-    
-    ScreenGizmo = new FGizmoPrimitive(0.8f);
-    ScreenGizmo->SetScreenSpace(true);
-    ScreenGizmo->SetScreenCorner(2);  // Bottom-left (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
-    ScreenGizmo->SetGizmoSize(50.0f); // 50 pixels for screen gizmo
-    // Create and add screen gizmo proxy to renderer
-    ScreenGizmoProxy = ScreenGizmo->CreateSceneProxy(RHI.get(), nullptr);
-    Renderer->AddSceneProxy(ScreenGizmoProxy);
     
     // ==========================================
     // SCENE OBJECTS - Lit Primitives with Macaron Colors
@@ -338,11 +315,6 @@ void FGame::Shutdown()
         FRenderThread::Get().Stop();
         FRHIThread::Get().Stop();
     }
-    
-    // Cleanup screen gizmo (proxy is owned by renderer, will be cleaned up there)
-    ScreenGizmoProxy = nullptr;
-    delete ScreenGizmo;
-    ScreenGizmo = nullptr;
     
     g_LightScene = nullptr;
     

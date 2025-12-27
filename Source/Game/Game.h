@@ -41,10 +41,6 @@ private:
     std::unique_ptr<FRenderer> Renderer;
     std::unique_ptr<FScene> Scene;
     
-    // Screen-space gizmo (rendered separately in corner)
-    FGizmoPrimitive* ScreenGizmo;
-    FSceneProxy* ScreenGizmoProxy;
-    
     // Multi-threading flag
     bool bMultiThreaded;
     
