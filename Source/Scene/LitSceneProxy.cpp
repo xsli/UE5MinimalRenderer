@@ -185,12 +185,10 @@ void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
 
 void FPrimitiveSceneProxy::RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj, FRHIBuffer* ShadowMVPBuffer)
 {
-    // IMPORTANT: Always use the proxy's own MVPConstantBuffer for shadow rendering.
-    // Using a shared buffer would cause all proxies to overwrite each other's data,
-    // resulting in only the last proxy's matrix being visible to the GPU.
-    // The caller is responsible for flushing commands after shadow pass so that
-    // GPU reads this data before main pass overwrites the buffer.
-    (void)ShadowMVPBuffer;  // Unused - kept for API compatibility
+    // IMPORTANT: Use SetRootConstants for shadow pass MVP matrix
+    // This copies the matrix data at command record time, avoiding the constant buffer
+    // synchronization issue where all draws would see the same (last) matrix value.
+    (void)ShadowMVPBuffer;  // Unused - using root constants instead
     
     // Calculate shadow MVP matrix: Model * LightViewProj
     FMatrix4x4 shadowMVP = ModelMatrix * LightViewProj;
@@ -198,14 +196,11 @@ void FPrimitiveSceneProxy::RenderShadow(FRHICommandList* RHICmdList, const FMatr
     // Transpose for HLSL (column-major)
     FMatrix4x4 shadowMVPTransposed = shadowMVP.Transpose();
     
-    // Update MVP constant buffer with shadow matrix
-    void* mvpData = MVPConstantBuffer->Map();
-    memcpy(mvpData, &shadowMVPTransposed.Matrix, sizeof(DirectX::XMMATRIX));
-    MVPConstantBuffer->Unmap();
+    // Set MVP using root constants - this copies data at record time!
+    // 16 floats = 16 DWORDs = sizeof(XMMATRIX) / sizeof(float)
+    RHICmdList->SetRootConstants(0, 16, &shadowMVPTransposed.Matrix, 0);
     
-    // Set render state and draw (PSO should be shadow/depth-only PSO)
-    // Note: Pipeline state is already set by the shadow pass
-    RHICmdList->SetConstantBuffer(MVPConstantBuffer, 0);      // b0 = MVP
+    // Set vertex and index buffers, then draw
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FLitVertex));
     RHICmdList->SetIndexBuffer(IndexBuffer);
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);

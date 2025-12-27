@@ -424,6 +424,9 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     
     const auto& proxies = Scene->GetProxies();
     
+    // GPU Event: Directional Shadow Pass
+    RHICmdList->BeginEvent("Shadow: Directional Light");
+    
     // Begin shadow pass - sets depth-only render target and clears depth buffer
     RHICmdList->BeginShadowPass(shadowTexture, 0);
     
@@ -440,17 +443,25 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     // Render each proxy with shadow pass (only if it casts shadows)
     // Note: Each proxy uses its own MVPConstantBuffer. Caller must flush after
     // shadow pass to ensure GPU reads shadow data before main pass overwrites it.
+    int proxyIndex = 0;
     for (FSceneProxy* proxy : proxies)
     {
         if (proxy && proxy->GetCastShadow())
         {
+            // GPU Event: Individual shadow caster
+            RHICmdList->BeginEvent("Shadow Caster " + std::to_string(proxyIndex));
             proxy->RenderShadow(RHICmdList, lightVP, shadowMVPBuffer);
+            RHICmdList->EndEvent();
+            
             ShadowDrawCallCount++;
+            proxyIndex++;
         }
     }
     
     // End shadow pass - restores main render target
     RHICmdList->EndShadowPass();
+    
+    RHICmdList->EndEvent();  // End "Shadow: Directional Light"
 }
 
 void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRenderScene* Scene, uint32 LightIndex)
@@ -470,6 +481,9 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     static const uint32 ATLAS_COLS = 3;
     static const uint32 ATLAS_ROWS = 2;
     
+    // GPU Event: Point Light Shadow Pass
+    RHICmdList->BeginEvent("Shadow: Point Light " + std::to_string(LightIndex));
+    
     // Begin shadow pass for the atlas texture
     // NOTE: BeginShadowPass clears the entire depth buffer once (this is correct)
     RHICmdList->BeginShadowPass(shadowTexture, 0);
@@ -477,9 +491,15 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     // Set shadow PSO once for all faces
     RHICmdList->SetPipelineState(shadowPSO);
     
+    // Face names for debugging
+    static const char* faceNames[] = { "+X", "-X", "+Y", "-Y", "+Z", "-Z" };
+    
     // Render each face
     for (uint32 face = 0; face < 6; ++face)
     {
+        // GPU Event: Per-face rendering
+        RHICmdList->BeginEvent("Face " + std::to_string(face) + " (" + faceNames[face] + ")");
+        
         // Calculate face position in atlas
         uint32 col = face % ATLAS_COLS;
         uint32 row = face / ATLAS_COLS;
@@ -493,16 +513,25 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
         FMatrix4x4 faceVP = shadowPass.GetViewProjectionMatrix(face);
         
         // Render each proxy (only if it casts shadows)
+        int proxyIndex = 0;
         for (FSceneProxy* proxy : proxies)
         {
             if (proxy && proxy->GetCastShadow())
             {
+                RHICmdList->BeginEvent("Caster " + std::to_string(proxyIndex));
                 proxy->RenderShadow(RHICmdList, faceVP, shadowMVPBuffer);
+                RHICmdList->EndEvent();
+                
                 ShadowDrawCallCount++;
+                proxyIndex++;
             }
         }
+        
+        RHICmdList->EndEvent();  // End face event
     }
     
     // End shadow pass
     RHICmdList->EndShadowPass();
+    
+    RHICmdList->EndEvent();  // End "Shadow: Point Light X"
 }

@@ -120,6 +120,15 @@ public:
     
     // Clear just the depth buffer (for shadow maps that share atlas)
     virtual void ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex = 0) = 0;
+    
+    // GPU event markers for RenderDoc/PIX debugging
+    // These create named events that appear in GPU profilers
+    virtual void BeginEvent(const std::string& EventName) = 0;
+    virtual void EndEvent() = 0;
+    
+    // Set inline root constants (avoids constant buffer synchronization issues)
+    // Data is copied directly into the root signature at record time
+    virtual void SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset = 0) = 0;
 };
 
 // Pipeline state creation flags

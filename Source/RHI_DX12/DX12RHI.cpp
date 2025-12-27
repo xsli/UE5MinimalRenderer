@@ -572,6 +572,32 @@ void FDX12CommandList::ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceInde
     GraphicsCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
 
+void FDX12CommandList::BeginEvent(const std::string& EventName)
+{
+    // PIXBeginEvent is preferred but requires PIX headers
+    // For RenderDoc compatibility, use SetMarker with ID3D12GraphicsCommandList
+    // Using a simple approach: SetMarker followed by the marker being visible in RenderDoc
+    
+    // Convert to wide string for D3D12 marker API
+    std::wstring wideEventName(EventName.begin(), EventName.end());
+    
+    // Use PIXSetMarker via command list (requires D3D12_MESSAGE_ID_PIX_API)
+    // For broader compatibility, we use the standard D3D12 debug layer marker
+#ifdef _DEBUG
+    // In debug mode, this marker will be visible in RenderDoc and GPU profilers
+    GraphicsCommandList->BeginEvent(0, wideEventName.c_str(), static_cast<UINT>((wideEventName.length() + 1) * sizeof(wchar_t)));
+#else
+    (void)wideEventName;  // Avoid unused variable warning in release
+#endif
+}
+
+void FDX12CommandList::EndEvent()
+{
+#ifdef _DEBUG
+    GraphicsCommandList->EndEvent();
+#endif
+}
+
 void FDX12CommandList::WaitForGPU()
 {
     const UINT64 currentFenceValue = FenceValue;
@@ -583,6 +609,13 @@ void FDX12CommandList::WaitForGPU()
         ThrowIfFailed(Fence->SetEventOnCompletion(currentFenceValue, FenceEvent));
         WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
     }
+}
+
+void FDX12CommandList::SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset)
+{
+    // Set inline root constants directly in the root signature
+    // This copies data at record time, avoiding constant buffer sync issues
+    GraphicsCommandList->SetGraphicsRoot32BitConstants(RootParameterIndex, Num32BitValues, Data, DestOffset);
 }
 
 void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwapChain3* InSwapChain)
@@ -1223,9 +1256,15 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     ComPtr<ID3DBlob> pixelShader;
     ComPtr<ID3DBlob> error;
     
+    // Shader compile flags - disable optimization in debug mode for RenderDoc debugging
+    UINT shaderCompileFlags = 0;
+#ifdef _DEBUG
+    shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+    
     // Compile vertex shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "VSMain", "vs_5_0", 0, 0, &vertexShader, &error)))
+                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
 {
         if (error)
         {
@@ -1237,7 +1276,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     
     // Compile pixel shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "PSMain", "ps_5_0", 0, 0, &pixelShader, &error)))
+                         "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
 {
         if (error)
         {
@@ -1628,9 +1667,18 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     ComPtr<ID3DBlob> pixelShader;
     ComPtr<ID3DBlob> error;
     
+    // Shader compile flags - disable optimization in debug mode for RenderDoc debugging
+    UINT shaderCompileFlags = 0;
+#ifdef _DEBUG
+    // D3DCOMPILE_DEBUG: Include debug info for shader debugging
+    // D3DCOMPILE_SKIP_OPTIMIZATION: Disable optimization for source-level debugging
+    shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+    FLog::Log(ELogLevel::Info, "Compiling shaders with DEBUG flags (no optimization, debug info enabled)");
+#endif
+    
     // Compile vertex shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "VSMain", "vs_5_0", 0, 0, &vertexShader, &error)))
+                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
     {
         if (error)
         {
@@ -1642,7 +1690,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     
     // Compile pixel shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "PSMain", "ps_5_0", 0, 0, &pixelShader, &error)))
+                         "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
     {
         if (error)
         {
@@ -1664,9 +1712,18 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         rootParameters[2].InitAsConstantBufferView(2);
         rootSignatureDesc.Init(3, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
-    else if (bDepthOnly || bEnableDepth)
+    else if (bDepthOnly)
     {
-        // One CBV: MVP (b0) - for depth-only or depth-enabled non-lit rendering
+        // For depth-only (shadow pass), use 32-bit root constants instead of CBV
+        // This allows per-draw matrix data without constant buffer sync issues
+        // MVP matrix = 16 floats = 16 DWORDs
+        rootParameters[0].InitAsConstants(16, 0);  // 16 constants at b0
+        rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        FLog::Log(ELogLevel::Info, "Using root constants for depth-only PSO (shadow pass)");
+    }
+    else if (bEnableDepth)
+    {
+        // One CBV: MVP (b0) - for depth-enabled non-lit rendering
         rootParameters[0].InitAsConstantBufferView(0);
         rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }

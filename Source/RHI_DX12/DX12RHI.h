@@ -128,6 +128,13 @@ public:
     virtual void SetViewport(float X, float Y, float Width, float Height, float MinDepth = 0.0f, float MaxDepth = 1.0f) override;
     virtual void ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex = 0) override;
     
+    // GPU event markers for RenderDoc/PIX debugging
+    virtual void BeginEvent(const std::string& EventName) override;
+    virtual void EndEvent() override;
+    
+    // Set inline root constants
+    virtual void SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset = 0) override;
+    
     void InitializeTextRendering(ID3D12Device* Device, IDXGISwapChain3* SwapChain);
     
 private:
