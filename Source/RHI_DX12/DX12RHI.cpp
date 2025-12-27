@@ -146,6 +146,7 @@ FDX12PipelineState::~FDX12PipelineState()
 FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* InQueue, IDXGISwapChain3* InSwapChain, uint32 Width, uint32 Height)
     : Device(InDevice), CommandQueue(InQueue), SwapChain(InSwapChain), FrameIndex(0), FenceValue(0)
     , bCommandsFlushedFor2D(false), bInShadowPass(false), CurrentShadowMap(nullptr)
+    , SavedViewport{}, SavedScissorRect{}
 {
     
     // Create command allocator

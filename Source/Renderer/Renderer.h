@@ -26,9 +26,16 @@ public:
     virtual void Render(FRHICommandList* RHICmdList) = 0;
     virtual uint32 GetTriangleCount() const = 0;
     
+    // Shadow pass rendering - renders with light's view-projection matrix
+    // Default implementation does nothing - override for shadow-casting objects
+    virtual void RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj) {}
+    
     // Update transform - default implementation does nothing
     // Derived classes should override this to handle transform updates
     virtual void UpdateTransform(const FTransform& InTransform) {}
+    
+    // Get model matrix for shadow calculations
+    virtual FMatrix4x4 GetModelMatrix() const { return FMatrix4x4::Identity(); }
 };
 
 // Triangle mesh scene proxy

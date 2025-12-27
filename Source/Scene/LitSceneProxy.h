@@ -35,11 +35,17 @@ public:
     // Render this proxy (override from FSceneProxy)
     virtual void Render(FRHICommandList* RHICmdList) override;
     
+    // Shadow pass rendering - renders depth-only with light's view-projection
+    virtual void RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj) override;
+    
     // Get triangle count (override from FSceneProxy)
     virtual uint32 GetTriangleCount() const override;
     
     // Update transform
     virtual void UpdateTransform(const FTransform& InTransform) override;
+    
+    // Get model matrix for shadow calculations
+    virtual FMatrix4x4 GetModelMatrix() const override { return ModelMatrix; }
     
     // Update material
     void SetMaterial(const FMaterial& InMaterial) { Material = InMaterial; }

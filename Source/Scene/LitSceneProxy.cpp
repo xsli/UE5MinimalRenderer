@@ -108,6 +108,27 @@ void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
 }
 
+void FPrimitiveSceneProxy::RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj)
+{
+    // Calculate shadow MVP matrix: Model * LightViewProj
+    FMatrix4x4 shadowMVP = ModelMatrix * LightViewProj;
+    
+    // Transpose for HLSL (column-major)
+    FMatrix4x4 shadowMVPTransposed = shadowMVP.Transpose();
+    
+    // Update MVP constant buffer with shadow matrix
+    void* mvpData = MVPConstantBuffer->Map();
+    memcpy(mvpData, &shadowMVPTransposed.Matrix, sizeof(DirectX::XMMATRIX));
+    MVPConstantBuffer->Unmap();
+    
+    // Set render state and draw (PSO should be shadow/depth-only PSO)
+    // Note: Pipeline state is already set by the shadow pass
+    RHICmdList->SetConstantBuffer(MVPConstantBuffer, 0);      // b0 = MVP
+    RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FLitVertex));
+    RHICmdList->SetIndexBuffer(IndexBuffer);
+    RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
+}
+
 uint32 FPrimitiveSceneProxy::GetTriangleCount() const
 {
     return IndexCount / 3;

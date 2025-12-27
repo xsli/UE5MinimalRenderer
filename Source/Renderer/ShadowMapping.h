@@ -158,6 +158,9 @@ public:
     bool IsInitialized() const { return bInitialized; }
     bool IsDirectional() const { return bIsDirectional; }
     uint32 GetMapSize() const { return MapSize; }
+    
+    // Get shadow pass pipeline state
+    FRHIPipelineState* GetShadowPSO() const { return ShadowPSO; }
 
 private:
     void CalculateDirectionalMatrices(const FVector& LightDir, const FVector& SceneCenter, float SceneRadius);

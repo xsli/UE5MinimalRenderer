@@ -60,9 +60,9 @@ void FShadowMapPass::InitializeDirectional(FRHI* InRHI, uint32 InMapSize)
     // Create constant buffer for shadow pass MVP matrix
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
     
-    // Create shadow pass pipeline state (depth-only, no color output)
-    // Using EnableDepth flag for shadow rendering
-    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::EnableDepth);
+    // Create shadow pass pipeline state (depth-only with depth testing)
+    // Note: EnableDepth enables depth testing, which is needed for shadow pass
+    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting);
     
     bInitialized = (ShadowTexture != nullptr && ShadowPSO != nullptr);
     
@@ -89,7 +89,7 @@ void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
     
     // Create shadow pass pipeline state
-    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::EnableDepth);
+    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting);
     
     bInitialized = (ShadowTexture != nullptr && ShadowPSO != nullptr);
     
@@ -413,7 +413,8 @@ void FShadowSystem::SetSlopeScaledBias(float Bias)
 void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRenderScene* Scene)
 {
     FRHITexture* shadowTexture = DirectionalShadowPass.GetShadowTexture();
-    if (!shadowTexture) return;
+    FRHIPipelineState* shadowPSO = DirectionalShadowPass.GetShadowPSO();
+    if (!shadowTexture || !shadowPSO) return;
     
     FLog::Log(ELogLevel::Info, "Rendering directional shadow pass");
     
@@ -424,6 +425,9 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     uint32 mapSize = DirectionalShadowPass.GetMapSize();
     RHICmdList->SetViewport(0.0f, 0.0f, static_cast<float>(mapSize), static_cast<float>(mapSize));
     
+    // Set shadow PSO
+    RHICmdList->SetPipelineState(shadowPSO);
+    
     // Get light view-projection matrix
     FMatrix4x4 lightVP = DirectionalShadowPass.GetViewProjectionMatrix();
     
@@ -433,9 +437,8 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     {
         if (proxy)
         {
-            // Note: For shadow pass, proxies need to render with light's VP instead of camera VP
-            // This would require a shadow-specific render method or updating the constant buffer
-            // For now, we count the draw calls
+            // Use the shadow-specific render method
+            proxy->RenderShadow(RHICmdList, lightVP);
             ShadowDrawCallCount++;
         }
     }
@@ -452,7 +455,8 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     
     FShadowMapPass& shadowPass = PointLightShadowPasses[LightIndex];
     FRHITexture* shadowTexture = shadowPass.GetShadowTexture();
-    if (!shadowTexture) return;
+    FRHIPipelineState* shadowPSO = shadowPass.GetShadowPSO();
+    if (!shadowTexture || !shadowPSO) return;
     
     FLog::Log(ELogLevel::Info, "Rendering point light " + std::to_string(LightIndex) + " shadow pass");
     
@@ -465,6 +469,9 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     
     // Begin shadow pass for the atlas texture
     RHICmdList->BeginShadowPass(shadowTexture, 0);
+    
+    // Set shadow PSO once for all faces
+    RHICmdList->SetPipelineState(shadowPSO);
     
     // Render each face
     for (uint32 face = 0; face < 6; ++face)
@@ -489,7 +496,8 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
         {
             if (proxy)
             {
-                // Count draw calls for stats
+                // Use the shadow-specific render method
+                proxy->RenderShadow(RHICmdList, faceVP);
                 ShadowDrawCallCount++;
             }
         }
