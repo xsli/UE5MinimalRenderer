@@ -141,8 +141,10 @@ void FGame::SetupScene()
     ScreenGizmo = new FGizmoPrimitive(0.8f);
     ScreenGizmo->SetScreenSpace(true);
     ScreenGizmo->SetScreenCorner(2);  // Bottom-left (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
-    // Default GizmoSize is 40 pixels (set in constructor)
-    // Don't add to scene - rendered separately
+    ScreenGizmo->SetGizmoSize(50.0f); // 50 pixels for screen gizmo
+    // Create and add screen gizmo proxy to renderer
+    ScreenGizmoProxy = ScreenGizmo->CreateSceneProxy(RHI.get(), nullptr);
+    Renderer->AddSceneProxy(ScreenGizmoProxy);
     
     // ==========================================
     // SCENE OBJECTS - Lit Primitives with Macaron Colors
@@ -337,8 +339,7 @@ void FGame::Shutdown()
         FRHIThread::Get().Stop();
     }
     
-    // Cleanup screen gizmo
-    delete ScreenGizmoProxy;
+    // Cleanup screen gizmo (proxy is owned by renderer, will be cleaned up there)
     ScreenGizmoProxy = nullptr;
     delete ScreenGizmo;
     ScreenGizmo = nullptr;
