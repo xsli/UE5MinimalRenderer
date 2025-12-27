@@ -28,6 +28,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(
     , LightScene(InLightScene)
     , Material(InMaterial)
     , RHI(InRHI)
+    , ShadowMapTexture(nullptr)
 {
     // Create shadow constant buffer if RHI is available
     if (RHI)
@@ -177,6 +178,11 @@ void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
     if (ShadowConstantBuffer)
     {
         RHICmdList->SetConstantBuffer(ShadowConstantBuffer, 2);  // b2 = Shadow
+    }
+    // Bind shadow map texture AFTER pipeline state is set (root signature must be active)
+    if (ShadowMapTexture)
+    {
+        RHICmdList->SetShadowMapTexture(ShadowMapTexture);
     }
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FLitVertex));
     RHICmdList->SetIndexBuffer(IndexBuffer);

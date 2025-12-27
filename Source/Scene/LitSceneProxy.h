@@ -90,6 +90,9 @@ public:
     void SetShadowBias(float Bias);
     void SetShadowStrength(float Strength);
     
+    // Set shadow map texture for shader sampling (called before rendering)
+    void SetShadowMapTexture(FRHITexture* InShadowMapTexture) { ShadowMapTexture = InShadowMapTexture; }
+    
 protected:
     void UpdateLightingConstants();
     void UpdateShadowConstants();
@@ -108,6 +111,7 @@ protected:
     FLightingConstants LightingData;
     FShadowRenderConstants ShadowData;  // NEW: Shadow data
     FRHI* RHI;  // NEW: RHI reference for creating shadow buffer
+    FRHITexture* ShadowMapTexture;  // Shadow map texture for shader sampling
 };
 
 /**

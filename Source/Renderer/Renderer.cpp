@@ -1,5 +1,6 @@
 #include "Renderer.h"
 #include "../Scene/Scene.h"
+#include "../Scene/LitSceneProxy.h"  // For FPrimitiveSceneProxy
 #include <algorithm>
 #include <string>
 #include <cstdio>  // for snprintf
@@ -199,13 +200,24 @@ void FRenderer::RenderFrame()
     RHICmdList->ClearRenderTarget(FColor(0.2f, 0.3f, 0.4f, 1.0f));
     RHICmdList->ClearDepthStencil();
     
-    // Bind shadow map texture for shader sampling (before rendering lit geometry)
+    // Pass shadow map texture to all lit proxies (they will bind it after setting their PSO)
+    FRHITexture* shadowMap = nullptr;
     if (ShadowSystem)
     {
-        FRHITexture* shadowMap = ShadowSystem->GetDirectionalShadowMap();
-        if (shadowMap)
+        shadowMap = ShadowSystem->GetDirectionalShadowMap();
+    }
+    
+    // Set shadow map on all proxies before rendering
+    if (RenderScene && shadowMap)
+    {
+        for (auto& proxy : RenderScene->GetProxies())
         {
-            RHICmdList->SetShadowMapTexture(shadowMap);
+            // Try to cast to FPrimitiveSceneProxy to set shadow map
+            FPrimitiveSceneProxy* litProxy = dynamic_cast<FPrimitiveSceneProxy*>(proxy);
+            if (litProxy)
+            {
+                litProxy->SetShadowMapTexture(shadowMap);
+            }
         }
     }
     
