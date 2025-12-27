@@ -184,7 +184,7 @@ void FGame::TickSingleThreaded(float DeltaTime)
         FLog::Log(ELogLevel::Info, std::string("FGame::Tick (SingleThreaded) ") + std::to_string(tickCount));
     }
     
-    // Track game thread time
+    // Track game thread time (actual work, no idle waiting in single-threaded mode)
     Renderer->GetStats().BeginGameThreadTiming();
     
     // Game thread tick - update primitives
@@ -199,20 +199,17 @@ void FGame::TickSingleThreaded(float DeltaTime)
     Renderer->GetStats().EndGameThreadTiming();
     
     // Track render thread time (in single-threaded mode, this runs on same thread)
+    // Note: RHI time is tracked inside RenderFrame(), so we only track the outer render time here
     Renderer->GetStats().BeginRenderThreadTiming();
     
     // Render thread work (in UE5 this would be on a separate thread)
+    // RenderFrame() internally tracks RHI time
     if (Renderer)
     {
         Renderer->RenderFrame();
     }
     
     Renderer->GetStats().EndRenderThreadTiming();
-    
-    // RHI time in single-threaded mode is included in render time
-    // Set it to 0 to indicate it's not separate
-    Renderer->GetStats().BeginRHIThreadTiming();
-    Renderer->GetStats().EndRHIThreadTiming();
 }
 
 void FGame::TickMultiThreaded(float DeltaTime)
@@ -225,12 +222,12 @@ void FGame::TickMultiThreaded(float DeltaTime)
         FLog::Log(ELogLevel::Info, std::string("FGame::Tick (MultiThreaded) ") + std::to_string(tickCount));
     }
     
-    // Begin frame synchronization - may wait if game is too far ahead
+    // Begin frame synchronization - may wait if game is too far ahead (idle time, not measured)
     FFrameSyncManager::Get().GameThread_BeginFrame();
     
     ++GameFrameNumber;
     
-    // Track game thread time
+    // Track game thread time - starts AFTER sync wait, excludes idle time
     Renderer->GetStats().BeginGameThreadTiming();
     
     // Game thread tick - update primitives
@@ -248,10 +245,10 @@ void FGame::TickMultiThreaded(float DeltaTime)
     FRenderer* RendererPtr = Renderer.get();
     
     // Enqueue render commands for this frame
-    // The render thread will execute these
+    // The render thread will execute these after waking from its wait (idle time excluded)
     ENQUEUE_RENDER_COMMAND(RenderFrame)[RendererPtr]() 
     {
-        // Track render thread time
+        // Track render thread time - starts when command executes, excludes idle wait time
         RendererPtr->GetStats().BeginRenderThreadTiming();
         
         // Begin render frame on render thread
@@ -259,6 +256,7 @@ void FGame::TickMultiThreaded(float DeltaTime)
         
         if (RendererPtr)
         {
+            // RenderFrame() internally tracks RHI time
             RendererPtr->RenderFrame();
         }
         
