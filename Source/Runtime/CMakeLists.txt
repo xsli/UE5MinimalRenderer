@@ -7,6 +7,8 @@ add_executable(UE5MinimalRenderer WIN32
     # Core
     ../Core/CoreTypes.cpp
     ../Core/CoreTypes.h
+    ../Core/ShaderLoader.cpp
+    ../Core/ShaderLoader.h
     
     # TaskGraph
     ../TaskGraph/TaskGraph.cpp
@@ -79,7 +81,7 @@ target_link_libraries(UE5MinimalRenderer PRIVATE
 
 # Organize files in Visual Studio filters
 source_group("Runtime" FILES Main.cpp)
-source_group("Core" FILES ../Core/CoreTypes.cpp ../Core/CoreTypes.h)
+source_group("Core" FILES ../Core/CoreTypes.cpp ../Core/CoreTypes.h ../Core/ShaderLoader.cpp ../Core/ShaderLoader.h)
 source_group("TaskGraph" FILES 
     ../TaskGraph/TaskGraph.cpp ../TaskGraph/TaskGraph.h
     ../TaskGraph/RenderCommands.cpp ../TaskGraph/RenderCommands.h)
