@@ -278,6 +278,60 @@ cmake --build . --config Release
 - Check camera controls respond properly
 - Confirm statistics overlay displays
 
+### Unit Testing Requirements
+
+**Important**: When adding new systems or core functionality, always include unit tests where possible.
+
+#### When to Add Unit Tests
+- **Math/Transform Systems**: Matrix operations, vector math, transformations
+- **Core Algorithms**: Any algorithmic logic that can be isolated
+- **Data Structures**: Custom containers, resource managers
+- **Utility Functions**: Helper functions, parsers, converters
+
+#### Unit Test Framework
+This project uses **GoogleTest** via CMake FetchContent. Tests are located in the `Tests/` directory.
+
+#### Running Unit Tests
+```bash
+mkdir build_test
+cd build_test
+cmake .. -DBUILD_TESTS=ON
+cmake --build . --target MatrixTests
+./Tests/MatrixTests
+```
+
+#### Writing Unit Tests
+```cpp
+#include <gtest/gtest.h>
+#include "CoreTypes.h"
+
+class MySystemTest : public ::testing::Test
+{
+protected:
+    void SetUp() override { /* Setup code */ }
+};
+
+TEST_F(MySystemTest, FunctionName_Scenario_ExpectedBehavior)
+{
+    // Arrange
+    // Act
+    // Assert
+    EXPECT_TRUE(condition);
+}
+```
+
+#### Test Naming Convention
+Use descriptive names: `ClassName_MethodOrScenario_ExpectedResult`
+- `Translation_MovesPointCorrectly`
+- `RotationX_90Degrees_RotatesYToZ`
+- `FTransform_ScaleRotateTranslate_Order`
+
+#### Adding Tests for New Systems
+1. Create test file in `Tests/` directory (e.g., `NewSystemTests.cpp`)
+2. Add to `Tests/CMakeLists.txt`
+3. Include necessary headers from the module being tested
+4. Write tests covering key functionality, edge cases, and error conditions
+
 ## Project-Specific Notes
 
 ### DirectX 12

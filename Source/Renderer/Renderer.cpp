@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <string>
 #include <cstdio>  // for snprintf
+#include <cstring> // for memcpy
+#include <cinttypes> // for PRIu64
 
 // FTriangleMeshProxy implementation
 FTriangleMeshProxy::FTriangleMeshProxy(FRHIBuffer* InVertexBuffer, FRHIPipelineState* InPSO, uint32 InVertexCount)
@@ -216,7 +218,7 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
     
     // Frame number
     char buffer[128];
-    snprintf(buffer, sizeof(buffer), "Frame: %llu", Stats.GetFrameCount());
+    snprintf(buffer, sizeof(buffer), "Frame: %" PRIu64, Stats.GetFrameCount());
     RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
     yPos += lineHeight;
     
