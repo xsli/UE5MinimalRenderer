@@ -1,8 +1,9 @@
-# Core modules
+# Core modules (now compiled into Runtime executable)
+# Keep subdirectories for include paths and organization
+# The actual compilation is handled by Runtime/CMakeLists.txt
+
+# Core library is still needed for unit tests
 add_subdirectory(Core)
-add_subdirectory(TaskGraph)
-add_subdirectory(RHI)
-add_subdirectory(RHI_DX12)
-add_subdirectory(Renderer)
-add_subdirectory(Game)
+
+# Add Runtime which compiles everything else into a single executable
 add_subdirectory(Runtime)

@@ -3,7 +3,8 @@
 #include "../Renderer/Renderer.h"
 #include "../TaskGraph/TaskGraph.h"
 #include "../TaskGraph/RenderCommands.h"
-#include "Scene.h"
+#include "../Scene/Scene.h"
+#include "../Scene/ScenePrimitive.h"
 
 // Main game class
 class FGame 
@@ -23,12 +24,18 @@ public:
     bool IsMultiThreaded() const { return bMultiThreaded; }
     void SetMultiThreaded(bool bEnable) { bMultiThreaded = bEnable; }
     
+    // Get scene
+    FScene* GetScene() { return Scene.get(); }
+    
 private:
     // Single-threaded tick (legacy)
     void TickSingleThreaded(float DeltaTime);
     
     // Multi-threaded tick
     void TickMultiThreaded(float DeltaTime);
+    
+    // Setup the demo scene with lighting
+    void SetupScene();
     
     std::unique_ptr<FRHI> RHI;
     std::unique_ptr<FRenderer> Renderer;

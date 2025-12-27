@@ -1,10 +1,9 @@
-#include "PrimitiveSceneProxy.h"
-#include "Primitive.h"
+#include "UnlitSceneProxy.h"
 #include <cstring>
 
-FPrimitiveSceneProxy::FPrimitiveSceneProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer,
-                                           FRHIBuffer* InConstantBuffer, FRHIPipelineState* InPSO,
-                                           uint32 InIndexCount, FCamera* InCamera, const FTransform& InTransform)
+FUnlitPrimitiveSceneProxy::FUnlitPrimitiveSceneProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer,
+                                                     FRHIBuffer* InConstantBuffer, FRHIPipelineState* InPSO,
+                                                     uint32 InIndexCount, FCamera* InCamera, const FTransform& InTransform)
     : VertexBuffer(InVertexBuffer)
     , IndexBuffer(InIndexBuffer)
     , ConstantBuffer(InConstantBuffer)
@@ -15,7 +14,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(FRHIBuffer* InVertexBuffer, FRHIBuffe
 {
 }
 
-FPrimitiveSceneProxy::~FPrimitiveSceneProxy()
+FUnlitPrimitiveSceneProxy::~FUnlitPrimitiveSceneProxy()
 {
     delete VertexBuffer;
     delete IndexBuffer;
@@ -23,7 +22,7 @@ FPrimitiveSceneProxy::~FPrimitiveSceneProxy()
     delete PipelineState;
 }
 
-void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
+void FUnlitPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
 {
     // Calculate MVP matrix
     FMatrix4x4 viewProjection = Camera->GetViewProjectionMatrix();
@@ -45,12 +44,12 @@ void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
 }
 
-uint32 FPrimitiveSceneProxy::GetTriangleCount() const
+uint32 FUnlitPrimitiveSceneProxy::GetTriangleCount() const
 {
     return IndexCount / 3;
 }
 
-void FPrimitiveSceneProxy::UpdateTransform(const FTransform& InTransform)
+void FUnlitPrimitiveSceneProxy::UpdateTransform(const FTransform& InTransform)
 {
     ModelMatrix = InTransform.GetMatrix();
 }
