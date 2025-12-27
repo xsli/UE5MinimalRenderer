@@ -60,9 +60,9 @@ void FShadowMapPass::InitializeDirectional(FRHI* InRHI, uint32 InMapSize)
     // Create constant buffer for shadow pass MVP matrix
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
     
-    // Create shadow pass pipeline state (depth-only with depth testing)
-    // Note: EnableDepth enables depth testing, which is needed for shadow pass
-    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting);
+    // Create shadow pass pipeline state (depth-only rendering)
+    // Use DepthOnly flag for simple depth pass without color output
+    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::DepthOnly);
     
     bInitialized = (ShadowTexture != nullptr && ShadowPSO != nullptr);
     
@@ -88,8 +88,9 @@ void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
     // Create constant buffer
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
     
-    // Create shadow pass pipeline state
-    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting);
+    // Create shadow pass pipeline state (depth-only rendering)
+    // Use DepthOnly flag for simple depth pass without color output
+    ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::DepthOnly);
     
     bInitialized = (ShadowTexture != nullptr && ShadowPSO != nullptr);
     
@@ -434,18 +435,26 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     const auto& proxies = Scene->GetProxies();
     FLog::Log(ELogLevel::Info, "RenderDirectionalShadowPass: Starting with " + std::to_string(proxies.size()) + " proxies");
     
-    // Begin shadow pass - sets depth-only render target
+    // Begin shadow pass - sets depth-only render target and clears depth buffer
     RHICmdList->BeginShadowPass(shadowTexture, 0);
     
     // Set viewport to full shadow map size
     uint32 mapSize = DirectionalShadowPass.GetMapSize();
     RHICmdList->SetViewport(0.0f, 0.0f, static_cast<float>(mapSize), static_cast<float>(mapSize));
     
-    // Set shadow PSO
+    // Set shadow PSO (depth-only rendering)
     RHICmdList->SetPipelineState(shadowPSO);
     
-    // Get light view-projection matrix
+    // Get light view-projection matrix (calculated from light direction)
+    // This should be DIFFERENT from the camera's view-projection matrix
     FMatrix4x4 lightVP = DirectionalShadowPass.GetViewProjectionMatrix();
+    
+    // Log the light VP matrix diagonal for debugging
+    FLog::Log(ELogLevel::Info, "Light VP matrix diagonal: [" + 
+              std::to_string(lightVP.Matrix.r[0].m128_f32[0]) + ", " +
+              std::to_string(lightVP.Matrix.r[1].m128_f32[1]) + ", " +
+              std::to_string(lightVP.Matrix.r[2].m128_f32[2]) + ", " +
+              std::to_string(lightVP.Matrix.r[3].m128_f32[3]) + "]");
     
     // Render each proxy with shadow pass (only if it casts shadows)
     uint32 shadowCasters = 0;
@@ -453,8 +462,7 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     {
         if (proxy && proxy->GetCastShadow())
         {
-            FLog::Log(ELogLevel::Info, "Drawing shadow caster proxy");
-            // Use the shadow-specific render method
+            // RenderShadow uses Model * LightViewProj (NOT camera's viewproj)
             proxy->RenderShadow(RHICmdList, lightVP);
             ShadowDrawCallCount++;
             shadowCasters++;
@@ -486,6 +494,8 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     static const uint32 ATLAS_ROWS = 2;
     
     // Begin shadow pass for the atlas texture
+    // NOTE: BeginShadowPass clears the entire depth buffer once (this is correct)
+    // We should NOT call ClearDepthOnly per-face since ClearDepthStencilView clears the whole DSV
     RHICmdList->BeginShadowPass(shadowTexture, 0);
     
     // Set shadow PSO once for all faces
@@ -501,13 +511,15 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
         float y = static_cast<float>(row * faceSize);
         
         // Set viewport to face region
+        // NOTE: The viewport clips rendering to this region only
+        // The depth buffer was already cleared once in BeginShadowPass
         RHICmdList->SetViewport(x, y, static_cast<float>(faceSize), static_cast<float>(faceSize));
-        
-        // Clear just this face's depth (using viewport-restricted clear)
-        RHICmdList->ClearDepthOnly(shadowTexture, 0);
         
         // Get face view-projection matrix
         FMatrix4x4 faceVP = shadowPass.GetViewProjectionMatrix(face);
+        
+        FLog::Log(ELogLevel::Info, "Rendering point light face " + std::to_string(face) + 
+                  " at viewport (" + std::to_string(x) + ", " + std::to_string(y) + ")");
         
         // Render each proxy (only if it casts shadows)
         for (FSceneProxy* proxy : proxies)

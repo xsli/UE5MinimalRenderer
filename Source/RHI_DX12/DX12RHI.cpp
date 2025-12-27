@@ -1668,9 +1668,9 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         rootParameters[2].InitAsConstantBufferView(2);
         rootSignatureDesc.Init(3, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
-    else if (bEnableDepth)
+    else if (bDepthOnly || bEnableDepth)
     {
-        // One CBV: MVP (b0)
+        // One CBV: MVP (b0) - for depth-only or depth-enabled non-lit rendering
         rootParameters[0].InitAsConstantBufferView(0);
         rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
@@ -1702,8 +1702,9 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     
     // Create PSO
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    if (bEnableLighting)
+    if (bEnableLighting || bDepthOnly)
     {
+        // Depth-only shader uses lit vertex format (position, normal, color)
         psoDesc.InputLayout = { litInputElementDescs, _countof(litInputElementDescs) };
     }
     else
@@ -1725,24 +1726,37 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     
-    if (bEnableDepth)
+    if (bDepthOnly)
+    {
+        // Depth-only rendering (shadow pass)
+        psoDesc.DepthStencilState.DepthEnable = TRUE;
+        psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        psoDesc.DepthStencilState.StencilEnable = FALSE;
+        psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+        psoDesc.NumRenderTargets = 0;  // No color output
+        // RTVFormats remain unset (nullptr/UNKNOWN)
+    }
+    else if (bEnableDepth)
     {
         psoDesc.DepthStencilState.DepthEnable = TRUE;
         psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
         psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
         psoDesc.DepthStencilState.StencilEnable = FALSE;
         psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+        psoDesc.NumRenderTargets = 1;
+        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     }
     else
     {
         psoDesc.DepthStencilState.DepthEnable = FALSE;
         psoDesc.DepthStencilState.StencilEnable = FALSE;
+        psoDesc.NumRenderTargets = 1;
+        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     }
     
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = bLineTopology ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
     
     ComPtr<ID3D12PipelineState> pipelineState;
