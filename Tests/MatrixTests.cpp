@@ -7,9 +7,8 @@
 #include "CoreTypes.h"
 #include <cmath>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
+// Use DirectXMath constant for PI (more portable and precise)
+constexpr float TEST_PI = DirectX::XM_PI;
 
 // Helper function to compare floats with tolerance
 bool FloatEqual(float a, float b, float epsilon = 0.0001f)
@@ -152,7 +151,7 @@ TEST_F(MatrixTest, RotationX_90Degrees_RotatesYToZ)
 {
     // Rotate 90 degrees around X axis
     // Y axis should become Z axis, Z axis should become -Y axis
-    FMatrix4x4 rotX = FMatrix4x4::RotationX(static_cast<float>(M_PI / 2.0));
+    FMatrix4x4 rotX = FMatrix4x4::RotationX(static_cast<float>(TEST_PI / 2.0));
     
     // Point on Y axis
     FVector pointOnY(0.0f, 1.0f, 0.0f);
@@ -166,7 +165,7 @@ TEST_F(MatrixTest, RotationX_90Degrees_RotatesYToZ)
 
 TEST_F(MatrixTest, RotationX_90Degrees_RotatesZToNegY)
 {
-    FMatrix4x4 rotX = FMatrix4x4::RotationX(static_cast<float>(M_PI / 2.0));
+    FMatrix4x4 rotX = FMatrix4x4::RotationX(static_cast<float>(TEST_PI / 2.0));
     
     // Point on Z axis
     FVector pointOnZ(0.0f, 0.0f, 1.0f);
@@ -181,7 +180,7 @@ TEST_F(MatrixTest, RotationX_90Degrees_RotatesZToNegY)
 TEST_F(MatrixTest, RotationY_90Degrees_RotatesXToZ)
 {
     // Rotate 90 degrees around Y axis
-    FMatrix4x4 rotY = FMatrix4x4::RotationY(static_cast<float>(M_PI / 2.0));
+    FMatrix4x4 rotY = FMatrix4x4::RotationY(static_cast<float>(TEST_PI / 2.0));
     
     // Point on X axis
     FVector pointOnX(1.0f, 0.0f, 0.0f);
@@ -195,7 +194,7 @@ TEST_F(MatrixTest, RotationY_90Degrees_RotatesXToZ)
 
 TEST_F(MatrixTest, RotationY_90Degrees_RotatesZToX)
 {
-    FMatrix4x4 rotY = FMatrix4x4::RotationY(static_cast<float>(M_PI / 2.0));
+    FMatrix4x4 rotY = FMatrix4x4::RotationY(static_cast<float>(TEST_PI / 2.0));
     
     // Point on Z axis
     FVector pointOnZ(0.0f, 0.0f, 1.0f);
@@ -210,7 +209,7 @@ TEST_F(MatrixTest, RotationY_90Degrees_RotatesZToX)
 TEST_F(MatrixTest, RotationZ_90Degrees_RotatesXToY)
 {
     // Rotate 90 degrees around Z axis
-    FMatrix4x4 rotZ = FMatrix4x4::RotationZ(static_cast<float>(M_PI / 2.0));
+    FMatrix4x4 rotZ = FMatrix4x4::RotationZ(static_cast<float>(TEST_PI / 2.0));
     
     // Point on X axis
     FVector pointOnX(1.0f, 0.0f, 0.0f);
@@ -224,7 +223,7 @@ TEST_F(MatrixTest, RotationZ_90Degrees_RotatesXToY)
 
 TEST_F(MatrixTest, RotationZ_90Degrees_RotatesYToNegX)
 {
-    FMatrix4x4 rotZ = FMatrix4x4::RotationZ(static_cast<float>(M_PI / 2.0));
+    FMatrix4x4 rotZ = FMatrix4x4::RotationZ(static_cast<float>(TEST_PI / 2.0));
     
     // Point on Y axis
     FVector pointOnY(0.0f, 1.0f, 0.0f);
@@ -238,7 +237,7 @@ TEST_F(MatrixTest, RotationZ_90Degrees_RotatesYToNegX)
 
 TEST_F(MatrixTest, Rotation_360Degrees_ReturnsToOriginal)
 {
-    FMatrix4x4 rotX = FMatrix4x4::RotationX(static_cast<float>(2.0 * M_PI));
+    FMatrix4x4 rotX = FMatrix4x4::RotationX(static_cast<float>(2.0 * TEST_PI));
     FVector point(1.0f, 2.0f, 3.0f);
     
     FVector result = TransformPoint(rotX, point);
@@ -389,7 +388,7 @@ TEST_F(MatrixTest, Transpose_Identity_RemainsIdentity)
     EXPECT_TRUE(MatrixEqual(identity, transposed));
 }
 
-TEST_F(MatrixTest, Transpose_DoubleTranpose_ReturnsOriginal)
+TEST_F(MatrixTest, Transpose_DoubleTranspose_ReturnsOriginal)
 {
     FMatrix4x4 trans = FMatrix4x4::Translation(5.0f, 3.0f, 2.0f);
     FMatrix4x4 doubleTransposed = trans.Transpose().Transpose();
@@ -498,7 +497,7 @@ TEST_F(MatrixTest, FTransform_ScaleOnly)
 TEST_F(MatrixTest, FTransform_RotationOnly_Y90)
 {
     FTransformForTest transform;
-    transform.Rotation = FVector(0.0f, static_cast<float>(M_PI / 2.0), 0.0f);
+    transform.Rotation = FVector(0.0f, static_cast<float>(TEST_PI / 2.0), 0.0f);
     
     FMatrix4x4 mat = transform.GetMatrix();
     FVector pointOnX(1.0f, 0.0f, 0.0f);

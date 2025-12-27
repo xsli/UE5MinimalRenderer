@@ -409,12 +409,15 @@ FPrimitiveSceneProxy* FGizmoPrimitive::CreateSceneProxy(FRHI* RHI)
     FColor yColor(0.2f, 1.0f, 0.2f, 1.0f);  // Green for Y
     FColor zColor(0.3f, 0.5f, 1.0f, 1.0f);  // Blue for Z
     
+    constexpr float EPSILON = 0.0001f;
+    
     // Helper lambda to add an axis (shaft + arrow head)
     auto AddAxis = [&](const FVector& direction, const FColor& color) {
         uint32 baseIdx = vertices.size();
         
-        // Normalize direction
+        // Normalize direction (guard against zero-length)
         float length = std::sqrt(direction.X * direction.X + direction.Y * direction.Y + direction.Z * direction.Z);
+        if (length < EPSILON) return;  // Skip invalid direction
         FVector dir(direction.X / length, direction.Y / length, direction.Z / length);
         
         // Find perpendicular vectors for the cylinder cross-section
@@ -426,8 +429,9 @@ FPrimitiveSceneProxy* FGizmoPrimitive::CreateSceneProxy(FRHI* RHI)
             // Cross with X axis
             perp1 = FVector(0.0f, dir.Z, -dir.Y);
         }
-        // Normalize perp1
+        // Normalize perp1 (guard against zero-length)
         float p1len = std::sqrt(perp1.X * perp1.X + perp1.Y * perp1.Y + perp1.Z * perp1.Z);
+        if (p1len < EPSILON) return;  // Skip if perpendicular calculation failed
         perp1 = FVector(perp1.X / p1len, perp1.Y / p1len, perp1.Z / p1len);
         
         // perp2 = dir cross perp1
