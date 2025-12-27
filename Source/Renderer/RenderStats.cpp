@@ -6,6 +6,9 @@ FRenderStats::FRenderStats()
     , FrameTimeMs(0.0f)
     , TriangleCount(0)
     , FramesSinceLastFPSUpdate(0)
+    , GameThreadTimeMs(0.0f)
+    , RenderThreadTimeMs(0.0f)
+    , RHIThreadTimeMs(0.0f)
 {
     LastFPSUpdateTime = std::chrono::high_resolution_clock::now();
 }
@@ -39,4 +42,40 @@ void FRenderStats::EndFrame()
 void FRenderStats::AddTriangles(uint32 Count)
 {
     TriangleCount += Count;
+}
+
+void FRenderStats::BeginGameThreadTiming()
+{
+    GameThreadStartTime = std::chrono::high_resolution_clock::now();
+}
+
+void FRenderStats::EndGameThreadTiming()
+{
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration<float, std::milli>(endTime - GameThreadStartTime);
+    GameThreadTimeMs = duration.count();
+}
+
+void FRenderStats::BeginRenderThreadTiming()
+{
+    RenderThreadStartTime = std::chrono::high_resolution_clock::now();
+}
+
+void FRenderStats::EndRenderThreadTiming()
+{
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration<float, std::milli>(endTime - RenderThreadStartTime);
+    RenderThreadTimeMs = duration.count();
+}
+
+void FRenderStats::BeginRHIThreadTiming()
+{
+    RHIThreadStartTime = std::chrono::high_resolution_clock::now();
+}
+
+void FRenderStats::EndRHIThreadTiming()
+{
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration<float, std::milli>(endTime - RHIThreadStartTime);
+    RHIThreadTimeMs = duration.count();
 }

@@ -184,6 +184,9 @@ void FGame::TickSingleThreaded(float DeltaTime)
         FLog::Log(ELogLevel::Info, std::string("FGame::Tick (SingleThreaded) ") + std::to_string(tickCount));
     }
     
+    // Track game thread time
+    Renderer->GetStats().BeginGameThreadTiming();
+    
     // Game thread tick - update primitives
     if (Scene)
     {
@@ -193,11 +196,23 @@ void FGame::TickSingleThreaded(float DeltaTime)
         Renderer->UpdateFromScene(Scene.get());
     }
     
+    Renderer->GetStats().EndGameThreadTiming();
+    
+    // Track render thread time (in single-threaded mode, this runs on same thread)
+    Renderer->GetStats().BeginRenderThreadTiming();
+    
     // Render thread work (in UE5 this would be on a separate thread)
     if (Renderer)
     {
         Renderer->RenderFrame();
     }
+    
+    Renderer->GetStats().EndRenderThreadTiming();
+    
+    // RHI time in single-threaded mode is included in render time
+    // Set it to 0 to indicate it's not separate
+    Renderer->GetStats().BeginRHIThreadTiming();
+    Renderer->GetStats().EndRHIThreadTiming();
 }
 
 void FGame::TickMultiThreaded(float DeltaTime)
@@ -215,6 +230,9 @@ void FGame::TickMultiThreaded(float DeltaTime)
     
     ++GameFrameNumber;
     
+    // Track game thread time
+    Renderer->GetStats().BeginGameThreadTiming();
+    
     // Game thread tick - update primitives
     if (Scene)
     {
@@ -224,6 +242,8 @@ void FGame::TickMultiThreaded(float DeltaTime)
         Renderer->UpdateFromScene(Scene.get());
     }
     
+    Renderer->GetStats().EndGameThreadTiming();
+    
     // Capture renderer and RHI pointers for lambda
     FRenderer* RendererPtr = Renderer.get();
     
@@ -231,6 +251,9 @@ void FGame::TickMultiThreaded(float DeltaTime)
     // The render thread will execute these
     ENQUEUE_RENDER_COMMAND(RenderFrame)[RendererPtr]() 
     {
+        // Track render thread time
+        RendererPtr->GetStats().BeginRenderThreadTiming();
+        
         // Begin render frame on render thread
         FFrameSyncManager::Get().RenderThread_BeginFrame();
         
@@ -241,6 +264,8 @@ void FGame::TickMultiThreaded(float DeltaTime)
         
         // End render frame
         FFrameSyncManager::Get().RenderThread_EndFrame();
+        
+        RendererPtr->GetStats().EndRenderThreadTiming();
     });
     
     // End frame - signal render thread that commands are ready
