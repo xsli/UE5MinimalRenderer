@@ -39,7 +39,7 @@ public:
     virtual uint32 GetTriangleCount() const override;
     
     // Update transform
-    void UpdateTransform(const FTransform& InTransform);
+    virtual void UpdateTransform(const FTransform& InTransform) override;
     
     // Update material
     void SetMaterial(const FMaterial& InMaterial) { Material = InMaterial; }

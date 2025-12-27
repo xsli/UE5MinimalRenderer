@@ -54,8 +54,9 @@ void FRenderScene::Render(FRHICommandList* RHICmdList, FRenderStats& Stats)
         }
     }
     
-    Stats.SetTriangleCount(totalTriangles);
-    Stats.SetDrawCallCount(drawCalls);
+    // Use AddTriangles instead of SetTriangleCount (triangles are reset in BeginFrame)
+    Stats.AddTriangles(totalTriangles);
+    // Note: draw call counting is not currently supported by FRenderStats
 }
 
 // FScene implementation

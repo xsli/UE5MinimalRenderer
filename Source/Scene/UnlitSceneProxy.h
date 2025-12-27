@@ -22,7 +22,7 @@ public:
     virtual void Render(FRHICommandList* RHICmdList) override;
     virtual uint32 GetTriangleCount() const override;
     
-    void UpdateTransform(const FTransform& InTransform);
+    virtual void UpdateTransform(const FTransform& InTransform) override;
     
 protected:
     FRHIBuffer* VertexBuffer;

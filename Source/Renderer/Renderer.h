@@ -13,6 +13,9 @@ public:
     virtual void Execute(FRHICommandList* RHICmdList) = 0;
 };
 
+// Forward declaration - FTransform is defined in Scene/ScenePrimitive.h
+struct FTransform;
+
 // Scene proxy - represents renderable object
 class FSceneProxy 
 {
@@ -20,6 +23,10 @@ public:
     virtual ~FSceneProxy() = default;
     virtual void Render(FRHICommandList* RHICmdList) = 0;
     virtual uint32 GetTriangleCount() const = 0;
+    
+    // Update transform - default implementation does nothing
+    // Derived classes should override this to handle transform updates
+    virtual void UpdateTransform(const FTransform& InTransform) {}
 };
 
 // Triangle mesh scene proxy
