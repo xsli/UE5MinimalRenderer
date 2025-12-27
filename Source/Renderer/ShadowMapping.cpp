@@ -117,14 +117,27 @@ void FShadowMapPass::UpdatePointLight(const FPointLight* Light)
 
 void FShadowMapPass::CalculateDirectionalMatrices(const FVector& LightDir, const FVector& SceneCenter, float SceneRadius)
 {
+    // Log input parameters
+    FLog::Log(ELogLevel::Info, "CalculateDirectionalMatrices: LightDir=(" + 
+              std::to_string(LightDir.X) + ", " + std::to_string(LightDir.Y) + ", " + std::to_string(LightDir.Z) + 
+              ") SceneCenter=(" + std::to_string(SceneCenter.X) + ", " + std::to_string(SceneCenter.Y) + ", " + 
+              std::to_string(SceneCenter.Z) + ") SceneRadius=" + std::to_string(SceneRadius));
+    
     // Normalize light direction
     DirectX::XMVECTOR lightDirVec = DirectX::XMVector3Normalize(
         DirectX::XMVectorSet(LightDir.X, LightDir.Y, LightDir.Z, 0.0f));
     
-    // Calculate light position (behind the scene)
+    // Calculate light position (behind the scene, opposite to light direction)
     DirectX::XMVECTOR sceneCenterVec = DirectX::XMVectorSet(SceneCenter.X, SceneCenter.Y, SceneCenter.Z, 1.0f);
     DirectX::XMVECTOR lightPosVec = DirectX::XMVectorSubtract(sceneCenterVec, 
         DirectX::XMVectorScale(lightDirVec, SceneRadius * 2.0f));
+    
+    // Log light position
+    float lightPosX = DirectX::XMVectorGetX(lightPosVec);
+    float lightPosY = DirectX::XMVectorGetY(lightPosVec);
+    float lightPosZ = DirectX::XMVectorGetZ(lightPosVec);
+    FLog::Log(ELogLevel::Info, "Light position: (" + std::to_string(lightPosX) + ", " + 
+              std::to_string(lightPosY) + ", " + std::to_string(lightPosZ) + ")");
     
     // Calculate up vector (avoid parallel to light direction)
     DirectX::XMVECTOR upVec = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -134,7 +147,7 @@ void FShadowMapPass::CalculateDirectionalMatrices(const FVector& LightDir, const
         upVec = DirectX::XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
     }
     
-    // Create view matrix
+    // Create view matrix (from light's perspective looking at scene center)
     DirectX::XMMATRIX viewMatrix = DirectX::XMMatrixLookAtLH(lightPosVec, sceneCenterVec, upVec);
     
     // Create orthographic projection matrix for directional light
@@ -144,6 +157,13 @@ void FShadowMapPass::CalculateDirectionalMatrices(const FVector& LightDir, const
     
     // Combine view and projection
     ViewProjectionMatrices[0] = DirectX::XMMatrixMultiply(viewMatrix, projMatrix);
+    
+    // Log the resulting matrix (first row to verify it's different from identity/camera)
+    FLog::Log(ELogLevel::Info, "Light ViewProj[0] row 0: [" + 
+              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[0]) + ", " +
+              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[1]) + ", " +
+              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[2]) + ", " +
+              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[3]) + "]");
 }
 
 void FShadowMapPass::CalculatePointLightMatrices(const FVector& LightPos, float Radius)

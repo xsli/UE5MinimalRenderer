@@ -185,11 +185,25 @@ void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
 
 void FPrimitiveSceneProxy::RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj)
 {
+    // Log the incoming LightViewProj matrix (first row) to verify it's the light's matrix
+    FLog::Log(ELogLevel::Info, "RenderShadow: LightViewProj row 0: [" + 
+              std::to_string(LightViewProj.Matrix.r[0].m128_f32[0]) + ", " +
+              std::to_string(LightViewProj.Matrix.r[0].m128_f32[1]) + ", " +
+              std::to_string(LightViewProj.Matrix.r[0].m128_f32[2]) + ", " +
+              std::to_string(LightViewProj.Matrix.r[0].m128_f32[3]) + "]");
+    
     // Calculate shadow MVP matrix: Model * LightViewProj
     FMatrix4x4 shadowMVP = ModelMatrix * LightViewProj;
     
     // Transpose for HLSL (column-major)
     FMatrix4x4 shadowMVPTransposed = shadowMVP.Transpose();
+    
+    // Log the final matrix being uploaded
+    FLog::Log(ELogLevel::Info, "RenderShadow: Final MVP (transposed) row 0: [" + 
+              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[0]) + ", " +
+              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[1]) + ", " +
+              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[2]) + ", " +
+              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[3]) + "]");
     
     // Update MVP constant buffer with shadow matrix
     void* mvpData = MVPConstantBuffer->Map();
