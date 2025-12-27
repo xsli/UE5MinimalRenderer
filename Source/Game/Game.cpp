@@ -89,39 +89,39 @@ void FGame::SetupScene()
     FLightScene* LightScene = Scene->GetLightScene();
     
     // ==========================================
-    // LIGHTING SETUP - Daylight Scene
+    // LIGHTING SETUP - Daylight Scene (Reduced Intensity)
     // ==========================================
     
-    // Set bright ambient light for daytime
-    LightScene->SetAmbientLight(FColor(0.3f, 0.35f, 0.4f, 1.0f));
+    // Set softer ambient light for balanced scene
+    LightScene->SetAmbientLight(FColor(0.15f, 0.18f, 0.22f, 1.0f));
     
-    // Main directional light (Sun) - warm daylight from above-right
+    // Main directional light (Sun) - warm daylight from above-right (reduced intensity)
     FDirectionalLight* sunLight = new FDirectionalLight();
     sunLight->SetDirection(FVector(0.5f, -0.8f, 0.3f));
     sunLight->SetColor(FColor(1.0f, 0.95f, 0.85f, 1.0f));
-    sunLight->SetIntensity(1.2f);
+    sunLight->SetIntensity(0.7f);  // Reduced from 1.2
     LightScene->AddLight(sunLight);
     
     // Fill light (weaker directional from opposite side)
     FDirectionalLight* fillLight = new FDirectionalLight();
     fillLight->SetDirection(FVector(-0.3f, -0.5f, -0.4f));
     fillLight->SetColor(FColor(0.6f, 0.7f, 0.9f, 1.0f));
-    fillLight->SetIntensity(0.3f);
+    fillLight->SetIntensity(0.15f);  // Reduced from 0.3
     LightScene->AddLight(fillLight);
     
-    // Point light 1 - Warm accent light
+    // Point light 1 - Warm accent light (reduced intensity)
     FPointLight* pointLight1 = new FPointLight();
     pointLight1->SetPosition(FVector(-3.0f, 2.0f, -2.0f));
     pointLight1->SetColor(FColor(1.0f, 0.8f, 0.4f, 1.0f));
-    pointLight1->SetIntensity(2.0f);
+    pointLight1->SetIntensity(0.8f);  // Reduced from 2.0
     pointLight1->SetRadius(8.0f);
     LightScene->AddLight(pointLight1);
     
-    // Point light 2 - Cool accent light
+    // Point light 2 - Cool accent light (reduced intensity)
     FPointLight* pointLight2 = new FPointLight();
     pointLight2->SetPosition(FVector(3.0f, 2.0f, 2.0f));
     pointLight2->SetColor(FColor(0.4f, 0.6f, 1.0f, 1.0f));
-    pointLight2->SetIntensity(1.5f);
+    pointLight2->SetIntensity(0.6f);  // Reduced from 1.5
     pointLight2->SetRadius(8.0f);
     LightScene->AddLight(pointLight2);
     

@@ -86,7 +86,7 @@ void FScreenSpaceGizmoProxy::Render(FRHICommandList* RHICmdList)
     // Screen dimensions (assume standard resolution)
     const float screenWidth = 1280.0f;
     const float screenHeight = 720.0f;
-    const float margin = 100.0f;  // Distance from screen edge
+    const float margin = 80.0f;  // Distance from screen edge
     
     // Calculate screen position based on corner
     float screenX, screenY;
@@ -118,27 +118,33 @@ void FScreenSpaceGizmoProxy::Render(FRHICommandList* RHICmdList)
     // Get camera view matrix and extract rotation only (no translation)
     FMatrix4x4 viewMatrix = Camera->GetViewMatrix();
     
-    // Create rotation matrix from view matrix (extract upper 3x3)
-    // This makes the gizmo rotate with the camera so it shows world axis orientation
-    FMatrix4x4 cameraRotation;
-    cameraRotation.Matrix.r[0] = viewMatrix.Matrix.r[0];
-    cameraRotation.Matrix.r[1] = viewMatrix.Matrix.r[1];
-    cameraRotation.Matrix.r[2] = viewMatrix.Matrix.r[2];
-    cameraRotation.Matrix.r[0].m128_f32[3] = 0.0f;
-    cameraRotation.Matrix.r[1].m128_f32[3] = 0.0f;
-    cameraRotation.Matrix.r[2].m128_f32[3] = 0.0f;
-    cameraRotation.Matrix.r[3] = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+    // Extract the 3x3 rotation part from the view matrix
+    // The view matrix transforms world space to camera space
+    // For the gizmo, we want to show world axes in screen space
+    // So we use the view matrix rotation directly (which rotates world axes to align with camera)
+    FMatrix4x4 viewRotation;
+    viewRotation.Matrix.r[0] = viewMatrix.Matrix.r[0];
+    viewRotation.Matrix.r[1] = viewMatrix.Matrix.r[1];
+    viewRotation.Matrix.r[2] = viewMatrix.Matrix.r[2];
+    // Clear translation components
+    viewRotation.Matrix.r[0].m128_f32[3] = 0.0f;
+    viewRotation.Matrix.r[1].m128_f32[3] = 0.0f;
+    viewRotation.Matrix.r[2].m128_f32[3] = 0.0f;
+    viewRotation.Matrix.r[3] = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
     
     // Scale to fit in corner (normalize gizmo size to NDC)
     float ndcScale = GizmoSize / screenWidth * 2.0f;  // Convert pixel size to NDC
-    FMatrix4x4 scaleMatrix = FMatrix4x4::Scaling(ndcScale, ndcScale * (screenWidth / screenHeight), ndcScale);
+    float aspectRatio = screenWidth / screenHeight;
+    FMatrix4x4 scaleMatrix = FMatrix4x4::Scaling(ndcScale, ndcScale * aspectRatio, ndcScale);
     
     // Translation to corner position (in NDC space, Z near camera)
     FMatrix4x4 translationMatrix = FMatrix4x4::Translation(ndcX, ndcY, 0.1f);
     
-    // Final MVP: Scale -> CameraRotation -> Translation (no perspective projection)
-    // We use an orthographic-like approach where the gizmo is always at fixed screen position
-    FMatrix4x4 mvp = scaleMatrix * cameraRotation * translationMatrix;
+    // Final MVP: Scale -> ViewRotation -> Translation
+    // The gizmo vertices represent world axis directions
+    // ViewRotation transforms them to align with camera view
+    // Then we translate to the corner position
+    FMatrix4x4 mvp = scaleMatrix * viewRotation * translationMatrix;
     
     // Transpose for HLSL
     FMatrix4x4 mvpTransposed = mvp.Transpose();

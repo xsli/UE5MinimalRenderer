@@ -21,14 +21,14 @@ struct FInputState
     bool bKeyE = false;
 };
 
-// Camera sensitivity settings
+// Camera sensitivity settings - UE5 Perspective Viewport Style
 namespace CameraSettings 
 {
-    constexpr float MovementSpeed = 0.01f;
-    constexpr float RotationSpeed = 0.005f;
-    constexpr float PanSpeed = 0.01f;
-    constexpr float ZoomSpeed = 0.5f;
-    constexpr float KeyboardMoveSpeed = 2.0f;  // Units per second
+    constexpr float MovementSpeed = 0.005f;   // Mouse drag movement (reduced)
+    constexpr float RotationSpeed = 0.003f;   // Mouse rotation sensitivity (reduced for precision)
+    constexpr float PanSpeed = 0.008f;        // Pan movement (reduced)
+    constexpr float ZoomSpeed = 0.3f;         // Zoom/scroll speed (reduced)
+    constexpr float KeyboardMoveSpeed = 3.0f; // WASD movement speed (units per second)
 }
 
 // Global game instance and timing
@@ -93,7 +93,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             return 0;
         
-        // Mouse move event
+        // Mouse move event - UE5 Perspective Viewport Style
         case WM_MOUSEMOVE:
             {
                 if (g_Game && (g_InputState.bLeftMouseDown || g_InputState.bRightMouseDown || g_InputState.bMiddleMouseDown))
@@ -106,21 +106,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         int deltaX = currentX - g_InputState.LastMouseX;
                         int deltaY = currentY - g_InputState.LastMouseY;
                         
-                        // LMB + RMB or MMB: Pan camera
+                        // UE5 Perspective Viewport Controls:
+                        // - RMB: Free look (rotate pitch and yaw)
+                        // - LMB + RMB or MMB: Pan camera
+                        // - LMB alone: In perspective view, this also does free look (same as RMB)
+                        
                         if ((g_InputState.bLeftMouseDown && g_InputState.bRightMouseDown) || g_InputState.bMiddleMouseDown)
                         {
-                            camera->PanRight(deltaX * CameraSettings::PanSpeed);
-                            camera->PanUp(-deltaY * CameraSettings::PanSpeed);  // Invert Y for natural movement
+                            // LMB + RMB or MMB: Pan camera (translate left/right and up/down)
+                            camera->PanRight(-deltaX * CameraSettings::PanSpeed);  // Inverted for natural feel
+                            camera->PanUp(deltaY * CameraSettings::PanSpeed);      // Inverted for natural feel
                         }
-                        // LMB only: Move forward/backward and rotate left/right
-                        else if (g_InputState.bLeftMouseDown && !g_InputState.bRightMouseDown)
+                        else if (g_InputState.bRightMouseDown)
                         {
-                            camera->MoveForwardBackward(-deltaY * CameraSettings::MovementSpeed);  // Y movement controls forward/back
-                            camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);  // X movement controls left/right rotation
+                            // RMB only: Free look (rotate camera)
+                            camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);
+                            camera->RotatePitch(deltaY * CameraSettings::RotationSpeed);
                         }
-                        // RMB only: Rotate camera
-                        else if (g_InputState.bRightMouseDown && !g_InputState.bLeftMouseDown)
+                        else if (g_InputState.bLeftMouseDown)
                         {
+                            // LMB only: In UE5 perspective, this is typically orbit or nothing
+                            // For simplicity, we'll make LMB also do free look (common in many 3D apps)
                             camera->RotateYaw(deltaX * CameraSettings::RotationSpeed);
                             camera->RotatePitch(deltaY * CameraSettings::RotationSpeed);
                         }
@@ -198,12 +204,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     }
                     
                     // Process keyboard input for camera movement
+                    // UE5 Style: WASD works best when holding RMB (fly mode)
+                    // But also works without RMB for general navigation
                     FCamera* camera = g_Game->GetCamera();
                     if (camera)
                     {
                         float moveAmount = CameraSettings::KeyboardMoveSpeed * deltaTime;
                         
-                        // WASD movement (UE5 style)
+                        // WASD movement (UE5 style - works with or without RMB)
                         if (g_InputState.bKeyW)
                         {
                             camera->MoveForwardBackward(moveAmount);
@@ -221,7 +229,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                             camera->PanRight(-moveAmount);
                         }
                         
-                        // QE for up/down movement
+                        // QE for up/down movement (world space up/down)
                         if (g_InputState.bKeyE)
                         {
                             camera->PanUp(moveAmount);
