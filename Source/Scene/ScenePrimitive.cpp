@@ -22,6 +22,7 @@ FPrimitive::FPrimitive()
     , PrimitiveType(EPrimitiveType::Lit)  // Default to lit rendering
     , bIsDirty(true)
     , bTransformDirty(false)
+    , bCastShadow(true)  // Default to casting shadows
 {
 }
 

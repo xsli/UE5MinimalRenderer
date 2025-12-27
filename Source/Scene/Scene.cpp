@@ -128,6 +128,9 @@ void FScene::UpdateRenderScene(FRenderScene* RenderScene)
             FSceneProxy* NewProxy = Primitive->CreateSceneProxy(RHI, &LightScene);
             if (NewProxy)
             {
+                // Copy shadow casting property from primitive to proxy
+                NewProxy->SetCastShadow(Primitive->GetCastShadow());
+                
                 RenderScene->AddProxy(NewProxy);
                 PrimitiveProxyMap[Primitive] = NewProxy;
             }

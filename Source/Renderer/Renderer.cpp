@@ -88,6 +88,7 @@ FRenderer::FRenderer(FRHI* InRHI)
     : RHI(InRHI)
     , DrawCallCount(0)
     , CurrentScene(nullptr)
+    , bShowShadowMapDebug(true)  // Enable shadow map debug by default for debugging
 {
 }
 
@@ -204,6 +205,12 @@ void FRenderer::RenderFrame()
 
 	// === CRITICAL: Flush 3D commands before 2D rendering ===
 	RHICmdList->FlushCommandsFor2D();
+    
+    // Render shadow map debug visualization (top-left corner)
+    if (bShowShadowMapDebug)
+    {
+        RenderShadowMapDebug(RHICmdList);
+    }
     
     // Render statistics overlay
     RenderStats(RHICmdList);
@@ -333,5 +340,21 @@ void FRenderer::RenderShadowPasses(FRHICommandList* RHICmdList)
     if (ShadowSystem && RenderScene)
     {
         ShadowSystem->RenderShadowPasses(RHICmdList, RenderScene.get());
+    }
+}
+
+void FRenderer::RenderShadowMapDebug(FRHICommandList* RHICmdList)
+{
+    if (!ShadowSystem)
+    {
+        return;
+    }
+    
+    // Get directional shadow map
+    FRHITexture* dirShadowMap = ShadowSystem->GetDirectionalShadowMap();
+    if (dirShadowMap)
+    {
+        // Draw in top-left corner, 200x200 pixels
+        RHICmdList->DrawDebugTexture(dirShadowMap, 10.0f, 10.0f, 200.0f, 200.0f);
     }
 }

@@ -431,22 +431,24 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     // Get light view-projection matrix
     FMatrix4x4 lightVP = DirectionalShadowPass.GetViewProjectionMatrix();
     
-    // Render each proxy with shadow pass
+    // Render each proxy with shadow pass (only if it casts shadows)
     const auto& proxies = Scene->GetProxies();
+    uint32 shadowCasters = 0;
     for (FSceneProxy* proxy : proxies)
     {
-        if (proxy)
+        if (proxy && proxy->GetCastShadow())
         {
             // Use the shadow-specific render method
             proxy->RenderShadow(RHICmdList, lightVP);
             ShadowDrawCallCount++;
+            shadowCasters++;
         }
     }
     
     // End shadow pass - restores main render target
     RHICmdList->EndShadowPass();
     
-    FLog::Log(ELogLevel::Info, "Directional shadow pass complete - " + std::to_string(proxies.size()) + " objects");
+    FLog::Log(ELogLevel::Info, "Directional shadow pass complete - " + std::to_string(shadowCasters) + "/" + std::to_string(proxies.size()) + " shadow casters");
 }
 
 void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRenderScene* Scene, uint32 LightIndex)
@@ -491,10 +493,10 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
         // Get face view-projection matrix
         FMatrix4x4 faceVP = shadowPass.GetViewProjectionMatrix(face);
         
-        // Render each proxy
+        // Render each proxy (only if it casts shadows)
         for (FSceneProxy* proxy : proxies)
         {
-            if (proxy)
+            if (proxy && proxy->GetCastShadow())
             {
                 // Use the shadow-specific render method
                 proxy->RenderShadow(RHICmdList, faceVP);
@@ -506,6 +508,5 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     // End shadow pass
     RHICmdList->EndShadowPass();
     
-    FLog::Log(ELogLevel::Info, "Point light " + std::to_string(LightIndex) + " shadow pass complete - " + 
-              std::to_string(proxies.size() * 6) + " draw calls");
+    FLog::Log(ELogLevel::Info, "Point light " + std::to_string(LightIndex) + " shadow pass complete");
 }

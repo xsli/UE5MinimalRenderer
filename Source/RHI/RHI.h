@@ -104,6 +104,10 @@ public:
     // Text rendering - call FlushCommandsFor2D() before calling this
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) = 0;
     
+    // Debug texture visualization - draws a texture as a quad on screen
+    // Position and size are in screen pixels. Call FlushCommandsFor2D() before calling this.
+    virtual void DrawDebugTexture(FRHITexture* Texture, float X, float Y, float Width, float Height) = 0;
+    
     // Shadow map rendering support
     // Begin rendering to a shadow map texture (sets depth-only render target)
     virtual void BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex = 0) = 0;

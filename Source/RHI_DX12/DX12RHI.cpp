@@ -741,6 +741,73 @@ void FDX12CommandList::RHIDrawText(const std::string& Text, const FVector2D& Pos
 	}
 }
 
+void FDX12CommandList::DrawDebugTexture(FRHITexture* Texture, float X, float Y, float Width, float Height)
+{
+    if (!D2DDeviceContext || !Texture)
+    {
+        return;
+    }
+    
+    FDX12Texture* dx12Texture = static_cast<FDX12Texture*>(Texture);
+    
+    try
+    {
+        // Draw a placeholder rectangle showing where the shadow map would be displayed
+        // Full shadow map rendering as texture would require additional D2D bitmap setup
+        // For now, draw a filled rectangle with a border to indicate the debug area
+        
+        D3D11On12Device->AcquireWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+        
+        D2DDeviceContext->SetTarget(D2DRenderTargets[FrameIndex].Get());
+        D2DDeviceContext->BeginDraw();
+        
+        // Draw a dark background for the debug texture area
+        ComPtr<ID2D1SolidColorBrush> bgBrush;
+        D2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.8f), &bgBrush);
+        
+        D2D1_RECT_F rect = D2D1::RectF(X, Y, X + Width, Y + Height);
+        D2DDeviceContext->FillRectangle(rect, bgBrush.Get());
+        
+        // Draw border
+        ComPtr<ID2D1SolidColorBrush> borderBrush;
+        D2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 0.0f, 1.0f), &borderBrush);
+        D2DDeviceContext->DrawRectangle(rect, borderBrush.Get(), 2.0f);
+        
+        // Draw "Shadow Map" text
+        ComPtr<IDWriteTextFormat> textFormat;
+        DWriteFactory->CreateTextFormat(
+            L"Arial", nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            12.0f, L"en-us", &textFormat);
+        
+        ComPtr<ID2D1SolidColorBrush> textBrush;
+        D2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &textBrush);
+        
+        std::wstring label = L"Shadow Map Debug";
+        D2D1_RECT_F textRect = D2D1::RectF(X + 5, Y + 5, X + Width - 5, Y + 20);
+        D2DDeviceContext->DrawText(label.c_str(), static_cast<UINT32>(label.length()), textFormat.Get(), &textRect, textBrush.Get());
+        
+        // Draw texture dimensions
+        wchar_t dimText[64];
+        swprintf_s(dimText, L"%ux%u", dx12Texture->GetWidth(), dx12Texture->GetHeight());
+        textRect = D2D1::RectF(X + 5, Y + Height - 20, X + Width - 5, Y + Height - 5);
+        D2DDeviceContext->DrawText(dimText, static_cast<UINT32>(wcslen(dimText)), textFormat.Get(), &textRect, textBrush.Get());
+        
+        D2DDeviceContext->EndDraw();
+        
+        D3D11On12Device->ReleaseWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+        D3D11DeviceContext->Flush();
+        
+        FLog::Log(ELogLevel::Info, "Debug texture drawn at (" + std::to_string(X) + ", " + std::to_string(Y) + ")");
+    }
+    catch (const std::exception& e)
+    {
+        FLog::Log(ELogLevel::Error, std::string("DrawDebugTexture error: ") + e.what());
+    }
+}
+
 
 // FDX12RHI implementation
 FDX12RHI::FDX12RHI() : Width(0), Height(0)

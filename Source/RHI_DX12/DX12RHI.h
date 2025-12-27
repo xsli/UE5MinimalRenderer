@@ -119,6 +119,9 @@ public:
     virtual void FlushCommandsFor2D() override;
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
     
+    // Debug texture visualization
+    virtual void DrawDebugTexture(FRHITexture* Texture, float X, float Y, float Width, float Height) override;
+    
     // Shadow map support
     virtual void BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex = 0) override;
     virtual void EndShadowPass() override;

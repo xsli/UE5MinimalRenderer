@@ -22,6 +22,7 @@ struct FTransform;
 class FSceneProxy 
 {
 public:
+    FSceneProxy() : bCastShadow(true) {}  // Default to casting shadows
     virtual ~FSceneProxy() = default;
     virtual void Render(FRHICommandList* RHICmdList) = 0;
     virtual uint32 GetTriangleCount() const = 0;
@@ -36,6 +37,13 @@ public:
     
     // Get model matrix for shadow calculations
     virtual FMatrix4x4 GetModelMatrix() const { return FMatrix4x4::Identity(); }
+    
+    // Shadow casting property
+    void SetCastShadow(bool bCast) { bCastShadow = bCast; }
+    bool GetCastShadow() const { return bCastShadow; }
+
+protected:
+    bool bCastShadow;  // Whether this proxy casts shadows
 };
 
 // Triangle mesh scene proxy
@@ -115,9 +123,14 @@ public:
     const FRTPoolStats* GetRTPoolStats() const;
     uint32 GetDrawCallCount() const { return DrawCallCount; }
     
+    // Debug shadow map visualization toggle
+    void SetShowShadowMapDebug(bool bShow) { bShowShadowMapDebug = bShow; }
+    bool GetShowShadowMapDebug() const { return bShowShadowMapDebug; }
+    
 private:
     void RenderStats(FRHICommandList* RHICmdList);
     void RenderShadowPasses(FRHICommandList* RHICmdList);
+    void RenderShadowMapDebug(FRHICommandList* RHICmdList);
     
     FRHI* RHI;
     std::unique_ptr<FRenderScene> RenderScene;
@@ -131,4 +144,7 @@ private:
     
     // Scene reference for shadow pass updates
     FScene* CurrentScene;
+    
+    // Debug visualization
+    bool bShowShadowMapDebug;
 };
