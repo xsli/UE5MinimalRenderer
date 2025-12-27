@@ -11,29 +11,19 @@
 // FTransform is defined in ScenePrimitive.h (included above)
 
 /**
- * FShadowRenderConstants - Shadow constant buffer data
- * Used for passing shadow matrices and parameters to shader
- * Must match the HLSL ShadowBuffer structure
+ * FShadowRenderConstants - Simple shadow constant buffer data
+ * Used for passing shadow matrix and parameters to shader
  */
 struct FShadowRenderConstants
 {
-    DirectX::XMMATRIX DirLightViewProj;        // 64 bytes - Directional light view-projection
-    DirectX::XMFLOAT4 ShadowParams;            // 16 bytes - x=constant bias, y=enabled, z=strength, w=slope bias
-    DirectX::XMMATRIX PointLight0ViewProj[6];  // 384 bytes - 6 cubemap face matrices for point light 0
-    DirectX::XMMATRIX PointLight1ViewProj[6];  // 384 bytes - 6 cubemap face matrices for point light 1
-    DirectX::XMFLOAT4 PointShadowParams;       // 16 bytes - x=enabled0, y=enabled1, z=point shadow strength, w=unused
-    // Total: 864 bytes, padded to 1024 for constant buffer alignment
+    DirectX::XMMATRIX DirLightViewProj;  // 64 bytes
+    DirectX::XMFLOAT4 ShadowParams;       // 16 bytes - x=bias, y=enabled, z=strength, w=unused
+    // Total: 80 bytes, padded to 256 for constant buffer alignment
     
     FShadowRenderConstants()
     {
         DirLightViewProj = DirectX::XMMatrixIdentity();
-        ShadowParams = { 0.002f, 0.0f, 1.0f, 0.005f };  // Default: constant bias, disabled, full strength, slope bias
-        for (int i = 0; i < 6; ++i)
-        {
-            PointLight0ViewProj[i] = DirectX::XMMatrixIdentity();
-            PointLight1ViewProj[i] = DirectX::XMMatrixIdentity();
-        }
-        PointShadowParams = { 0.0f, 0.0f, 1.0f, 0.0f };  // Disabled by default
+        ShadowParams = { 0.001f, 0.0f, 1.0f, 0.0f };  // Disabled by default
     }
     
     void SetEnabled(bool bEnabled)
@@ -46,29 +36,9 @@ struct FShadowRenderConstants
         ShadowParams.x = Bias;
     }
     
-    void SetSlopeBias(float SlopeBias)
-    {
-        ShadowParams.w = SlopeBias;
-    }
-    
     void SetStrength(float Strength)
     {
         ShadowParams.z = Strength;
-    }
-    
-    void SetPointLight0Enabled(bool bEnabled)
-    {
-        PointShadowParams.x = bEnabled ? 1.0f : 0.0f;
-    }
-    
-    void SetPointLight1Enabled(bool bEnabled)
-    {
-        PointShadowParams.y = bEnabled ? 1.0f : 0.0f;
-    }
-    
-    void SetPointShadowStrength(float Strength)
-    {
-        PointShadowParams.z = Strength;
     }
 };
 
