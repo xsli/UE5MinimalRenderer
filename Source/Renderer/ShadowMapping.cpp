@@ -414,9 +414,25 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
 {
     FRHITexture* shadowTexture = DirectionalShadowPass.GetShadowTexture();
     FRHIPipelineState* shadowPSO = DirectionalShadowPass.GetShadowPSO();
-    if (!shadowTexture || !shadowPSO) return;
     
-    FLog::Log(ELogLevel::Info, "Rendering directional shadow pass");
+    if (!shadowTexture)
+    {
+        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Shadow texture is null!");
+        return;
+    }
+    if (!shadowPSO)
+    {
+        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Shadow PSO is null!");
+        return;
+    }
+    if (!Scene)
+    {
+        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Scene is null!");
+        return;
+    }
+    
+    const auto& proxies = Scene->GetProxies();
+    FLog::Log(ELogLevel::Info, "RenderDirectionalShadowPass: Starting with " + std::to_string(proxies.size()) + " proxies");
     
     // Begin shadow pass - sets depth-only render target
     RHICmdList->BeginShadowPass(shadowTexture, 0);
@@ -432,12 +448,12 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     FMatrix4x4 lightVP = DirectionalShadowPass.GetViewProjectionMatrix();
     
     // Render each proxy with shadow pass (only if it casts shadows)
-    const auto& proxies = Scene->GetProxies();
     uint32 shadowCasters = 0;
     for (FSceneProxy* proxy : proxies)
     {
         if (proxy && proxy->GetCastShadow())
         {
+            FLog::Log(ELogLevel::Info, "Drawing shadow caster proxy");
             // Use the shadow-specific render method
             proxy->RenderShadow(RHICmdList, lightVP);
             ShadowDrawCallCount++;

@@ -229,6 +229,33 @@ All required dependencies are included in the repository:
 - **Constant Buffers**: 256-byte aligned GPU buffers
 - **Text Overlay**: Statistics rendered with Direct2D/DirectWrite
 
+### Graphics Debugging with RenderDoc
+
+This project supports [RenderDoc](https://renderdoc.org/) for frame capture and graphics debugging.
+
+**How to Use:**
+1. Download and install RenderDoc from https://renderdoc.org/
+2. Launch RenderDoc
+3. Go to: **File > Launch Application**
+4. Set **Executable Path** to: `UE5MinimalRenderer.exe`
+5. Set **Working Directory** to the build directory
+6. Click **Launch**
+7. In the application, press **F12** to capture a frame
+8. Click on the capture in RenderDoc to analyze
+
+**Debugging Shadow Maps:**
+1. Capture a frame with F12
+2. In the Event Browser, find "BeginShadowPass" or "ClearDepthStencilView" events
+3. Click on draw calls during the shadow pass
+4. Go to the **Texture Viewer** tab
+5. Select the depth attachment to view shadow map content
+6. White = far depth (1.0), Black = near depth (0.0)
+
+**Troubleshooting:**
+- **Shadow map is all white (empty)**: Objects may be outside the light frustum, or bCastShadow is false
+- **Shadow map has content but shadows don't appear**: Check shader shadow sampling code
+- **No shadow pass events**: Verify shadow system initialization and RenderShadowPasses is called
+
 For detailed implementation information, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Flow
