@@ -229,7 +229,7 @@ void FGame::TickMultiThreaded(float DeltaTime)
     
     // Enqueue render commands for this frame
     // The render thread will execute these
-    ENQUEUE_RENDER_COMMAND(RenderFrame)([RendererPtr]() 
+    ENQUEUE_RENDER_COMMAND(RenderFrame)[RendererPtr]() 
     {
         // Begin render frame on render thread
         FFrameSyncManager::Get().RenderThread_BeginFrame();
