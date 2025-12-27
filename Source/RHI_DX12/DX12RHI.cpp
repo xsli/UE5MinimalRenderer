@@ -264,6 +264,8 @@ void FDX12CommandList::DrawPrimitive(uint32 VertexCount, uint32 StartVertex)
     FLog::Log(ELogLevel::Info, std::string("DrawPrimitive - VertexCount: ") + std::to_string(VertexCount) + 
         ", StartVertex: " + std::to_string(StartVertex));
     
+    // Set triangle list topology (required before draw)
+    GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     GraphicsCommandList->DrawInstanced(VertexCount, 1, StartVertex, 0);
 }
 
@@ -272,6 +274,19 @@ void FDX12CommandList::DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex
     FLog::Log(ELogLevel::Info, std::string("DrawIndexedPrimitive - IndexCount: ") + std::to_string(IndexCount) + 
         ", StartIndex: " + std::to_string(StartIndex) + ", BaseVertex: " + std::to_string(BaseVertex));
     
+    // Set triangle list topology (required before draw)
+    // Note: If line topology is needed, use DrawIndexedLines instead
+    GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    GraphicsCommandList->DrawIndexedInstanced(IndexCount, 1, StartIndex, BaseVertex, 0);
+}
+
+void FDX12CommandList::DrawIndexedLines(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex)
+{
+    FLog::Log(ELogLevel::Info, std::string("DrawIndexedLines - IndexCount: ") + std::to_string(IndexCount) + 
+        ", StartIndex: " + std::to_string(StartIndex) + ", BaseVertex: " + std::to_string(BaseVertex));
+    
+    // Set line list topology for wireframe rendering
+    GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
     GraphicsCommandList->DrawIndexedInstanced(IndexCount, 1, StartIndex, BaseVertex, 0);
 }
 

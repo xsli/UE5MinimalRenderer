@@ -105,7 +105,6 @@ void FLitPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
     RHICmdList->SetConstantBuffer(LightingConstantBuffer, 1); // b1 = Lighting
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FLitVertex));
     RHICmdList->SetIndexBuffer(IndexBuffer);
-    RHICmdList->SetPrimitiveTopology(false);  // Triangle list
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
 }
 
@@ -168,8 +167,15 @@ void FLightVisualizationProxy::Render(FRHICommandList* RHICmdList)
     RHICmdList->SetConstantBuffer(ConstantBuffer, 0);
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FVertex));
     RHICmdList->SetIndexBuffer(IndexBuffer);
-    RHICmdList->SetPrimitiveTopology(bLineList);
-    RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
+    
+    if (bLineList)
+    {
+        RHICmdList->DrawIndexedLines(IndexCount, 0, 0);
+    }
+    else
+    {
+        RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
+    }
 }
 
 uint32 FLightVisualizationProxy::GetTriangleCount() const

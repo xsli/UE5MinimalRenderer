@@ -70,7 +70,10 @@ public:
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) = 0;
     virtual void DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) = 0;
     
-    // Set primitive topology (triangle list by default)
+    // Draw indexed primitives with line list topology (for wireframe/debug rendering)
+    virtual void DrawIndexedLines(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) = 0;
+    
+    // Set primitive topology (for advanced use cases - prefer DrawIndexedLines for line rendering)
     virtual void SetPrimitiveTopology(bool bLineList = false) = 0;
     
     virtual void Present() = 0;

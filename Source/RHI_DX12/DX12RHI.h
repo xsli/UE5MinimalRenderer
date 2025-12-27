@@ -70,6 +70,7 @@ public:
     virtual void SetConstantBuffer(FRHIBuffer* ConstantBuffer, uint32 RootParameterIndex) override;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) override;
     virtual void DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) override;
+    virtual void DrawIndexedLines(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) override;
     virtual void SetPrimitiveTopology(bool bLineList = false) override;
     virtual void Present() override;
     virtual void FlushCommandsFor2D() override;
