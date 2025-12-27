@@ -1,5 +1,4 @@
-#include "PrimitiveSceneProxy.h"
-#include "Primitive.h"
+#include "UnlitSceneProxy.h"
 #include <cstring>
 
 FPrimitiveSceneProxy::FPrimitiveSceneProxy(FRHIBuffer* InVertexBuffer, FRHIBuffer* InIndexBuffer,

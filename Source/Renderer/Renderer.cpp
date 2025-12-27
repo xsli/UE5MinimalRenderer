@@ -1,5 +1,5 @@
 #include "Renderer.h"
-#include "../Game/Scene.h"
+#include "../Scene/Scene.h"
 #include <algorithm>
 #include <string>
 #include <cstdio>  // for snprintf

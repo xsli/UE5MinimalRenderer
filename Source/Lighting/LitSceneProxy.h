@@ -7,7 +7,7 @@
 #include "../Lighting/LightingConstants.h"
 #include "../Core/CoreTypes.h"
 
-// Forward declarations
+// Forward declaration - FTransform is defined in Scene/ScenePrimitive.h
 struct FTransform;
 
 /**

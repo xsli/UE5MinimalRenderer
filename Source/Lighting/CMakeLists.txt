@@ -5,12 +5,11 @@ add_library(Lighting STATIC
     LightingConstants.h
     LightVisualization.cpp
     LightVisualization.h
-    LitPrimitive.cpp
-    LitPrimitive.h
     LitSceneProxy.cpp
     LitSceneProxy.h
 )
 
 target_include_directories(Lighting PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(Lighting PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../Game)
+target_include_directories(Lighting PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../Scene)
 target_link_libraries(Lighting PUBLIC Core RHI Renderer)

@@ -1,8 +1,6 @@
 #include "Game.h"
-#include "Primitive.h"
 #include "GameGlobals.h"
 #include "../RHI_DX12/DX12RHI.h"
-#include "../Lighting/LitPrimitive.h"
 #include "../Lighting/LightVisualization.h"
 #include "../Lighting/LitSceneProxy.h"
 
@@ -16,6 +14,8 @@ FLightScene* g_LightScene = nullptr;
 FGame::FGame()
     : bMultiThreaded(true)  // Enable multi-threading by default
     , GameFrameNumber(0)
+    , ScreenGizmo(nullptr)
+    , ScreenGizmoProxy(nullptr)
 {
 }
 
@@ -25,7 +25,7 @@ FGame::~FGame()
 
 bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
 {
-    FLog::Log(ELogLevel::Info, "Initializing game with lighting system...");
+    FLog::Log(ELogLevel::Info, "Initializing game with unified scene system...");
     
     // Register main thread as the game thread
     FThreadManager::Get().SetCurrentThread(ENamedThreads::GameThread);
@@ -45,15 +45,14 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
     // Set global camera reference
     g_Camera = Renderer->GetCamera();
     
-    // Create scene (for unlit objects like gizmo)
+    // Create unified scene
     Scene = std::make_unique<FScene>(RHI.get());
     
-    // Create light scene
-    LightScene = std::make_unique<FLightScene>();
-    g_LightScene = LightScene.get();
+    // Set global light scene pointer
+    g_LightScene = Scene->GetLightScene();
     
-    // Setup the lit demo scene
-    SetupLitScene();
+    // Setup the demo scene
+    SetupScene();
     
     // Update render scene with all primitives
     Renderer->UpdateFromScene(Scene.get());
@@ -81,12 +80,14 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
         FLog::Log(ELogLevel::Info, "Multi-threaded rendering initialized");
     }
     
-    FLog::Log(ELogLevel::Info, "Game initialized successfully with lighting system");
+    FLog::Log(ELogLevel::Info, "Game initialized successfully with unified scene system");
     return true;
 }
 
-void FGame::SetupLitScene()
+void FGame::SetupScene()
 {
+    FLightScene* LightScene = Scene->GetLightScene();
+    
     // ==========================================
     // LIGHTING SETUP - Daylight Scene
     // ==========================================
@@ -96,22 +97,22 @@ void FGame::SetupLitScene()
     
     // Main directional light (Sun) - warm daylight from above-right
     FDirectionalLight* sunLight = new FDirectionalLight();
-    sunLight->SetDirection(FVector(0.5f, -0.8f, 0.3f));  // Coming from upper-right
-    sunLight->SetColor(FColor(1.0f, 0.95f, 0.85f, 1.0f)); // Warm white
+    sunLight->SetDirection(FVector(0.5f, -0.8f, 0.3f));
+    sunLight->SetColor(FColor(1.0f, 0.95f, 0.85f, 1.0f));
     sunLight->SetIntensity(1.2f);
     LightScene->AddLight(sunLight);
     
     // Fill light (weaker directional from opposite side)
     FDirectionalLight* fillLight = new FDirectionalLight();
     fillLight->SetDirection(FVector(-0.3f, -0.5f, -0.4f));
-    fillLight->SetColor(FColor(0.6f, 0.7f, 0.9f, 1.0f)); // Cool blue tint
+    fillLight->SetColor(FColor(0.6f, 0.7f, 0.9f, 1.0f));
     fillLight->SetIntensity(0.3f);
     LightScene->AddLight(fillLight);
     
     // Point light 1 - Warm accent light
     FPointLight* pointLight1 = new FPointLight();
     pointLight1->SetPosition(FVector(-3.0f, 2.0f, -2.0f));
-    pointLight1->SetColor(FColor(1.0f, 0.8f, 0.4f, 1.0f)); // Warm orange
+    pointLight1->SetColor(FColor(1.0f, 0.8f, 0.4f, 1.0f));
     pointLight1->SetIntensity(2.0f);
     pointLight1->SetRadius(8.0f);
     LightScene->AddLight(pointLight1);
@@ -119,130 +120,130 @@ void FGame::SetupLitScene()
     // Point light 2 - Cool accent light
     FPointLight* pointLight2 = new FPointLight();
     pointLight2->SetPosition(FVector(3.0f, 2.0f, 2.0f));
-    pointLight2->SetColor(FColor(0.4f, 0.6f, 1.0f, 1.0f)); // Cool blue
+    pointLight2->SetColor(FColor(0.4f, 0.6f, 1.0f, 1.0f));
     pointLight2->SetIntensity(1.5f);
     pointLight2->SetRadius(8.0f);
     LightScene->AddLight(pointLight2);
     
     // ==========================================
+    // WORLD GIZMO (at origin, part of scene)
+    // ==========================================
+    
+    FGizmoPrimitive* worldGizmo = new FGizmoPrimitive(1.5f);
+    worldGizmo->SetPosition(FVector(0.0f, 0.0f, 0.0f));
+    Scene->AddPrimitive(worldGizmo);
+    
+    // ==========================================
+    // SCREEN-SPACE GIZMO (bottom-right corner)
+    // ==========================================
+    
+    ScreenGizmo = new FGizmoPrimitive(0.8f);
+    ScreenGizmo->SetScreenSpace(true);
+    ScreenGizmo->SetScreenCorner(3);  // Bottom-right
+    // Don't add to scene - rendered separately
+    
+    // ==========================================
     // SCENE OBJECTS - Lit Primitives
     // ==========================================
     
-    // --- Gizmo at scene origin (UE-style coordinate axes, unlit) ---
-    FGizmoPrimitive* gizmo = new FGizmoPrimitive(1.5f);
-    gizmo->GetTransform().Position = FVector(0.0f, 0.0f, 0.0f);
-    Scene->AddPrimitive(gizmo);
-    
-    // --- Lit Ground Plane ---
-    FLitPlanePrimitive* groundPlane = new FLitPlanePrimitive(8);
+    // --- Ground Plane ---
+    FPlanePrimitive* groundPlane = new FPlanePrimitive(8);
     groundPlane->SetPosition(FVector(0.0f, -1.0f, 0.0f));
     groundPlane->SetScale(FVector(20.0f, 1.0f, 20.0f));
     FMaterial groundMat = FMaterial::Diffuse(FColor(0.4f, 0.45f, 0.4f, 1.0f));
-    groundMat.Shininess = 8.0f;  // Low shininess for ground
+    groundMat.Shininess = 8.0f;
     groundPlane->SetMaterial(groundMat);
-    LitPrimitives.push_back(groundPlane);
+    Scene->AddPrimitive(groundPlane);
     
-    // --- Central sphere (glossy, like a metallic ball) ---
-    FLitSpherePrimitive* centerSphere = new FLitSpherePrimitive(32, 24);
+    // --- Central sphere (glossy) ---
+    FSpherePrimitive* centerSphere = new FSpherePrimitive(32, 24);
     centerSphere->SetPosition(FVector(0.0f, 0.5f, 0.0f));
     centerSphere->SetScale(FVector(1.5f, 1.5f, 1.5f));
     centerSphere->SetMaterial(FMaterial::Glossy(FColor(0.9f, 0.9f, 0.9f, 1.0f), 128.0f));
-    LitPrimitives.push_back(centerSphere);
+    Scene->AddPrimitive(centerSphere);
     
     // --- Row of cubes with different materials ---
     
     // Red matte cube
-    FLitCubePrimitive* redCube = new FLitCubePrimitive();
+    FCubePrimitive* redCube = new FCubePrimitive();
     redCube->SetPosition(FVector(-4.0f, 0.0f, -3.0f));
     redCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
     redCube->SetMaterial(FMaterial::Diffuse(FColor(0.9f, 0.2f, 0.2f, 1.0f)));
     redCube->SetAutoRotate(true);
-    LitPrimitives.push_back(redCube);
+    Scene->AddPrimitive(redCube);
     
     // Green glossy cube
-    FLitCubePrimitive* greenCube = new FLitCubePrimitive();
+    FCubePrimitive* greenCube = new FCubePrimitive();
     greenCube->SetPosition(FVector(-1.5f, 0.0f, -3.0f));
     greenCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
     greenCube->SetMaterial(FMaterial::Glossy(FColor(0.2f, 0.8f, 0.3f, 1.0f), 64.0f));
     greenCube->SetAutoRotate(true);
-    LitPrimitives.push_back(greenCube);
+    Scene->AddPrimitive(greenCube);
     
     // Blue metallic cube
-    FLitCubePrimitive* blueCube = new FLitCubePrimitive();
+    FCubePrimitive* blueCube = new FCubePrimitive();
     blueCube->SetPosition(FVector(1.5f, 0.0f, -3.0f));
     blueCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
     blueCube->SetMaterial(FMaterial::Metal(FColor(0.3f, 0.4f, 0.9f, 1.0f), 96.0f));
     blueCube->SetAutoRotate(true);
-    LitPrimitives.push_back(blueCube);
+    Scene->AddPrimitive(blueCube);
     
     // Gold metallic cube
-    FLitCubePrimitive* goldCube = new FLitCubePrimitive();
+    FCubePrimitive* goldCube = new FCubePrimitive();
     goldCube->SetPosition(FVector(4.0f, 0.0f, -3.0f));
     goldCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
     goldCube->SetMaterial(FMaterial::Metal(FColor(1.0f, 0.84f, 0.0f, 1.0f), 128.0f));
     goldCube->SetAutoRotate(true);
-    LitPrimitives.push_back(goldCube);
+    Scene->AddPrimitive(goldCube);
     
     // --- Spheres with various materials ---
     
     // Pink diffuse sphere
-    FLitSpherePrimitive* pinkSphere = new FLitSpherePrimitive(24, 16);
+    FSpherePrimitive* pinkSphere = new FSpherePrimitive(24, 16);
     pinkSphere->SetPosition(FVector(-3.0f, 0.5f, 2.0f));
     pinkSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
     pinkSphere->SetMaterial(FMaterial::Diffuse(FColor(1.0f, 0.6f, 0.7f, 1.0f)));
-    LitPrimitives.push_back(pinkSphere);
+    Scene->AddPrimitive(pinkSphere);
     
     // Cyan glossy sphere
-    FLitSpherePrimitive* cyanSphere = new FLitSpherePrimitive(24, 16);
+    FSpherePrimitive* cyanSphere = new FSpherePrimitive(24, 16);
     cyanSphere->SetPosition(FVector(0.0f, 0.5f, 3.0f));
     cyanSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
     cyanSphere->SetMaterial(FMaterial::Glossy(FColor(0.2f, 0.9f, 0.9f, 1.0f), 48.0f));
-    LitPrimitives.push_back(cyanSphere);
+    Scene->AddPrimitive(cyanSphere);
     
     // Purple metallic sphere
-    FLitSpherePrimitive* purpleSphere = new FLitSpherePrimitive(24, 16);
+    FSpherePrimitive* purpleSphere = new FSpherePrimitive(24, 16);
     purpleSphere->SetPosition(FVector(3.0f, 0.5f, 2.0f));
     purpleSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
     purpleSphere->SetMaterial(FMaterial::Metal(FColor(0.7f, 0.3f, 0.9f, 1.0f), 80.0f));
-    LitPrimitives.push_back(purpleSphere);
+    Scene->AddPrimitive(purpleSphere);
     
     // --- Cylinders ---
     
     // White cylinder (pillar)
-    FLitCylinderPrimitive* whiteCylinder = new FLitCylinderPrimitive(24);
+    FCylinderPrimitive* whiteCylinder = new FCylinderPrimitive(24);
     whiteCylinder->SetPosition(FVector(-5.0f, 0.5f, 0.0f));
     whiteCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
     whiteCylinder->SetMaterial(FMaterial::Glossy(FColor(0.95f, 0.95f, 0.95f, 1.0f), 32.0f));
-    LitPrimitives.push_back(whiteCylinder);
+    Scene->AddPrimitive(whiteCylinder);
     
     // Bronze cylinder (pillar)
-    FLitCylinderPrimitive* bronzeCylinder = new FLitCylinderPrimitive(24);
+    FCylinderPrimitive* bronzeCylinder = new FCylinderPrimitive(24);
     bronzeCylinder->SetPosition(FVector(5.0f, 0.5f, 0.0f));
     bronzeCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
     bronzeCylinder->SetMaterial(FMaterial::Metal(FColor(0.8f, 0.5f, 0.2f, 1.0f), 64.0f));
-    LitPrimitives.push_back(bronzeCylinder);
-    
-    // Create scene proxies for all lit primitives
-    for (FLitPrimitive* litPrim : LitPrimitives)
-    {
-        FSceneProxy* proxy = litPrim->CreateSceneProxy(RHI.get(), LightScene.get());
-        if (proxy)
-        {
-            Renderer->AddSceneProxy(proxy);
-        }
-    }
+    Scene->AddPrimitive(bronzeCylinder);
     
     // ==========================================
     // LIGHT VISUALIZATION (Wireframe)
     // ==========================================
     
-    // Create wireframe visualization for point lights
     auto pointLights = LightScene->GetPointLights();
     for (size_t i = 0; i < pointLights.size(); ++i)
     {
         FPointLight* light = pointLights[i];
         
-        // Generate sphere wireframe for light range
         std::vector<FVertex> vertices;
         std::vector<uint32> indices;
         FLightVisualization::GeneratePointLightGeometry(
@@ -265,7 +266,6 @@ void FGame::SetupLitScene()
             Renderer->AddSceneProxy(lightVizProxy);
         }
         
-        // Add small marker at light center
         std::vector<FVertex> markerVerts;
         std::vector<uint32> markerIndices;
         FLightVisualization::GenerateLightMarker(light->GetColor(), 0.2f, markerVerts, markerIndices);
@@ -285,9 +285,8 @@ void FGame::SetupLitScene()
         }
     }
     
-    // Create visualization for directional light
     auto dirLights = LightScene->GetDirectionalLights();
-    for (size_t i = 0; i < dirLights.size() && i < 1; ++i)  // Only first directional light
+    for (size_t i = 0; i < dirLights.size() && i < 1; ++i)
     {
         FDirectionalLight* light = dirLights[i];
         
@@ -295,7 +294,7 @@ void FGame::SetupLitScene()
         std::vector<uint32> indices;
         FLightVisualization::GenerateDirectionalLightGeometry(
             light->GetDirection(),
-            FColor(1.0f, 1.0f, 0.0f, 1.0f),  // Yellow for sun
+            FColor(1.0f, 1.0f, 0.0f, 1.0f),
             2.0f,
             vertices, indices);
         
@@ -308,7 +307,6 @@ void FGame::SetupLitScene()
             EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::LineTopology;
             FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
             
-            // Position the sun icon in the sky
             FVector sunIconPos(5.0f, 8.0f, 5.0f);
             FLightVisualizationProxy* sunVizProxy = new FLightVisualizationProxy(
                 vb, ib, cb, pso, indices.size(), g_Camera, sunIconPos, true);
@@ -316,8 +314,8 @@ void FGame::SetupLitScene()
         }
     }
     
-    FLog::Log(ELogLevel::Info, std::string("Lit scene setup complete: ") + 
-              std::to_string(LitPrimitives.size()) + " lit primitives, " +
+    FLog::Log(ELogLevel::Info, std::string("Scene setup complete: ") + 
+              std::to_string(Scene->GetPrimitives().size()) + " primitives, " +
               std::to_string(LightScene->GetLights().size()) + " lights");
 }
 
@@ -330,28 +328,19 @@ void FGame::Shutdown()
     {
         FLog::Log(ELogLevel::Info, "Stopping multi-threaded systems...");
         
-        // Wait for pending frame to complete
         FRenderThread::Get().WaitForFrameComplete();
         FRHIThread::Get().WaitForFrameComplete();
         
-        // Stop threads
         FRenderThread::Get().Stop();
         FRHIThread::Get().Stop();
     }
     
-    // Cleanup lit primitives
-    for (FLitPrimitive* litPrim : LitPrimitives)
-    {
-        delete litPrim;
-    }
-    LitPrimitives.clear();
+    // Cleanup screen gizmo
+    delete ScreenGizmoProxy;
+    ScreenGizmoProxy = nullptr;
+    delete ScreenGizmo;
+    ScreenGizmo = nullptr;
     
-    // Cleanup light scene
-    if (LightScene)
-    {
-        LightScene->ClearLights();
-        LightScene.reset();
-    }
     g_LightScene = nullptr;
     
     if (Scene)
@@ -399,32 +388,18 @@ void FGame::TickSingleThreaded(float DeltaTime)
         FLog::Log(ELogLevel::Info, std::string("FGame::Tick (SingleThreaded) ") + std::to_string(tickCount));
     }
     
-    // Track game thread time (actual work, no idle waiting in single-threaded mode)
     Renderer->GetStats().BeginGameThreadTiming();
     
-    // Game thread tick - update primitives
     if (Scene)
     {
         Scene->Tick(DeltaTime);
-        
-        // Update render scene (in real UE5, this would be a sync point)
         Renderer->UpdateFromScene(Scene.get());
-    }
-    
-    // Tick lit primitives
-    for (FLitPrimitive* litPrim : LitPrimitives)
-    {
-        litPrim->Tick(DeltaTime);
     }
     
     Renderer->GetStats().EndGameThreadTiming();
     
-    // Track render thread time (in single-threaded mode, this runs on same thread)
-    // Note: RHI time is tracked inside RenderFrame(), so we only track the outer render time here
     Renderer->GetStats().BeginRenderThreadTiming();
     
-    // Render thread work (in UE5 this would be on a separate thread)
-    // RenderFrame() internally tracks RHI time
     if (Renderer)
     {
         Renderer->RenderFrame();
@@ -443,57 +418,38 @@ void FGame::TickMultiThreaded(float DeltaTime)
         FLog::Log(ELogLevel::Info, std::string("FGame::Tick (MultiThreaded) ") + std::to_string(tickCount));
     }
     
-    // Begin frame synchronization - may wait if game is too far ahead (idle time, not measured)
     FFrameSyncManager::Get().GameThread_BeginFrame();
     
     ++GameFrameNumber;
     
-    // Track game thread time - starts AFTER sync wait, excludes idle time
     Renderer->GetStats().BeginGameThreadTiming();
     
-    // Game thread tick - update primitives
     if (Scene)
     {
         Scene->Tick(DeltaTime);
-        
-        // Update render scene on game thread (prepare data for render thread)
         Renderer->UpdateFromScene(Scene.get());
-    }
-    
-    // Tick lit primitives
-    for (FLitPrimitive* litPrim : LitPrimitives)
-    {
-        litPrim->Tick(DeltaTime);
     }
     
     Renderer->GetStats().EndGameThreadTiming();
     
-    // Capture renderer and RHI pointers for lambda
     FRenderer* RendererPtr = Renderer.get();
     
-    // Enqueue render commands for this frame
-    // The render thread will execute these after waking from its wait (idle time excluded)
     ENQUEUE_RENDER_COMMAND(RenderFrame)[RendererPtr]() 
     {
-        // Track render thread time - starts when command executes, excludes idle wait time
         RendererPtr->GetStats().BeginRenderThreadTiming();
         
-        // Begin render frame on render thread
         FFrameSyncManager::Get().RenderThread_BeginFrame();
         
         if (RendererPtr)
         {
-            // RenderFrame() internally tracks RHI time
             RendererPtr->RenderFrame();
         }
         
-        // End render frame
         FFrameSyncManager::Get().RenderThread_EndFrame();
         
         RendererPtr->GetStats().EndRenderThreadTiming();
     });
     
-    // End frame - signal render thread that commands are ready
     FFrameSyncManager::Get().GameThread_EndFrame();
 }
 

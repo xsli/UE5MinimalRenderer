@@ -4,12 +4,12 @@
 #include "../Renderer/Camera.h"
 #include "../Renderer/Renderer.h"
 #include "../Core/CoreTypes.h"
+#include "ScenePrimitive.h"  // For FTransform
 
-// Forward declarations
-struct FTransform;
-
-// Base primitive scene proxy - render thread representation
-// Inherits from FSceneProxy to maintain compatibility with the renderer
+/**
+ * FPrimitiveSceneProxy - Unlit primitive scene proxy
+ * Render thread representation for unlit primitives using FVertex format
+ */
 class FPrimitiveSceneProxy : public FSceneProxy 
 {
 public:
@@ -18,13 +18,9 @@ public:
                          uint32 InIndexCount, FCamera* InCamera, const FTransform& InTransform);
     virtual ~FPrimitiveSceneProxy();
     
-    // Render this proxy (override from FSceneProxy)
     virtual void Render(FRHICommandList* RHICmdList) override;
-    
-    // Get triangle count (override from FSceneProxy)
     virtual uint32 GetTriangleCount() const override;
     
-    // Update transform
     void UpdateTransform(const FTransform& InTransform);
     
 protected:

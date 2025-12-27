@@ -1,22 +1,28 @@
 #pragma once
 
-#include "../Renderer/Renderer.h"
+#include "../Core/CoreTypes.h"
+#include "../Lighting/Light.h"
 #include <vector>
 #include <unordered_map>
 
 // Forward declarations
 class FPrimitive;
+class FSceneProxy;
 class FRHI;
+class FRHICommandList;
+class FRenderStats;
 
-// FRenderScene - Render thread scene representation
-// Contains proxies for actual rendering
+/**
+ * FRenderScene - Render thread scene representation
+ * Contains proxies for actual rendering
+ */
 class FRenderScene 
 {
 public:
     FRenderScene();
     ~FRenderScene();
     
-    // Proxy management (called from render thread or during sync)
+    // Proxy management
     void AddProxy(FSceneProxy* Proxy);
     void RemoveProxy(FSceneProxy* Proxy);
     void ClearProxies();
@@ -31,30 +37,42 @@ private:
     std::vector<FSceneProxy*> Proxies;
 };
 
-// FScene - Game thread scene representation
-// Contains primitive objects
-class FScene {
+/**
+ * FScene - Unified game thread scene
+ * Contains all primitives and lights
+ */
+class FScene 
+{
 public:
     FScene(FRHI* InRHI);
     ~FScene();
     
-    // Primitive management (called from game thread)
+    // Primitive management
     void AddPrimitive(FPrimitive* Primitive);
     void RemovePrimitive(FPrimitive* Primitive);
+    const std::vector<FPrimitive*>& GetPrimitives() const { return Primitives; }
     
-    // Update game thread primitives
+    // Light scene management (now integrated)
+    FLightScene* GetLightScene() { return &LightScene; }
+    const FLightScene* GetLightScene() const { return &LightScene; }
+    
+    // Update all primitives
     void Tick(float DeltaTime);
     
-    // Synchronize with render scene (creates/updates proxies)
+    // Synchronize with render scene
     void UpdateRenderScene(FRenderScene* RenderScene);
     
     // Cleanup
     void Shutdown();
     
+    // Get RHI
+    FRHI* GetRHI() { return RHI; }
+    
 private:
     FRHI* RHI;
     std::vector<FPrimitive*> Primitives;
+    FLightScene LightScene;
     
-    // Dirty tracking: maps primitives to their proxies
+    // Dirty tracking
     std::unordered_map<FPrimitive*, FSceneProxy*> PrimitiveProxyMap;
 };

@@ -1,5 +1,5 @@
 #include "LitSceneProxy.h"
-#include "../Game/Primitive.h"
+#include "../Scene/ScenePrimitive.h"  // For FTransform implementation
 #include <cstring>
 
 // FLitPrimitiveSceneProxy implementation
