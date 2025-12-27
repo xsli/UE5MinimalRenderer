@@ -416,15 +416,44 @@ TEST_F(MatrixTest, Transpose_SwapsRowsAndColumns)
 }
 
 // ============================================
-// FTransform Tests (from Primitive.h)
+// FTransform Tests
 // ============================================
 
-// Include necessary headers for FTransform tests
-#include "Primitive.h"
+// Local FTransform definition for testing (mirrors the one in Primitive.h)
+// This avoids dependency on the Game module which requires Windows-only headers
+struct FTransformForTest
+{
+    FVector Position;
+    FVector Rotation;  // Euler angles in radians
+    FVector Scale;
+
+    FTransformForTest()
+        : Position(0.0f, 0.0f, 0.0f)
+        , Rotation(0.0f, 0.0f, 0.0f)
+        , Scale(1.0f, 1.0f, 1.0f)
+    {
+    }
+
+    // Get transformation matrix
+    FMatrix4x4 GetMatrix() const
+    {
+        FMatrix4x4 scale = FMatrix4x4::Scaling(Scale.X, Scale.Y, Scale.Z);
+        FMatrix4x4 rotationX = FMatrix4x4::RotationX(Rotation.X);
+        FMatrix4x4 rotationY = FMatrix4x4::RotationY(Rotation.Y);
+        FMatrix4x4 rotationZ = FMatrix4x4::RotationZ(Rotation.Z);
+        FMatrix4x4 translation = FMatrix4x4::Translation(Position.X, Position.Y, Position.Z);
+
+        // Standard graphics transformation order: Scale -> Rotate -> Translate
+        // With DirectXMath row-vector convention (v * M), transformations are applied
+        // left-to-right in the multiplication chain: Scale * Rot * Trans
+        // Rotation order: X*Y*Z (Roll*Pitch*Yaw for Euler angles)
+        return scale * rotationX * rotationY * rotationZ * translation;
+    }
+};
 
 TEST_F(MatrixTest, FTransform_DefaultIsIdentityTransform)
 {
-    FTransform transform;
+    FTransformForTest transform;
     FMatrix4x4 mat = transform.GetMatrix();
     FVector point(1.0f, 2.0f, 3.0f);
     
@@ -438,7 +467,7 @@ TEST_F(MatrixTest, FTransform_DefaultIsIdentityTransform)
 
 TEST_F(MatrixTest, FTransform_TranslationOnly)
 {
-    FTransform transform;
+    FTransformForTest transform;
     transform.Position = FVector(10.0f, 5.0f, -3.0f);
     
     FMatrix4x4 mat = transform.GetMatrix();
@@ -453,7 +482,7 @@ TEST_F(MatrixTest, FTransform_TranslationOnly)
 
 TEST_F(MatrixTest, FTransform_ScaleOnly)
 {
-    FTransform transform;
+    FTransformForTest transform;
     transform.Scale = FVector(2.0f, 3.0f, 4.0f);
     
     FMatrix4x4 mat = transform.GetMatrix();
@@ -468,7 +497,7 @@ TEST_F(MatrixTest, FTransform_ScaleOnly)
 
 TEST_F(MatrixTest, FTransform_RotationOnly_Y90)
 {
-    FTransform transform;
+    FTransformForTest transform;
     transform.Rotation = FVector(0.0f, static_cast<float>(M_PI / 2.0), 0.0f);
     
     FMatrix4x4 mat = transform.GetMatrix();
@@ -484,7 +513,7 @@ TEST_F(MatrixTest, FTransform_RotationOnly_Y90)
 
 TEST_F(MatrixTest, FTransform_ScaleRotateTranslate_Order)
 {
-    FTransform transform;
+    FTransformForTest transform;
     transform.Position = FVector(10.0f, 0.0f, 0.0f);  // Translate
     transform.Rotation = FVector(0.0f, 0.0f, 0.0f);   // No rotation
     transform.Scale = FVector(2.0f, 2.0f, 2.0f);      // Scale

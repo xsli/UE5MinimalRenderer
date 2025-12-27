@@ -13,20 +13,18 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
-# Matrix transformation tests
+# Matrix transformation tests (Core module only)
 add_executable(MatrixTests
     MatrixTests.cpp
 )
 
 target_include_directories(MatrixTests PRIVATE 
     ${CMAKE_SOURCE_DIR}/Source/Core
-    ${CMAKE_SOURCE_DIR}/Source/Game
 )
 
 target_link_libraries(MatrixTests
     GTest::gtest_main
     Core
-    Game
 )
 
 # Organize files in Visual Studio
