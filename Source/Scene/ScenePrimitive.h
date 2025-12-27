@@ -102,6 +102,10 @@ public:
     void MarkTransformDirty() { bTransformDirty = true; }
     void ClearDirty() { bIsDirty = false; bTransformDirty = false; }
 
+    // Shadow casting property
+    void SetCastShadow(bool bCast) { bCastShadow = bCast; }
+    bool GetCastShadow() const { return bCastShadow; }
+
 protected:
     FTransform Transform;
     FMaterial Material;
@@ -109,6 +113,7 @@ protected:
     EPrimitiveType PrimitiveType;
     bool bIsDirty;
     bool bTransformDirty;
+    bool bCastShadow;  // Whether this primitive casts shadows
 };
 
 // ============================================================================

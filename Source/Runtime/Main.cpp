@@ -1,7 +1,10 @@
 #include "../Game/Game.h"
+#include "../Renderer/Renderer.h"
+#include "../Renderer/RTPool.h"
 #include <Windows.h>
 #include <windowsx.h>
 #include <chrono>
+#include <cstdio>
 
 // Input state tracking
 struct FInputState 
@@ -33,9 +36,33 @@ namespace CameraSettings
 
 // Global game instance and timing
 static FGame* g_Game = nullptr;
+static HWND g_HWND = nullptr;
 static auto g_LastTime = std::chrono::high_resolution_clock::now();
 static int g_FrameCount = 0;
 static FInputState g_InputState;
+
+// Update window title with RT pool stats
+static void UpdateWindowTitle()
+{
+    if (!g_Game || !g_HWND) return;
+    
+    FRenderer* renderer = g_Game->GetRenderer();
+    if (!renderer) return;
+    
+    uint32 drawCalls = renderer->GetDrawCallCount();
+    float fps = renderer->GetStats().GetFPS();
+    
+    const FRTPoolStats* poolStats = renderer->GetRTPoolStats();
+    uint32 rtPooled = poolStats ? poolStats->TotalPooledRTs : 0;
+    uint32 rtActive = poolStats ? poolStats->ActiveRTs : 0;
+    
+    char title[256];
+    snprintf(title, sizeof(title), 
+             "UE5 Minimal Renderer - Shadow Mapping | FPS: %.1f | DrawCalls: %u | RT Pool: %u/%u", 
+             fps, drawCalls, rtActive, rtPooled);
+    
+    SetWindowTextA(g_HWND, title);
+}
 
 // Window procedure
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -244,6 +271,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     try
                     {
                         g_Game->Tick(deltaTime);
+                        
+                        // Update window title every 10 frames
+                        if (g_FrameCount % 10 == 0)
+                        {
+                            UpdateWindowTitle();
+                        }
                     }
                     catch (const std::exception& e)
                     {
@@ -295,7 +328,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     HWND hwnd = CreateWindowExA(
         0,
         "UE5MinimalRendererClass",
-        "UE5 Minimal Renderer - Colored Triangle Demo",
+        "UE5 Minimal Renderer - Shadow Mapping",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT,
         windowRect.right - windowRect.left,
@@ -308,6 +341,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         MessageBoxA(NULL, "Window Creation Failed!", "Error!", MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
+    
+    // Store global HWND for title updates
+    g_HWND = hwnd;
     
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);

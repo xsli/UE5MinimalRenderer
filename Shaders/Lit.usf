@@ -1,0 +1,387 @@
+// Phong lighting shader with shadow support
+// Uses FLitVertex format (position, normal, color)
+// Constant buffer layout:
+//   b0: MVP matrix (model-view-projection)
+//   b1: Lighting data (model matrix, camera pos, lights, material)
+//   b2: Shadow data (light view-projection matrix)
+
+cbuffer MVPBuffer : register(b0)
+{
+    float4x4 MVP;
+};
+
+cbuffer LightingBuffer : register(b1)
+{
+    float4x4 ModelMatrix;
+    float4 CameraPosition;      // xyz = camera pos, w = unused
+    float4 AmbientLight;        // xyz = ambient color, w = intensity
+    
+    // Directional light
+    float4 DirLightDirection;   // xyz = direction (normalized), w = enabled
+    float4 DirLightColor;       // xyz = color, w = intensity
+    
+    // Point light (up to 4)
+    float4 PointLight0Position; // xyz = position, w = enabled
+    float4 PointLight0Color;    // xyz = color, w = intensity
+    float4 PointLight0Params;   // x = radius, y = falloff, zw = unused
+    
+    float4 PointLight1Position;
+    float4 PointLight1Color;
+    float4 PointLight1Params;
+    
+    float4 PointLight2Position;
+    float4 PointLight2Color;
+    float4 PointLight2Params;
+    
+    float4 PointLight3Position;
+    float4 PointLight3Color;
+    float4 PointLight3Params;
+    
+    // Material properties
+    float4 MaterialDiffuse;     // xyz = diffuse color, w = unused
+    float4 MaterialSpecular;    // xyz = specular color, w = shininess
+    float4 MaterialAmbient;     // xyz = ambient color, w = unused
+};
+
+cbuffer ShadowBuffer : register(b2)
+{
+    float4x4 DirLightViewProj;  // Directional light view-projection matrix
+    float4 ShadowParams;        // x = constant bias, y = enabled, z = shadow strength, w = slope bias
+    float4x4 PointLight0ViewProj[6];  // 6 cubemap face matrices for point light 0
+    float4x4 PointLight1ViewProj[6];  // 6 cubemap face matrices for point light 1
+    float4 PointShadowParams;   // x = enabled0, y = enabled1, z = point shadow strength, w = unused
+};
+
+// Shadow map texture and sampler
+Texture2D<float> ShadowMap : register(t0);
+Texture2D<float> PointShadowAtlas0 : register(t1);
+Texture2D<float> PointShadowAtlas1 : register(t2);
+SamplerComparisonState ShadowSampler : register(s0);
+
+struct VSInput {
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float4 color : COLOR;
+};
+
+struct PSInput {
+    float4 position : SV_POSITION;
+    float3 worldPos : WORLDPOS;
+    float3 normal : NORMAL;
+    float4 color : COLOR;
+    float4 lightSpacePos : LIGHTSPACEPOS;
+};
+
+PSInput VSMain(VSInput input)
+{
+    PSInput result;
+    result.position = mul(float4(input.position, 1.0f), MVP);
+    result.worldPos = mul(float4(input.position, 1.0f), ModelMatrix).xyz;
+    result.normal = normalize(mul(float4(input.normal, 0.0f), ModelMatrix).xyz);
+    result.color = input.color;
+    
+    // Calculate light space position for shadow mapping
+    result.lightSpacePos = mul(float4(result.worldPos, 1.0f), DirLightViewProj);
+    
+    return result;
+}
+
+// Get cubemap face index from direction vector
+int GetCubemapFace(float3 dir)
+{
+    float3 absDir = abs(dir);
+    
+    if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+    {
+        return (dir.x > 0) ? 0 : 1;  // +X : -X
+    }
+    else if (absDir.y >= absDir.x && absDir.y >= absDir.z)
+    {
+        return (dir.y > 0) ? 2 : 3;  // +Y : -Y
+    }
+    else
+    {
+        return (dir.z > 0) ? 4 : 5;  // +Z : -Z
+    }
+}
+
+// Calculate shadow factor for directional light with slope-scaled bias
+float CalcShadow(float4 lightSpacePos, float3 worldNormal, float3 lightDir, float constantBias, float slopeBias)
+{
+    // Perform perspective divide
+    float3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+    
+    // Transform from [-1,1] to [0,1] texture coordinates
+    projCoords.x = projCoords.x * 0.5f + 0.5f;
+    projCoords.y = -projCoords.y * 0.5f + 0.5f;  // Flip Y for DirectX
+    
+    // Early out if outside shadow map bounds
+    if (projCoords.x < 0.0f || projCoords.x > 1.0f ||
+        projCoords.y < 0.0f || projCoords.y > 1.0f ||
+        projCoords.z < 0.0f || projCoords.z > 1.0f)
+    {
+        return 1.0f;  // Not in shadow if outside bounds
+    }
+    
+    // Calculate slope-scaled bias based on surface angle
+    float NdotL = saturate(dot(worldNormal, -lightDir));
+    float slopeFactor = sqrt(1.0f - NdotL * NdotL) / max(NdotL, 0.001f);  // tan(acos(NdotL))
+    float bias = constantBias + slopeBias * slopeFactor;
+    bias = min(bias, 0.01f);  // Clamp max bias to prevent peter-panning
+    
+    // Current depth with bias
+    float currentDepth = projCoords.z - bias;
+    
+    // PCF 3x3 sampling for soft shadows
+    float shadow = 0.0f;
+    float2 texelSize = float2(1.0f / 1024.0f, 1.0f / 1024.0f);  // Shadow map size
+    
+    [unroll]
+    for (int x = -1; x <= 1; ++x)
+    {
+        [unroll]
+        for (int y = -1; y <= 1; ++y)
+        {
+            float2 samplePos = projCoords.xy + float2(x, y) * texelSize;
+            shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, samplePos, currentDepth);
+        }
+    }
+    
+    shadow /= 9.0f;
+    
+    return shadow;
+}
+
+// Calculate shadow factor for point light
+float CalcPointShadow(float3 worldPos, float3 lightPos, float4x4 faceMatrices[6], 
+                      Texture2D<float> shadowAtlas, float constantBias, float slopeBias, float3 worldNormal)
+{
+    float3 lightToPoint = worldPos - lightPos;
+    int faceIndex = GetCubemapFace(lightToPoint);
+    
+    // Transform to light space using the appropriate face matrix
+    float4 lightSpacePos = mul(float4(worldPos, 1.0f), faceMatrices[faceIndex]);
+    
+    // Perform perspective divide
+    float3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+    
+    // Transform from [-1,1] to [0,1]
+    projCoords.x = projCoords.x * 0.5f + 0.5f;
+    projCoords.y = -projCoords.y * 0.5f + 0.5f;
+    
+    // Atlas layout: 3x2 grid (512x512 per face in 1536x1024 atlas)
+    float2 faceOffset;
+    int row = faceIndex / 3;
+    int col = faceIndex % 3;
+    faceOffset.x = col / 3.0f;
+    faceOffset.y = row / 2.0f;
+    
+    // Scale UV to face region
+    float2 atlasUV = faceOffset + projCoords.xy * float2(1.0f/3.0f, 0.5f);
+    
+    // Early out if outside bounds
+    if (projCoords.z < 0.0f || projCoords.z > 1.0f)
+    {
+        return 1.0f;
+    }
+    
+    // Calculate bias
+    float3 lightDir = normalize(lightToPoint);
+    float NdotL = saturate(dot(worldNormal, -lightDir));
+    float slopeFactor = sqrt(1.0f - NdotL * NdotL) / max(NdotL, 0.001f);
+    float bias = constantBias + slopeBias * slopeFactor;
+    bias = min(bias, 0.01f);
+    
+    float currentDepth = projCoords.z - bias;
+    
+    // PCF sampling
+    float shadow = 0.0f;
+    float2 texelSize = float2(1.0f / 1536.0f, 1.0f / 1024.0f);
+    
+    [unroll]
+    for (int x = -1; x <= 1; ++x)
+    {
+        [unroll]
+        for (int y = -1; y <= 1; ++y)
+        {
+            float2 samplePos = atlasUV + float2(x, y) * texelSize;
+            shadow += shadowAtlas.SampleCmpLevelZero(ShadowSampler, samplePos, currentDepth);
+        }
+    }
+    
+    shadow /= 9.0f;
+    
+    return shadow;
+}
+
+// Calculate point light contribution (simplified, no shadows)
+float3 CalcPointLight(float3 worldPos, float3 N, float3 V, float4 lightPos, float4 lightColor, 
+                      float4 lightParams, float3 diffuseColor, float3 specularColor, float shininess)
+{
+    if (lightPos.w < 0.5f)
+        return float3(0, 0, 0);
+    
+    float3 lightPosition = lightPos.xyz;
+    float3 lightColorRGB = lightColor.xyz;
+    float lightIntensity = lightColor.w;
+    float lightRadius = lightParams.x;
+    float lightFalloff = lightParams.y;
+    
+    float3 L = lightPosition - worldPos;
+    float distance = length(L);
+    L = normalize(L);
+    
+    if (distance > lightRadius)
+        return float3(0, 0, 0);
+    
+    float attenuation = 1.0f - pow(saturate(distance / lightRadius), lightFalloff);
+    attenuation *= lightIntensity;
+    
+    float NdotL = max(dot(N, L), 0.0f);
+    float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+    
+    float3 H = normalize(L + V);
+    float NdotH = max(dot(N, H), 0.0f);
+    float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+    
+    return (diffuse + specular) * attenuation;
+}
+
+float4 PSMain(PSInput input) : SV_TARGET
+{
+    // Normalize interpolated normal
+    float3 N = normalize(input.normal);
+    float3 V = normalize(CameraPosition.xyz - input.worldPos);
+    
+    // Material properties (vertex color * material)
+    float3 diffuseColor = input.color.rgb * MaterialDiffuse.xyz;
+    float3 specularColor = MaterialSpecular.xyz;
+    float shininess = MaterialSpecular.w;
+    float3 ambientColor = MaterialAmbient.xyz;
+    
+    // Ambient component
+    float3 ambient = ambientColor * AmbientLight.xyz * AmbientLight.w;
+    
+    // Directional light
+    float3 directional = float3(0, 0, 0);
+    if (DirLightDirection.w > 0.5f)
+    {
+        float3 L = -normalize(DirLightDirection.xyz);
+        float3 lightColor = DirLightColor.xyz * DirLightColor.w;
+        
+        // Diffuse
+        float NdotL = max(dot(N, L), 0.0f);
+        float3 diffuse = diffuseColor * lightColor * NdotL;
+        
+        // Specular (Blinn-Phong)
+        float3 H = normalize(L + V);
+        float NdotH = max(dot(N, H), 0.0f);
+        float3 specular = specularColor * lightColor * pow(NdotH, shininess);
+        
+        // Shadow factor
+        float shadowFactor = 1.0f;
+        if (ShadowParams.y > 0.5f)  // If shadow is enabled
+        {
+            float constantBias = ShadowParams.x;
+            float slopeBias = ShadowParams.w;
+            shadowFactor = CalcShadow(input.lightSpacePos, N, normalize(DirLightDirection.xyz), constantBias, slopeBias);
+            shadowFactor = lerp(1.0f, shadowFactor, ShadowParams.z);  // Apply shadow strength
+        }
+        
+        directional = (diffuse + specular) * shadowFactor;
+    }
+    
+    // Point lights
+    float3 pointLights = float3(0, 0, 0);
+    
+    // Point light 0 with shadow support
+    if (PointLight0Position.w > 0.5f)
+    {
+        float3 lightPosition = PointLight0Position.xyz;
+        float3 lightColorRGB = PointLight0Color.xyz;
+        float lightIntensity = PointLight0Color.w;
+        float lightRadius = PointLight0Params.x;
+        float lightFalloff = PointLight0Params.y;
+        
+        float3 L = lightPosition - input.worldPos;
+        float distance = length(L);
+        L = normalize(L);
+        
+        if (distance <= lightRadius)
+        {
+            float attenuation = 1.0f - pow(saturate(distance / lightRadius), lightFalloff);
+            attenuation *= lightIntensity;
+            
+            float NdotL = max(dot(N, L), 0.0f);
+            float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+            
+            float3 H = normalize(L + V);
+            float NdotH = max(dot(N, H), 0.0f);
+            float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+            
+            float constantBias = ShadowParams.x;
+            float slopeBias = ShadowParams.w;
+            
+            // Apply point light shadow if enabled
+            float pointShadow = 1.0f;
+            if (PointShadowParams.x > 0.5f)
+            {
+                pointShadow = CalcPointShadow(input.worldPos, lightPosition, PointLight0ViewProj, 
+                                              PointShadowAtlas0, constantBias, slopeBias, N);
+                pointShadow = lerp(1.0f, pointShadow, PointShadowParams.z);
+            }
+            
+            pointLights += (diffuse + specular) * attenuation * pointShadow;
+        }
+    }
+    
+    // Point light 1 with shadow support
+    if (PointLight1Position.w > 0.5f)
+    {
+        float3 lightPosition = PointLight1Position.xyz;
+        float3 lightColorRGB = PointLight1Color.xyz;
+        float lightIntensity = PointLight1Color.w;
+        float lightRadius = PointLight1Params.x;
+        float lightFalloff = PointLight1Params.y;
+        
+        float3 L = lightPosition - input.worldPos;
+        float distance = length(L);
+        L = normalize(L);
+        
+        if (distance <= lightRadius)
+        {
+            float attenuation = 1.0f - pow(saturate(distance / lightRadius), lightFalloff);
+            attenuation *= lightIntensity;
+            
+            float NdotL = max(dot(N, L), 0.0f);
+            float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+            
+            float3 H = normalize(L + V);
+            float NdotH = max(dot(N, H), 0.0f);
+            float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+            
+            float constantBias = ShadowParams.x;
+            float slopeBias = ShadowParams.w;
+            
+            // Apply point light shadow if enabled
+            float pointShadow = 1.0f;
+            if (PointShadowParams.y > 0.5f)
+            {
+                pointShadow = CalcPointShadow(input.worldPos, lightPosition, PointLight1ViewProj, 
+                                              PointShadowAtlas1, constantBias, slopeBias, N);
+                pointShadow = lerp(1.0f, pointShadow, PointShadowParams.z);
+            }
+            
+            pointLights += (diffuse + specular) * attenuation * pointShadow;
+        }
+    }
+    
+    // Point lights 2 and 3 (no shadow support, simplified)
+    pointLights += CalcPointLight(input.worldPos, N, V, PointLight2Position, PointLight2Color, PointLight2Params, diffuseColor, specularColor, shininess);
+    pointLights += CalcPointLight(input.worldPos, N, V, PointLight3Position, PointLight3Color, PointLight3Params, diffuseColor, specularColor, shininess);
+    
+    // Final color
+    float3 finalColor = ambient + directional + pointLights;
+    
+    return float4(finalColor, input.color.a);
+}

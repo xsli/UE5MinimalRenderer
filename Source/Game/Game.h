@@ -27,6 +27,9 @@ public:
     // Get scene
     FScene* GetScene() { return Scene.get(); }
     
+    // Get renderer for stats access
+    FRenderer* GetRenderer() { return Renderer.get(); }
+    
 private:
     // Single-threaded tick (legacy)
     void TickSingleThreaded(float DeltaTime);

@@ -7,6 +7,8 @@ add_executable(UE5MinimalRenderer WIN32
     # Core
     ../Core/CoreTypes.cpp
     ../Core/CoreTypes.h
+    ../Core/ShaderLoader.cpp
+    ../Core/ShaderLoader.h
     
     # TaskGraph
     ../TaskGraph/TaskGraph.cpp
@@ -29,6 +31,10 @@ add_executable(UE5MinimalRenderer WIN32
     ../Renderer/RenderStats.h
     ../Renderer/Camera.cpp
     ../Renderer/Camera.h
+    ../Renderer/RTPool.cpp
+    ../Renderer/RTPool.h
+    ../Renderer/ShadowMapping.cpp
+    ../Renderer/ShadowMapping.h
     
     # Lighting
     ../Lighting/Light.cpp
@@ -75,7 +81,7 @@ target_link_libraries(UE5MinimalRenderer PRIVATE
 
 # Organize files in Visual Studio filters
 source_group("Runtime" FILES Main.cpp)
-source_group("Core" FILES ../Core/CoreTypes.cpp ../Core/CoreTypes.h)
+source_group("Core" FILES ../Core/CoreTypes.cpp ../Core/CoreTypes.h ../Core/ShaderLoader.cpp ../Core/ShaderLoader.h)
 source_group("TaskGraph" FILES 
     ../TaskGraph/TaskGraph.cpp ../TaskGraph/TaskGraph.h
     ../TaskGraph/RenderCommands.cpp ../TaskGraph/RenderCommands.h)
@@ -84,7 +90,9 @@ source_group("RHI_DX12" FILES ../RHI_DX12/DX12RHI.cpp ../RHI_DX12/DX12RHI.h)
 source_group("Renderer" FILES 
     ../Renderer/Renderer.cpp ../Renderer/Renderer.h
     ../Renderer/RenderStats.cpp ../Renderer/RenderStats.h
-    ../Renderer/Camera.cpp ../Renderer/Camera.h)
+    ../Renderer/Camera.cpp ../Renderer/Camera.h
+    ../Renderer/RTPool.cpp ../Renderer/RTPool.h
+    ../Renderer/ShadowMapping.cpp ../Renderer/ShadowMapping.h)
 source_group("Lighting" FILES 
     ../Lighting/Light.cpp ../Lighting/Light.h
     ../Lighting/LightingConstants.h
