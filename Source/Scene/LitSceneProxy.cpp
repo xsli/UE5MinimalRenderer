@@ -38,8 +38,8 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(
         // Enable shadows by default for directional light
         ShadowData.SetEnabled(true);
         ShadowData.SetStrength(0.8f);  // 80% shadow strength
-        ShadowData.SetBias(0.0005f);   // Constant bias
-        ShadowData.SetSlopeBias(0.002f);  // Slope-scaled bias
+        ShadowData.SetBias(0.002f);    // Constant bias (increased for planes)
+        ShadowData.SetSlopeBias(0.005f);  // Slope-scaled bias (increased)
     }
 }
 

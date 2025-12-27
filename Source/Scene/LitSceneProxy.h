@@ -27,7 +27,7 @@ struct FShadowRenderConstants
     FShadowRenderConstants()
     {
         DirLightViewProj = DirectX::XMMatrixIdentity();
-        ShadowParams = { 0.0005f, 0.0f, 1.0f, 0.002f };  // Default: constant bias, disabled, full strength, slope bias
+        ShadowParams = { 0.002f, 0.0f, 1.0f, 0.005f };  // Default: constant bias, disabled, full strength, slope bias
         for (int i = 0; i < 6; ++i)
         {
             PointLight0ViewProj[i] = DirectX::XMMatrixIdentity();

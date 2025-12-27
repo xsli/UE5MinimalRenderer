@@ -127,9 +127,9 @@ float CalcShadow(float4 lightSpacePos, float3 worldNormal, float3 lightDir, floa
     
     // Calculate slope-scaled bias based on surface angle
     float NdotL = saturate(dot(worldNormal, -lightDir));
-    float slopeFactor = sqrt(1.0f - NdotL * NdotL) / max(NdotL, 0.001f);  // tan(acos(NdotL))
+    float slopeFactor = sqrt(1.0f - NdotL * NdotL) / max(NdotL, 0.01f);  // tan(acos(NdotL))
     float bias = constantBias + slopeBias * slopeFactor;
-    bias = min(bias, 0.01f);  // Clamp max bias to prevent peter-panning
+    bias = min(bias, 0.05f);  // Clamp max bias to prevent peter-panning
     
     // Current depth with bias
     float currentDepth = projCoords.z - bias;
