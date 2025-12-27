@@ -13,6 +13,44 @@ class FSceneProxy;
 class FRenderScene;
 
 /**
+ * Shadow Sampling HLSL Reference (for shader implementation):
+ * 
+ * PCF 3x3 Kernel for smooth shadows:
+ * 
+ * float CalcDirectionalShadowPCF(float3 worldPos, float4x4 lightViewProj, 
+ *                                 Texture2D shadowMap, SamplerComparisonState shadowSampler,
+ *                                 float2 shadowMapSize, float bias)
+ * {
+ *     // Transform world position to light clip space
+ *     float4 lightSpacePos = mul(float4(worldPos, 1.0f), lightViewProj);
+ *     lightSpacePos.xyz /= lightSpacePos.w;  // Perspective divide
+ *     
+ *     // Convert from clip space [-1,1] to texture space [0,1]
+ *     float2 shadowUV = lightSpacePos.xy * 0.5f + 0.5f;
+ *     shadowUV.y = 1.0f - shadowUV.y;  // Flip Y for DirectX
+ *     
+ *     // Apply bias
+ *     float depth = lightSpacePos.z - bias;
+ *     
+ *     // 3x3 PCF kernel
+ *     float shadow = 0.0f;
+ *     float2 texelSize = 1.0f / shadowMapSize;
+ *     for (int y = -1; y <= 1; y++)
+ *     {
+ *         for (int x = -1; x <= 1; x++)
+ *         {
+ *             float2 offset = float2(x, y) * texelSize;
+ *             shadow += shadowMap.SampleCmpLevelZero(shadowSampler, shadowUV + offset, depth);
+ *         }
+ *     }
+ *     return shadow / 9.0f;
+ * }
+ * 
+ * For point light shadows, determine which cubemap face to sample based on direction,
+ * then apply similar PCF sampling to the appropriate atlas region.
+ */
+
+/**
  * Shadow map constants - GPU constant buffer data for shadow sampling
  * Must match the HLSL ShadowBuffer structure exactly
  */

@@ -300,17 +300,23 @@ void FShadowSystem::RenderShadowPasses(FRHICommandList* RHICmdList, FRenderScene
     
     ShadowDrawCallCount = 0;
     
-    // TODO: Implement actual shadow pass rendering
-    // This requires:
-    // 1. Setting render target to shadow map texture
-    // 2. Clearing depth
-    // 3. Rendering scene with shadow pass shader
-    // 4. Restoring main render target
+    // NOTE: Shadow pass rendering is currently a placeholder.
+    // Full implementation requires:
+    // 1. RHI command list methods to set custom render targets
+    // 2. Viewport region setting for atlas rendering
+    // 3. Shadow-specific pipeline state binding
+    // 
+    // The current implementation provides:
+    // - Shadow map matrix calculations
+    // - Shadow texture allocation via RT pool
+    // - Draw call tracking for statistics
+    //
+    // Future work: Implement BeginShadowPass/EndShadowPass in RHI layer
     
-    // For now, just update the draw call count for tracking
+    // Track estimated draw calls for shadow passes
     if (CurrentDirLight && DirectionalShadowPass.IsInitialized())
     {
-        // RenderDirectionalShadowPass(RHICmdList, Scene);
+        // Directional shadow would render scene once
         ShadowDrawCallCount += static_cast<uint32>(Scene->GetProxies().size());
     }
     
@@ -318,8 +324,8 @@ void FShadowSystem::RenderShadowPasses(FRHICommandList* RHICmdList, FRenderScene
     {
         if (CurrentPointLights[i] && PointLightShadowPasses[i].IsInitialized())
         {
-            // RenderPointLightShadowPass(RHICmdList, Scene, i);
-            ShadowDrawCallCount += static_cast<uint32>(Scene->GetProxies().size()) * 6;  // 6 faces
+            // Point light shadows render scene 6 times (once per face)
+            ShadowDrawCallCount += static_cast<uint32>(Scene->GetProxies().size()) * 6;
         }
     }
 }
@@ -420,20 +426,29 @@ void FShadowSystem::SetSlopeScaledBias(float Bias)
 
 void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRenderScene* Scene)
 {
-    // TODO: Implement full shadow pass rendering
-    // This would involve:
-    // 1. BeginShadowPass() - set render target to shadow texture
-    // 2. Clear depth buffer
-    // 3. Set shadow PSO
-    // 4. For each proxy: render with light's view-projection
-    // 5. EndShadowPass() - restore main render target
+    // PLACEHOLDER: Full shadow pass rendering requires RHI extensions
+    // 
+    // Implementation would be:
+    // 1. BeginShadowPass() - set render target to DirectionalShadowPass.GetShadowTexture()
+    // 2. Clear depth buffer to 1.0f
+    // 3. Set viewport to full shadow map size
+    // 4. Set shadow PSO (depth-only pipeline state)
+    // 5. For each proxy in Scene:
+    //    a. Calculate light space MVP: ModelMatrix * DirectionalShadowPass.GetViewProjectionMatrix()
+    //    b. Render proxy with depth-only shader
+    // 6. EndShadowPass() - restore main render target
 }
 
 void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRenderScene* Scene, uint32 LightIndex)
 {
-    // TODO: Implement point light shadow pass
-    // For each of 6 faces:
-    // 1. Set viewport to face region in atlas
-    // 2. Clear face region depth
-    // 3. Render scene with face's view-projection
+    // PLACEHOLDER: Full point light shadow pass requires RHI extensions
+    //
+    // Implementation would be (for 6 faces in atlas):
+    // For each face (0-5):
+    // 1. Set viewport to face region in atlas (512x512 per face in 3x2 grid)
+    // 2. Clear face region depth to 1.0f
+    // 3. Set shadow PSO
+    // 4. For each proxy in Scene:
+    //    a. Calculate face MVP: ModelMatrix * PointLightShadowPasses[LightIndex].GetViewProjectionMatrix(face)
+    //    b. Render proxy with depth-only shader
 }

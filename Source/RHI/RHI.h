@@ -113,6 +113,8 @@ enum class EPipelineFlags : uint32
     EnableLighting = 1 << 1,
     WireframeMode = 1 << 2,
     LineTopology = 1 << 3,  // For wireframe line rendering
+    EnableShadows = 1 << 4, // Enable shadow mapping (requires shadow map textures bound)
+    DepthOnly = 1 << 5,     // Depth-only rendering for shadow pass
 };
 
 // Operator overloads for pipeline flags

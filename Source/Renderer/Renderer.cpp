@@ -176,14 +176,18 @@ void FRenderer::RenderFrame()
     Stats.BeginRHIThreadTiming();
     
     // Update shadow system with current scene
+    // NOTE: Shadow pass rendering is currently a placeholder - matrix calculations
+    // are performed but actual depth rendering requires additional RHI extensions
+    // for setting custom render targets. See FShadowSystem::RenderShadowPasses() 
+    // for implementation details.
     if (ShadowSystem && CurrentScene)
     {
         FVector sceneCenter(0.0f, 0.0f, 0.0f);
         float sceneRadius = 20.0f;  // Approximate scene bounds
         ShadowSystem->Update(CurrentScene->GetLightScene(), sceneCenter, sceneRadius);
         
-        // Render shadow passes (before main scene)
-        // ShadowSystem->RenderShadowPasses(RHICmdList, RenderScene.get());
+        // Shadow pass rendering (placeholder - tracks draw calls only)
+        ShadowSystem->RenderShadowPasses(RHICmdList, RenderScene.get());
         DrawCallCount += ShadowSystem->GetShadowDrawCallCount();
     }
     

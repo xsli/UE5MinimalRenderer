@@ -1138,15 +1138,56 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     bool bEnableLighting = HasFlag(Flags, EPipelineFlags::EnableLighting);
     bool bWireframe = HasFlag(Flags, EPipelineFlags::WireframeMode);
     bool bLineTopology = HasFlag(Flags, EPipelineFlags::LineTopology);
+    bool bEnableShadows = HasFlag(Flags, EPipelineFlags::EnableShadows);
+    bool bDepthOnly = HasFlag(Flags, EPipelineFlags::DepthOnly);
     
     FLog::Log(ELogLevel::Info, std::string("Creating graphics pipeline state Ex (depth: ") + 
         (bEnableDepth ? "on" : "off") + ", lighting: " + (bEnableLighting ? "on" : "off") + 
-        ", wireframe: " + (bWireframe ? "on" : "off") + ", lines: " + (bLineTopology ? "on" : "off") + ")...");
+        ", wireframe: " + (bWireframe ? "on" : "off") + ", lines: " + (bLineTopology ? "on" : "off") + 
+        ", shadows: " + (bEnableShadows ? "on" : "off") + ", depth-only: " + (bDepthOnly ? "on" : "off") + ")...");
     
-    // Phong lighting shader - uses FLitVertex format (position, normal, color)
+    // Depth-only shader for shadow pass
+    const char* depthOnlyShaderCode = R"(
+        cbuffer MVPBuffer : register(b0)
+        {
+            float4x4 MVP;
+        };
+        
+        struct VSInput {
+            float3 position : POSITION;
+            float3 normal : NORMAL;
+            float4 color : COLOR;
+        };
+        
+        struct PSInput {
+            float4 position : SV_POSITION;
+        };
+        
+        PSInput VSMain(VSInput input)
+        {
+            PSInput result;
+            result.position = mul(float4(input.position, 1.0f), MVP);
+            return result;
+        }
+        
+        void PSMain(PSInput input)
+        {
+            // Depth-only pass - no color output
+        }
+    )";
+    
+    // Phong lighting shader with shadow support - uses FLitVertex format (position, normal, color)
     // Constant buffer layout:
     //   b0: MVP matrix (model-view-projection)
     //   b1: Lighting data (model matrix, camera pos, lights, material)
+    // 
+    // NOTE: Shadow sampling is not yet integrated into this shader.
+    // The shadow system calculates light matrices and creates shadow map textures,
+    // but actual shadow sampling requires:
+    //   1. Adding b2 constant buffer for shadow matrices
+    //   2. Binding shadow map textures to shader slots
+    //   3. Adding PCF sampling code to lighting calculations
+    // See ShadowMapping.h for HLSL reference implementation.
     const char* litShaderCode = R"(
         cbuffer MVPBuffer : register(b0)
         {
@@ -1338,7 +1379,19 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         }
     )";
     
-    const char* shaderCode = bEnableLighting ? litShaderCode : unlitShaderCode;
+    const char* shaderCode;
+    if (bDepthOnly)
+    {
+        shaderCode = depthOnlyShaderCode;
+    }
+    else if (bEnableLighting)
+    {
+        shaderCode = litShaderCode;
+    }
+    else
+    {
+        shaderCode = unlitShaderCode;
+    }
     
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
