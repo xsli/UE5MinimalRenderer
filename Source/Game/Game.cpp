@@ -2,7 +2,7 @@
 #include "GameGlobals.h"
 #include "../RHI_DX12/DX12RHI.h"
 #include "../Lighting/LightVisualization.h"
-#include "../Lighting/LitSceneProxy.h"
+#include "../Scene/LitSceneProxy.h"
 
 // Define the global camera pointer (declared in GameGlobals.h)
 FCamera* g_Camera = nullptr;
@@ -134,106 +134,107 @@ void FGame::SetupScene()
     Scene->AddPrimitive(worldGizmo);
     
     // ==========================================
-    // SCREEN-SPACE GIZMO (bottom-right corner)
+    // SCREEN-SPACE GIZMO (bottom-left corner)
     // ==========================================
     
     ScreenGizmo = new FGizmoPrimitive(0.8f);
     ScreenGizmo->SetScreenSpace(true);
-    ScreenGizmo->SetScreenCorner(3);  // Bottom-right
+    ScreenGizmo->SetScreenCorner(2);  // Bottom-left (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
+    // Default GizmoSize is 40 pixels (set in constructor)
     // Don't add to scene - rendered separately
     
     // ==========================================
-    // SCENE OBJECTS - Lit Primitives
+    // SCENE OBJECTS - Lit Primitives with Macaron Colors
     // ==========================================
     
-    // --- Ground Plane ---
+    // --- Ground Plane (soft lavender) ---
     FPlanePrimitive* groundPlane = new FPlanePrimitive(8);
     groundPlane->SetPosition(FVector(0.0f, -1.0f, 0.0f));
     groundPlane->SetScale(FVector(20.0f, 1.0f, 20.0f));
-    FMaterial groundMat = FMaterial::Diffuse(FColor(0.4f, 0.45f, 0.4f, 1.0f));
+    FMaterial groundMat = FMaterial::Diffuse(FColor(0.85f, 0.82f, 0.9f, 1.0f));  // Soft lavender
     groundMat.Shininess = 8.0f;
     groundPlane->SetMaterial(groundMat);
     Scene->AddPrimitive(groundPlane);
     
-    // --- Central sphere (glossy) ---
+    // --- Central sphere (glossy white with pink tint) ---
     FSpherePrimitive* centerSphere = new FSpherePrimitive(32, 24);
     centerSphere->SetPosition(FVector(0.0f, 0.5f, 0.0f));
     centerSphere->SetScale(FVector(1.5f, 1.5f, 1.5f));
-    centerSphere->SetMaterial(FMaterial::Glossy(FColor(0.9f, 0.9f, 0.9f, 1.0f), 128.0f));
+    centerSphere->SetMaterial(FMaterial::Glossy(FColor(1.0f, 0.95f, 0.97f, 1.0f), 128.0f));  // Pearl white
     Scene->AddPrimitive(centerSphere);
     
-    // --- Row of cubes with different materials ---
+    // --- Row of cubes with Macaron colors ---
     
-    // Red matte cube
-    FCubePrimitive* redCube = new FCubePrimitive();
-    redCube->SetPosition(FVector(-4.0f, 0.0f, -3.0f));
-    redCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
-    redCube->SetMaterial(FMaterial::Diffuse(FColor(0.9f, 0.2f, 0.2f, 1.0f)));
-    redCube->SetAutoRotate(true);
-    Scene->AddPrimitive(redCube);
+    // Macaron Pink cube (soft strawberry)
+    FCubePrimitive* pinkCube = new FCubePrimitive();
+    pinkCube->SetPosition(FVector(-4.0f, 0.0f, -3.0f));
+    pinkCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
+    pinkCube->SetMaterial(FMaterial::Diffuse(FColor(1.0f, 0.71f, 0.76f, 1.0f)));  // Macaron pink
+    pinkCube->SetAutoRotate(true);
+    Scene->AddPrimitive(pinkCube);
     
-    // Green glossy cube
-    FCubePrimitive* greenCube = new FCubePrimitive();
-    greenCube->SetPosition(FVector(-1.5f, 0.0f, -3.0f));
-    greenCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
-    greenCube->SetMaterial(FMaterial::Glossy(FColor(0.2f, 0.8f, 0.3f, 1.0f), 64.0f));
-    greenCube->SetAutoRotate(true);
-    Scene->AddPrimitive(greenCube);
+    // Macaron Mint cube (soft green)
+    FCubePrimitive* mintCube = new FCubePrimitive();
+    mintCube->SetPosition(FVector(-1.5f, 0.0f, -3.0f));
+    mintCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
+    mintCube->SetMaterial(FMaterial::Glossy(FColor(0.6f, 0.95f, 0.78f, 1.0f), 64.0f));  // Macaron mint
+    mintCube->SetAutoRotate(true);
+    Scene->AddPrimitive(mintCube);
     
-    // Blue metallic cube
+    // Macaron Blue cube (soft sky blue)
     FCubePrimitive* blueCube = new FCubePrimitive();
     blueCube->SetPosition(FVector(1.5f, 0.0f, -3.0f));
     blueCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
-    blueCube->SetMaterial(FMaterial::Metal(FColor(0.3f, 0.4f, 0.9f, 1.0f), 96.0f));
+    blueCube->SetMaterial(FMaterial::Metal(FColor(0.68f, 0.85f, 0.95f, 1.0f), 96.0f));  // Macaron sky blue
     blueCube->SetAutoRotate(true);
     Scene->AddPrimitive(blueCube);
     
-    // Gold metallic cube
-    FCubePrimitive* goldCube = new FCubePrimitive();
-    goldCube->SetPosition(FVector(4.0f, 0.0f, -3.0f));
-    goldCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
-    goldCube->SetMaterial(FMaterial::Metal(FColor(1.0f, 0.84f, 0.0f, 1.0f), 128.0f));
-    goldCube->SetAutoRotate(true);
-    Scene->AddPrimitive(goldCube);
+    // Macaron Lemon cube (soft yellow)
+    FCubePrimitive* lemonCube = new FCubePrimitive();
+    lemonCube->SetPosition(FVector(4.0f, 0.0f, -3.0f));
+    lemonCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
+    lemonCube->SetMaterial(FMaterial::Metal(FColor(1.0f, 0.97f, 0.7f, 1.0f), 128.0f));  // Macaron lemon
+    lemonCube->SetAutoRotate(true);
+    Scene->AddPrimitive(lemonCube);
     
-    // --- Spheres with various materials ---
+    // --- Spheres with Macaron colors ---
     
-    // Pink diffuse sphere
-    FSpherePrimitive* pinkSphere = new FSpherePrimitive(24, 16);
-    pinkSphere->SetPosition(FVector(-3.0f, 0.5f, 2.0f));
-    pinkSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
-    pinkSphere->SetMaterial(FMaterial::Diffuse(FColor(1.0f, 0.6f, 0.7f, 1.0f)));
-    Scene->AddPrimitive(pinkSphere);
+    // Macaron Peach sphere (soft orange-pink)
+    FSpherePrimitive* peachSphere = new FSpherePrimitive(24, 16);
+    peachSphere->SetPosition(FVector(-3.0f, 0.5f, 2.0f));
+    peachSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
+    peachSphere->SetMaterial(FMaterial::Diffuse(FColor(1.0f, 0.8f, 0.7f, 1.0f)));  // Macaron peach
+    Scene->AddPrimitive(peachSphere);
     
-    // Cyan glossy sphere
-    FSpherePrimitive* cyanSphere = new FSpherePrimitive(24, 16);
-    cyanSphere->SetPosition(FVector(0.0f, 0.5f, 3.0f));
-    cyanSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
-    cyanSphere->SetMaterial(FMaterial::Glossy(FColor(0.2f, 0.9f, 0.9f, 1.0f), 48.0f));
-    Scene->AddPrimitive(cyanSphere);
+    // Macaron Lavender sphere (soft purple)
+    FSpherePrimitive* lavenderSphere = new FSpherePrimitive(24, 16);
+    lavenderSphere->SetPosition(FVector(0.0f, 0.5f, 3.0f));
+    lavenderSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
+    lavenderSphere->SetMaterial(FMaterial::Glossy(FColor(0.8f, 0.7f, 0.95f, 1.0f), 48.0f));  // Macaron lavender
+    Scene->AddPrimitive(lavenderSphere);
     
-    // Purple metallic sphere
-    FSpherePrimitive* purpleSphere = new FSpherePrimitive(24, 16);
-    purpleSphere->SetPosition(FVector(3.0f, 0.5f, 2.0f));
-    purpleSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
-    purpleSphere->SetMaterial(FMaterial::Metal(FColor(0.7f, 0.3f, 0.9f, 1.0f), 80.0f));
-    Scene->AddPrimitive(purpleSphere);
+    // Macaron Berry sphere (soft raspberry)
+    FSpherePrimitive* berrySphere = new FSpherePrimitive(24, 16);
+    berrySphere->SetPosition(FVector(3.0f, 0.5f, 2.0f));
+    berrySphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
+    berrySphere->SetMaterial(FMaterial::Metal(FColor(0.9f, 0.55f, 0.7f, 1.0f), 80.0f));  // Macaron raspberry
+    Scene->AddPrimitive(berrySphere);
     
-    // --- Cylinders ---
+    // --- Cylinders with Macaron colors ---
     
-    // White cylinder (pillar)
-    FCylinderPrimitive* whiteCylinder = new FCylinderPrimitive(24);
-    whiteCylinder->SetPosition(FVector(-5.0f, 0.5f, 0.0f));
-    whiteCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
-    whiteCylinder->SetMaterial(FMaterial::Glossy(FColor(0.95f, 0.95f, 0.95f, 1.0f), 32.0f));
-    Scene->AddPrimitive(whiteCylinder);
+    // Macaron Cream cylinder (soft vanilla)
+    FCylinderPrimitive* creamCylinder = new FCylinderPrimitive(24);
+    creamCylinder->SetPosition(FVector(-5.0f, 0.5f, 0.0f));
+    creamCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
+    creamCylinder->SetMaterial(FMaterial::Glossy(FColor(1.0f, 0.98f, 0.9f, 1.0f), 32.0f));  // Macaron vanilla
+    Scene->AddPrimitive(creamCylinder);
     
-    // Bronze cylinder (pillar)
-    FCylinderPrimitive* bronzeCylinder = new FCylinderPrimitive(24);
-    bronzeCylinder->SetPosition(FVector(5.0f, 0.5f, 0.0f));
-    bronzeCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
-    bronzeCylinder->SetMaterial(FMaterial::Metal(FColor(0.8f, 0.5f, 0.2f, 1.0f), 64.0f));
-    Scene->AddPrimitive(bronzeCylinder);
+    // Macaron Rose cylinder (soft rose)
+    FCylinderPrimitive* roseCylinder = new FCylinderPrimitive(24);
+    roseCylinder->SetPosition(FVector(5.0f, 0.5f, 0.0f));
+    roseCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
+    roseCylinder->SetMaterial(FMaterial::Metal(FColor(0.95f, 0.75f, 0.8f, 1.0f), 64.0f));  // Macaron rose
+    Scene->AddPrimitive(roseCylinder);
     
     // ==========================================
     // LIGHT VISUALIZATION (Wireframe)

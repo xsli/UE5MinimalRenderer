@@ -6,18 +6,22 @@ add_library(Scene STATIC
     ScenePrimitive.h
     UnlitSceneProxy.cpp
     UnlitSceneProxy.h
+    LitSceneProxy.cpp
+    LitSceneProxy.h
 )
 
 source_group("Header Files" FILES 
     Scene.h
     ScenePrimitive.h
     UnlitSceneProxy.h
+    LitSceneProxy.h
 )
 
 source_group("Source Files" FILES 
     Scene.cpp
     ScenePrimitive.cpp
     UnlitSceneProxy.cpp
+    LitSceneProxy.cpp
 )
 
 target_include_directories(Scene PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

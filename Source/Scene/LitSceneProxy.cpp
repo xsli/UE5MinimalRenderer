@@ -1,5 +1,5 @@
 #include "LitSceneProxy.h"
-#include "../Scene/ScenePrimitive.h"  // For FTransform implementation
+#include "ScenePrimitive.h"
 #include <cstring>
 
 // FPrimitiveSceneProxy implementation (lit rendering with Phong shading)

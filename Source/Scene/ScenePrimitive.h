@@ -261,11 +261,16 @@ public:
     // Set screen corner (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
     void SetScreenCorner(int Corner) { ScreenCorner = Corner; }
     int GetScreenCorner() const { return ScreenCorner; }
+    
+    // Set gizmo size in pixels for screen-space mode
+    void SetGizmoSize(float Size) { GizmoSize = Size; }
+    float GetGizmoSize() const { return GizmoSize; }
 
 private:
     float AxisLength;
     bool bScreenSpace;
-    int ScreenCorner;  // 3 = bottom-right (default)
+    int ScreenCorner;  // 2 = bottom-left (default)
+    float GizmoSize;   // Size in pixels for screen-space mode (default: 40)
 };
 
 /**

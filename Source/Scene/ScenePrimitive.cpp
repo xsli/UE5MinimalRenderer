@@ -1,6 +1,6 @@
 #include "ScenePrimitive.h"
 #include "UnlitSceneProxy.h"
-#include "../Lighting/LitSceneProxy.h"
+#include "LitSceneProxy.h"
 #include "../Game/GameGlobals.h"
 #include "../RHI/RHI.h"
 #include "../Renderer/Camera.h"
@@ -530,7 +530,8 @@ FSceneProxy* FUnlitSpherePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*L
 FGizmoPrimitive::FGizmoPrimitive(float InAxisLength)
     : AxisLength(InAxisLength)
     , bScreenSpace(true)  // Screen-space by default now
-    , ScreenCorner(3)  // Bottom-right by default
+    , ScreenCorner(2)  // Bottom-left by default
+    , GizmoSize(40.0f)  // 40 pixels default size
 {
     PrimitiveType = EPrimitiveType::Unlit;  // Gizmo is always unlit
 }
@@ -664,9 +665,8 @@ FSceneProxy* FGizmoPrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*LightSc
     if (bScreenSpace)
     {
         // Screen-space gizmo renders in corner showing world axis orientation
-        const float gizmoScreenSize = 80.0f;  // Size in pixels
         return new FScreenSpaceGizmoProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
-                                          indices.size(), g_Camera, ScreenCorner, gizmoScreenSize);
+                                          indices.size(), g_Camera, ScreenCorner, GizmoSize);
     }
     else
     {

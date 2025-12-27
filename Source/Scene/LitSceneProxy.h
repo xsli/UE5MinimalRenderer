@@ -6,9 +6,9 @@
 #include "../Lighting/Light.h"
 #include "../Lighting/LightingConstants.h"
 #include "../Core/CoreTypes.h"
+#include "ScenePrimitive.h"
 
-// Forward declaration - FTransform is defined in Scene/ScenePrimitive.h
-struct FTransform;
+// FTransform is defined in ScenePrimitive.h (included above)
 
 /**
  * FPrimitiveSceneProxy - Default scene proxy for lit primitives with Phong shading

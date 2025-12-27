@@ -1,12 +1,11 @@
-# Lighting module - light types, materials, and lit rendering
+# Lighting module - light types, materials, and lighting constants
+# Note: LitSceneProxy has been moved to the Scene module
 add_library(Lighting STATIC
     Light.cpp
     Light.h
     LightingConstants.h
     LightVisualization.cpp
     LightVisualization.h
-    LitSceneProxy.cpp
-    LitSceneProxy.h
 )
 
 target_include_directories(Lighting PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
