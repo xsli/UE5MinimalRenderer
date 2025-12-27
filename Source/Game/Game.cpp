@@ -130,6 +130,7 @@ void FGame::SetupScene()
     // ==========================================
     
     FGizmoPrimitive* worldGizmo = new FGizmoPrimitive(1.5f);
+    worldGizmo->SetScreenSpace(false);  // World-space gizmo at origin
     worldGizmo->SetPosition(FVector(0.0f, 0.0f, 0.0f));
     Scene->AddPrimitive(worldGizmo);
     

@@ -529,9 +529,9 @@ FSceneProxy* FUnlitSpherePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*L
 // FGizmoPrimitive implementation
 FGizmoPrimitive::FGizmoPrimitive(float InAxisLength)
     : AxisLength(InAxisLength)
-    , bScreenSpace(true)  // Screen-space by default now
-    , ScreenCorner(2)  // Bottom-left by default
-    , GizmoSize(40.0f)  // 40 pixels default size
+    , bScreenSpace(false)  // World-space by default
+    , ScreenCorner(2)  // Bottom-left by default (for screen-space mode)
+    , GizmoSize(40.0f)  // 40 pixels default size (for screen-space mode)
 {
     PrimitiveType = EPrimitiveType::Unlit;  // Gizmo is always unlit
 }
