@@ -1434,30 +1434,40 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
 #endif
     
     // Compile vertex shader
-    if (FAILED(D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
-                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
+    HRESULT hr = D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
+                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error);
+    if (FAILED(hr))
     {
         if (error)
         {
             FLog::Log(ELogLevel::Error, std::string("Vertex shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
         }
+        else
+        {
+            FLog::Log(ELogLevel::Error, "Vertex shader compile failed with unknown error");
+        }
         return nullptr;
     }
-    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully");
+    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully (" + std::to_string(vertexShader->GetBufferSize()) + " bytes)");
     
     // Compile pixel shader (skip for depth-only since we use null pixel shader)
     if (!bDepthOnly)
     {
-        if (FAILED(D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
-                             "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
+        hr = D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
+                             "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error);
+        if (FAILED(hr))
         {
             if (error)
             {
                 FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
             }
+            else
+            {
+                FLog::Log(ELogLevel::Error, "Pixel shader compile failed with unknown error");
+            }
             return nullptr;
         }
-        FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
+        FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully (" + std::to_string(pixelShader->GetBufferSize()) + " bytes)");
     }
     else
     {
@@ -1613,7 +1623,14 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     psoDesc.SampleDesc.Count = 1;
     
     ComPtr<ID3D12PipelineState> pipelineState;
-    ThrowIfFailed(Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineState)));
+    HRESULT psoResult = Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineState));
+    if (FAILED(psoResult))
+    {
+        char errorMsg[256];
+        sprintf_s(errorMsg, "CreateGraphicsPipelineState failed with HRESULT: 0x%08X", psoResult);
+        FLog::Log(ELogLevel::Error, errorMsg);
+        ThrowIfFailed(psoResult);  // Will throw
+    }
     
     FLog::Log(ELogLevel::Info, "Graphics pipeline state Ex created successfully");
     

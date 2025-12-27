@@ -53,9 +53,11 @@ cbuffer ShadowBuffer : register(b2)
 };
 
 // Shadow map texture and sampler
+// NOTE: Only t0 (ShadowMap) is currently bound. t1 and t2 are reserved for point light shadows
 Texture2D<float> ShadowMap : register(t0);
-Texture2D<float> PointShadowAtlas0 : register(t1);
-Texture2D<float> PointShadowAtlas1 : register(t2);
+// Point light shadow atlases - currently not bound, will be added when point light shadows are enabled
+// Texture2D<float> PointShadowAtlas0 : register(t1);
+// Texture2D<float> PointShadowAtlas1 : register(t2);
 SamplerComparisonState ShadowSampler : register(s0);
 
 struct VSInput {
@@ -153,6 +155,8 @@ float CalcShadow(float4 lightSpacePos, float3 worldNormal, float3 lightDir, floa
 }
 
 // Calculate shadow factor for point light
+// NOTE: Point light shadow support is currently disabled - will be enabled when textures are bound
+/*
 float CalcPointShadow(float3 worldPos, float3 lightPos, float4x4 faceMatrices[6], 
                       Texture2D<float> shadowAtlas, float constantBias, float slopeBias, float3 worldNormal)
 {
@@ -213,6 +217,7 @@ float CalcPointShadow(float3 worldPos, float3 lightPos, float4x4 faceMatrices[6]
     
     return shadow;
 }
+*/
 
 // Calculate point light contribution (simplified, no shadows)
 float3 CalcPointLight(float3 worldPos, float3 N, float3 V, float4 lightPos, float4 lightColor, 
@@ -323,13 +328,16 @@ float4 PSMain(PSInput input) : SV_TARGET
             float slopeBias = ShadowParams.w;
             
             // Apply point light shadow if enabled
+            // NOTE: Point light shadow is currently disabled - CalcPointShadow not available
             float pointShadow = 1.0f;
+            /*
             if (PointShadowParams.x > 0.5f)
             {
                 pointShadow = CalcPointShadow(input.worldPos, lightPosition, PointLight0ViewProj, 
                                               PointShadowAtlas0, constantBias, slopeBias, N);
                 pointShadow = lerp(1.0f, pointShadow, PointShadowParams.z);
             }
+            */
             
             pointLights += (diffuse + specular) * attenuation * pointShadow;
         }
@@ -364,13 +372,16 @@ float4 PSMain(PSInput input) : SV_TARGET
             float slopeBias = ShadowParams.w;
             
             // Apply point light shadow if enabled
+            // NOTE: Point light shadow is currently disabled - CalcPointShadow not available
             float pointShadow = 1.0f;
+            /*
             if (PointShadowParams.y > 0.5f)
             {
                 pointShadow = CalcPointShadow(input.worldPos, lightPosition, PointLight1ViewProj, 
                                               PointShadowAtlas1, constantBias, slopeBias, N);
                 pointShadow = lerp(1.0f, pointShadow, PointShadowParams.z);
             }
+            */
             
             pointLights += (diffuse + specular) * attenuation * pointShadow;
         }
