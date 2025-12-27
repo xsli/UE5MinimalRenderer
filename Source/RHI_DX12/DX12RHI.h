@@ -119,6 +119,12 @@ public:
     virtual void FlushCommandsFor2D() override;
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
     
+    // Shadow map support
+    virtual void BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex = 0) override;
+    virtual void EndShadowPass() override;
+    virtual void SetViewport(float X, float Y, float Width, float Height, float MinDepth = 0.0f, float MaxDepth = 1.0f) override;
+    virtual void ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex = 0) override;
+    
     void InitializeTextRendering(ID3D12Device* Device, IDXGISwapChain3* SwapChain);
     
 private:
@@ -161,6 +167,12 @@ private:
     
     // Track whether 3D commands have been flushed for 2D rendering
     bool bCommandsFlushedFor2D;
+    
+    // Shadow pass state
+    bool bInShadowPass;
+    FDX12Texture* CurrentShadowMap;
+    D3D12_VIEWPORT SavedViewport;
+    D3D12_RECT SavedScissorRect;
 };
 
 class FDX12RHI : public FRHI 

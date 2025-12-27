@@ -175,26 +175,23 @@ void FRenderer::RenderFrame()
     // Begin RHI timing (tracks GPU command submission time)
     Stats.BeginRHIThreadTiming();
     
-    // Update shadow system with current scene
-    // NOTE: Shadow pass rendering is currently a placeholder - matrix calculations
-    // are performed but actual depth rendering requires additional RHI extensions
-    // for setting custom render targets. See FShadowSystem::RenderShadowPasses() 
-    // for implementation details.
+    // Begin rendering - initializes command list and render targets
+    RHICmdList->BeginFrame();
+    
+    // Render shadow passes before main scene
+    // Shadow maps are rendered to separate depth textures
     if (ShadowSystem && CurrentScene)
     {
         FVector sceneCenter(0.0f, 0.0f, 0.0f);
         float sceneRadius = 20.0f;  // Approximate scene bounds
         ShadowSystem->Update(CurrentScene->GetLightScene(), sceneCenter, sceneRadius);
         
-        // Shadow pass rendering (placeholder - tracks draw calls only)
+        // Render shadow passes (directional + point lights)
         ShadowSystem->RenderShadowPasses(RHICmdList, RenderScene.get());
         DrawCallCount += ShadowSystem->GetShadowDrawCallCount();
     }
     
-    // Begin rendering
-    RHICmdList->BeginFrame();
-    
-    // Clear screen
+    // Clear screen (main render target)
     RHICmdList->ClearRenderTarget(FColor(0.2f, 0.3f, 0.4f, 1.0f));
     RHICmdList->ClearDepthStencil();
     

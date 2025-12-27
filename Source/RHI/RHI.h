@@ -103,6 +103,19 @@ public:
     
     // Text rendering - call FlushCommandsFor2D() before calling this
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) = 0;
+    
+    // Shadow map rendering support
+    // Begin rendering to a shadow map texture (sets depth-only render target)
+    virtual void BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex = 0) = 0;
+    
+    // End shadow pass and restore main render target
+    virtual void EndShadowPass() = 0;
+    
+    // Set viewport for shadow map rendering (used for atlas region selection)
+    virtual void SetViewport(float X, float Y, float Width, float Height, float MinDepth = 0.0f, float MaxDepth = 1.0f) = 0;
+    
+    // Clear just the depth buffer (for shadow maps that share atlas)
+    virtual void ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex = 0) = 0;
 };
 
 // Pipeline state creation flags

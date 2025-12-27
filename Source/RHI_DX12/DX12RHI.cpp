@@ -145,6 +145,7 @@ FDX12PipelineState::~FDX12PipelineState()
 // FDX12CommandList implementation
 FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* InQueue, IDXGISwapChain3* InSwapChain, uint32 Width, uint32 Height)
     : Device(InDevice), CommandQueue(InQueue), SwapChain(InSwapChain), FrameIndex(0), FenceValue(0)
+    , bCommandsFlushedFor2D(false), bInShadowPass(false), CurrentShadowMap(nullptr)
 {
     
     // Create command allocator
@@ -459,6 +460,119 @@ void FDX12CommandList::CreateDepthStencilBuffer(uint32 Width, uint32 Height)
     Device->CreateDepthStencilView(DepthStencilBuffer.Get(), &dsvDesc, DSVHeap->GetCPUDescriptorHandleForHeapStart());
     
     FLog::Log(ELogLevel::Info, "Depth stencil buffer created successfully");
+}
+
+void FDX12CommandList::BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex)
+{
+    FLog::Log(ELogLevel::Info, "BeginShadowPass - FaceIndex: " + std::to_string(FaceIndex));
+    
+    if (!ShadowMap)
+    {
+        FLog::Log(ELogLevel::Error, "BeginShadowPass: ShadowMap is null");
+        return;
+    }
+    
+    FDX12Texture* DX12ShadowMap = static_cast<FDX12Texture*>(ShadowMap);
+    
+    // Save current state
+    bInShadowPass = true;
+    CurrentShadowMap = DX12ShadowMap;
+    SavedViewport = Viewport;
+    SavedScissorRect = ScissorRect;
+    
+    // Transition shadow map to depth write state if needed
+    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        DX12ShadowMap->GetResource(),
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    GraphicsCommandList->ResourceBarrier(1, &barrier);
+    
+    // Get DSV handle for the specified face
+    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DX12ShadowMap->GetDSVHandle(FaceIndex);
+    
+    // Set depth-only render target (no color target)
+    GraphicsCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+    
+    // Clear the depth buffer
+    GraphicsCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    
+    FLog::Log(ELogLevel::Info, "BeginShadowPass: Render target set to shadow map");
+}
+
+void FDX12CommandList::EndShadowPass()
+{
+    FLog::Log(ELogLevel::Info, "EndShadowPass");
+    
+    if (!bInShadowPass || !CurrentShadowMap)
+    {
+        FLog::Log(ELogLevel::Warning, "EndShadowPass: Not in shadow pass");
+        return;
+    }
+    
+    // Transition shadow map back to shader resource state
+    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        CurrentShadowMap->GetResource(),
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    GraphicsCommandList->ResourceBarrier(1, &barrier);
+    
+    // Restore viewport and scissor
+    Viewport = SavedViewport;
+    ScissorRect = SavedScissorRect;
+    GraphicsCommandList->RSSetViewports(1, &Viewport);
+    GraphicsCommandList->RSSetScissorRects(1, &ScissorRect);
+    
+    // Restore main render target
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart(), FrameIndex, RTVDescriptorSize);
+    if (DSVHeap)
+    {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DSVHeap->GetCPUDescriptorHandleForHeapStart());
+        GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    }
+    else
+    {
+        GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+    }
+    
+    bInShadowPass = false;
+    CurrentShadowMap = nullptr;
+    
+    FLog::Log(ELogLevel::Info, "EndShadowPass: Main render target restored");
+}
+
+void FDX12CommandList::SetViewport(float X, float Y, float Width, float Height, float MinDepth, float MaxDepth)
+{
+    D3D12_VIEWPORT vp = {};
+    vp.TopLeftX = X;
+    vp.TopLeftY = Y;
+    vp.Width = Width;
+    vp.Height = Height;
+    vp.MinDepth = MinDepth;
+    vp.MaxDepth = MaxDepth;
+    
+    GraphicsCommandList->RSSetViewports(1, &vp);
+    
+    D3D12_RECT scissor = {};
+    scissor.left = static_cast<LONG>(X);
+    scissor.top = static_cast<LONG>(Y);
+    scissor.right = static_cast<LONG>(X + Width);
+    scissor.bottom = static_cast<LONG>(Y + Height);
+    
+    GraphicsCommandList->RSSetScissorRects(1, &scissor);
+}
+
+void FDX12CommandList::ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex)
+{
+    if (!DepthTexture)
+    {
+        FLog::Log(ELogLevel::Error, "ClearDepthOnly: DepthTexture is null");
+        return;
+    }
+    
+    FDX12Texture* DX12Texture = static_cast<FDX12Texture*>(DepthTexture);
+    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DX12Texture->GetDSVHandle(FaceIndex);
+    
+    GraphicsCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
 
 void FDX12CommandList::WaitForGPU()

@@ -35,9 +35,10 @@ Features demonstrated:
 
 ### Features
 - **Directional Light Shadows**: Orthographic projection shadow maps (1024x1024 D32_FLOAT)
-- **Point Light Shadows**: Omnidirectional shadow mapping with 6-face atlas (512x512 per face)
+- **Point Light Shadows**: Omnidirectional shadow mapping with 6-face atlas (512x512 per face, 3x2 grid)
 - **Shadow Bias**: Configurable constant bias and slope-scaled bias to eliminate shadow acne
-- **PCF Filtering**: 3x3 percentage closer filtering for smooth shadow edges
+- **RHI Shadow Pass API**: BeginShadowPass/EndShadowPass for custom render target binding
+- **Viewport Control**: Dynamic viewport setting for atlas region rendering
 
 ### Shadow Map Constant Buffer Structure (HLSL)
 ```hlsl
