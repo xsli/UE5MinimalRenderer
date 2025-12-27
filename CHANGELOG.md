@@ -11,6 +11,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.7.0] - Lighting System
+
+### Added
+- **Lighting Module (Lighting/)**
+  - `FLight` base class for all light types
+  - `FDirectionalLight` - Parallel light rays (sunlight)
+  - `FPointLight` - Omni-directional point source with attenuation
+  - `FLightScene` - Scene light management container
+  - `FLightingConstants` - GPU constant buffer data structure
+
+- **Material System**
+  - `FMaterial` struct with Phong properties
+  - Diffuse, Specular, Ambient colors
+  - Shininess/specular power
+  - Factory methods: `Diffuse()`, `Glossy()`, `Metal()`
+
+- **Lit Rendering**
+  - `FLitVertex` - Vertex format with position, normal, color
+  - `FLitPrimitiveSceneProxy` - Lit primitive rendering proxy
+  - `FLitCubePrimitive` - Lit cube with per-face normals
+  - `FLitSpherePrimitive` - Lit sphere with smooth normals
+  - `FLitPlanePrimitive` - Lit ground plane
+  - `FLitCylinderPrimitive` - Lit cylinder
+
+- **Phong/Blinn-Phong Shader**
+  - Directional light with diffuse and specular
+  - Point lights (up to 4) with radius-based attenuation
+  - Ambient lighting contribution
+  - Blinn-Phong specular highlights (half-vector method)
+
+- **Light Visualization**
+  - `FLightVisualization` helper class
+  - Wireframe arrow for directional lights
+  - Wireframe sphere showing point light radius
+  - Cross marker at light position
+
+- **RHI Extensions**
+  - `EPipelineFlags` enum for flexible PSO creation
+  - `CreateGraphicsPipelineStateEx()` with flags
+  - `SetPrimitiveTopology()` for line/triangle switching
+  - Support for line list primitive topology
+
+- **Demo Scene**
+  - Daylight scene with sun (directional) and fill light
+  - Two point lights (warm orange, cool blue)
+  - Cubes with various materials (matte, glossy, metallic)
+  - Spheres and cylinders showcasing lighting
+
+### Technical Details
+- Two constant buffer slots: b0 (MVP), b1 (Lighting data)
+- Normal transformation in world space
+- Smooth attenuation with inverse-square falloff
+- 384-byte lighting constant buffer (256-byte aligned)
+
+---
+
 ## [0.6.0] - Multi-Threading Architecture
 
 ### Added
@@ -231,6 +287,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 | Version | Release | Key Features |
 |---------|---------|--------------|
+| 0.7.0 | Lighting System | Phong shading, directional/point lights, materials, light visualization |
 | 0.6.0 | Multi-Threading | TaskGraph, FRenderThread, FRHIThread, 1-frame lead sync |
 | 0.5.0 | Scene Management | FScene, FPrimitive, multiple primitive types |
 | 0.4.0 | Camera Controls | UE5-style mouse controls, camera orientation |

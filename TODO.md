@@ -5,11 +5,13 @@ This document lists planned features and improvements for the UE5MinimalRenderer
 ## High Priority
 
 ### Rendering Features
-- [ ] **Lighting System**
-  - Directional light support
-  - Point light support
-  - Ambient lighting
-  - Phong/Blinn-Phong shading model
+- [x] **Lighting System**
+  - [x] Directional light support
+  - [x] Point light support (up to 4)
+  - [x] Ambient lighting
+  - [x] Phong/Blinn-Phong shading model
+  - [x] Light visualization (wireframe debug rendering)
+  - [x] Per-object material properties (diffuse, specular, ambient, shininess)
 
 - [ ] **Shadow Mapping**
   - Shadow map generation pass
@@ -22,11 +24,10 @@ This document lists planned features and improvements for the UE5MinimalRenderer
   - Mipmapping
   - Texture filtering (bilinear, trilinear, anisotropic)
 
-- [ ] **Material System**
-  - Per-object material properties
-  - Diffuse, specular, ambient colors
-  - Roughness and metallic parameters
+- [ ] **Material System Enhancements**
+  - Roughness and metallic parameters (PBR preparation)
   - Material instances
+  - Normal mapping support
 
 ### Architecture Improvements
 - [x] **Multi-threading**

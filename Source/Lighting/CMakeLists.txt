@@ -12,4 +12,5 @@ add_library(Lighting STATIC
 )
 
 target_include_directories(Lighting PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Lighting PUBLIC Core RHI Renderer Game)
+target_include_directories(Lighting PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../Game)
+target_link_libraries(Lighting PUBLIC Core RHI Renderer)

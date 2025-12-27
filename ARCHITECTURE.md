@@ -10,12 +10,13 @@ This project implements a minimal version of Unreal Engine 5's parallel renderin
 2. [Scene Management System](#scene-management-system)
 3. [3D Rendering Pipeline](#3d-rendering-pipeline)
 4. [Camera System](#camera-system)
-5. [Data Structures](#data-structures)
-6. [Key Design Patterns](#key-design-patterns)
-7. [DirectX 12 Implementation](#directx-12-specifics)
-8. [Text Rendering System](#text-rendering-system)
-9. [UE5 Comparison](#ue5-parallel-rendering-comparison)
-10. [Multi-Threading Architecture](#multi-threading-architecture)
+5. [Lighting System](#lighting-system)
+6. [Data Structures](#data-structures)
+7. [Key Design Patterns](#key-design-patterns)
+8. [DirectX 12 Implementation](#directx-12-specifics)
+9. [Text Rendering System](#text-rendering-system)
+10. [UE5 Comparison](#ue5-parallel-rendering-comparison)
+11. [Multi-Threading Architecture](#multi-threading-architecture)
 
 ---
 
@@ -265,6 +266,108 @@ Uses **left-handed coordinate system** (DirectX standard):
 
 ---
 
+## Lighting System
+
+The lighting system implements real-time Phong/Blinn-Phong shading with support for multiple light types. It's designed with future PBR and deferred rendering extensions in mind.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    LIGHTING MODULE (Lighting/)                   │
+│                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐                     │
+│  │     FLight      │    │    FMaterial    │                     │
+│  │  (Base class)   │    │  (Phong props)  │                     │
+│  └────────┬────────┘    └─────────────────┘                     │
+│           │                                                     │
+│     ┌─────┴─────┐                                               │
+│     │           │                                               │
+│  ┌──┴───┐   ┌───┴───┐                                           │
+│  │ Dir  │   │ Point │   (Future: Spot, RectArea)                │
+│  │Light │   │ Light │                                           │
+│  └──────┘   └───────┘                                           │
+│                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐                     │
+│  │  FLightScene    │    │ FLightingConsts │                     │
+│  │ (Light manager) │    │ (GPU CB data)   │                     │
+│  └─────────────────┘    └─────────────────┘                     │
+│                                                                 │
+│  ┌─────────────────┐    ┌─────────────────┐                     │
+│  │ FLitPrimitive   │    │FLitPrimSceneProxy│                    │
+│  │ (Lit objects)   │───▶│ (GPU rendering) │                     │
+│  └─────────────────┘    └─────────────────┘                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Light Types
+
+#### FDirectionalLight
+- Parallel light rays (like sunlight)
+- No attenuation
+- Properties: Direction, Color, Intensity
+
+#### FPointLight
+- Omni-directional light from a single point
+- Smooth attenuation with radius falloff
+- Properties: Position, Color, Intensity, Radius, FalloffExponent
+
+### Material System (FMaterial)
+
+```cpp
+struct FMaterial {
+    FColor DiffuseColor;    // Base surface color
+    FColor SpecularColor;   // Highlight color
+    FColor AmbientColor;    // Ambient contribution
+    float Shininess;        // Specular power (1-128+)
+    FColor EmissiveColor;   // Self-illumination (future)
+};
+```
+
+Factory methods:
+- `FMaterial::Default()` - Standard gray material
+- `FMaterial::Diffuse(color)` - Matte surface
+- `FMaterial::Glossy(color, shininess)` - Shiny plastic
+- `FMaterial::Metal(color, shininess)` - Metallic surface
+
+### Shader Implementation
+
+The lighting shader uses Blinn-Phong model:
+
+```hlsl
+// Constant buffers
+cbuffer MVPBuffer : register(b0) { float4x4 MVP; }
+cbuffer LightingBuffer : register(b1) {
+    float4x4 ModelMatrix;
+    float4 CameraPosition;
+    float4 AmbientLight;
+    float4 DirLightDirection, DirLightColor;
+    float4 PointLight[N]Position, Color, Params;  // Up to 4
+    float4 MaterialDiffuse, Specular, Ambient;
+}
+
+// Blinn-Phong calculation
+float3 H = normalize(L + V);  // Half vector
+float NdotH = max(dot(N, H), 0);
+float3 specular = specColor * pow(NdotH, shininess);
+```
+
+### Light Visualization
+
+Wireframe debug visualization for lights:
+- **Directional Light**: Arrow showing light direction
+- **Point Light**: Sphere showing light radius, cross marker at position
+
+### Future Extensions
+
+The lighting system is designed for extension to:
+1. **Deferred Rendering** - G-Buffer generation, light pass
+2. **PBR Materials** - Roughness, Metallic, Normal maps
+3. **Shadow Mapping** - Directional/point light shadows
+4. **Spot Lights** - Cone angle, inner/outer falloff
+
+---
+
 ## Data Structures
 
 ### FVertex
@@ -273,6 +376,16 @@ struct FVertex {
     FVector Position;  // X, Y, Z (12 bytes)
     FColor Color;      // R, G, B, A (16 bytes)
     // Total: 28 bytes
+};
+```
+
+### FLitVertex (Lighting-enabled)
+```cpp
+struct FLitVertex {
+    FVector Position;  // X, Y, Z (12 bytes)
+    FVector Normal;    // Nx, Ny, Nz (12 bytes)
+    FColor Color;      // R, G, B, A (16 bytes)
+    // Total: 40 bytes
 };
 ```
 

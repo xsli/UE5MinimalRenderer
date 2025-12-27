@@ -27,4 +27,4 @@ source_group("Source Files" FILES
 )
 
 target_include_directories(Game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Game PUBLIC Renderer RHI Core TaskGraph)
+target_link_libraries(Game PUBLIC Renderer RHI Core TaskGraph Lighting)

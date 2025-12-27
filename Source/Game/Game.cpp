@@ -2,9 +2,15 @@
 #include "Primitive.h"
 #include "GameGlobals.h"
 #include "../RHI_DX12/DX12RHI.h"
+#include "../Lighting/LitPrimitive.h"
+#include "../Lighting/LightVisualization.h"
+#include "../Lighting/LitSceneProxy.h"
 
 // Define the global camera pointer (declared in GameGlobals.h)
 FCamera* g_Camera = nullptr;
+
+// Global light scene pointer for lit primitives to access
+FLightScene* g_LightScene = nullptr;
 
 // FGame implementation
 FGame::FGame()
@@ -19,7 +25,7 @@ FGame::~FGame()
 
 bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
 {
-    FLog::Log(ELogLevel::Info, "Initializing game...");
+    FLog::Log(ELogLevel::Info, "Initializing game with lighting system...");
     
     // Register main thread as the game thread
     FThreadManager::Get().SetCurrentThread(ENamedThreads::GameThread);
@@ -39,152 +45,15 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
     // Set global camera reference
     g_Camera = Renderer->GetCamera();
     
-    // Create scene
+    // Create scene (for unlit objects like gizmo)
     Scene = std::make_unique<FScene>(RHI.get());
     
-    // ==========================================
-    // Create demo scene showcasing matrix transformations
-    // ==========================================
+    // Create light scene
+    LightScene = std::make_unique<FLightScene>();
+    g_LightScene = LightScene.get();
     
-    // --- Gizmo at scene origin (UE-style coordinate axes) ---
-    FGizmoPrimitive* gizmo = new FGizmoPrimitive(1.5f);
-    gizmo->GetTransform().Position = FVector(0.0f, 0.0f, 0.0f);
-    Scene->AddPrimitive(gizmo);
-    
-    // --- Ground plane ---
-    FPlanePrimitive* plane = new FPlanePrimitive(4);
-    plane->SetColor(FColor(0.5f, 0.5f, 0.5f, 1.0f));  // Gray
-    plane->GetTransform().Position = FVector(0.0f, -1.5f, 0.0f);
-    plane->GetTransform().Scale = FVector(15.0f, 1.0f, 15.0f);
-    Scene->AddPrimitive(plane);
-    
-    // ==========================================
-    // Group 1: Rotation demos (Pink/Rose macaron colors)
-    // Positioned in a row at Z = -3
-    // ==========================================
-    
-    // Rotate around X axis - Pale Pink
-    FDemoCubePrimitive* rotateX = new FDemoCubePrimitive();
-    rotateX->SetColor(FColor(0.98f, 0.76f, 0.80f, 1.0f));  // Pale Pink macaron
-    rotateX->SetBasePosition(FVector(-3.0f, 0.5f, -3.0f));
-    rotateX->GetTransform().Position = FVector(-3.0f, 0.5f, -3.0f);
-    rotateX->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
-    rotateX->SetAnimationType(EAnimationType::RotateX);
-    rotateX->SetAnimationSpeed(1.0f);
-    Scene->AddPrimitive(rotateX);
-    
-    // Rotate around Y axis - Rose Pink
-    FDemoCubePrimitive* rotateY = new FDemoCubePrimitive();
-    rotateY->SetColor(FColor(1.0f, 0.71f, 0.76f, 1.0f));  // Rose Pink macaron
-    rotateY->SetBasePosition(FVector(0.0f, 0.5f, -3.0f));
-    rotateY->GetTransform().Position = FVector(0.0f, 0.5f, -3.0f);
-    rotateY->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
-    rotateY->SetAnimationType(EAnimationType::RotateY);
-    rotateY->SetAnimationSpeed(1.0f);
-    Scene->AddPrimitive(rotateY);
-    
-    // Rotate around Z axis - Coral Pink
-    FDemoCubePrimitive* rotateZ = new FDemoCubePrimitive();
-    rotateZ->SetColor(FColor(1.0f, 0.60f, 0.65f, 1.0f));  // Coral Pink macaron
-    rotateZ->SetBasePosition(FVector(3.0f, 0.5f, -3.0f));
-    rotateZ->GetTransform().Position = FVector(3.0f, 0.5f, -3.0f);
-    rotateZ->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
-    rotateZ->SetAnimationType(EAnimationType::RotateZ);
-    rotateZ->SetAnimationSpeed(1.0f);
-    Scene->AddPrimitive(rotateZ);
-    
-    // ==========================================
-    // Group 2: Translation demos (Mint/Green macaron colors)
-    // Positioned in a row at Z = 0
-    // ==========================================
-    
-    // Translate along X axis - Mint Green
-    FDemoCubePrimitive* translateX = new FDemoCubePrimitive();
-    translateX->SetColor(FColor(0.68f, 0.93f, 0.82f, 1.0f));  // Mint Green macaron
-    translateX->SetBasePosition(FVector(-4.0f, 0.5f, 0.0f));
-    translateX->GetTransform().Position = FVector(-4.0f, 0.5f, 0.0f);
-    translateX->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
-    translateX->SetAnimationType(EAnimationType::TranslateX);
-    translateX->SetAnimationSpeed(2.0f);
-    Scene->AddPrimitive(translateX);
-    
-    // Translate along Y axis - Seafoam
-    FDemoCubePrimitive* translateY = new FDemoCubePrimitive();
-    translateY->SetColor(FColor(0.56f, 0.88f, 0.74f, 1.0f));  // Seafoam macaron
-    translateY->SetBasePosition(FVector(-2.0f, 0.5f, 0.0f));
-    translateY->GetTransform().Position = FVector(-2.0f, 0.5f, 0.0f);
-    translateY->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
-    translateY->SetAnimationType(EAnimationType::TranslateY);
-    translateY->SetAnimationSpeed(2.0f);
-    Scene->AddPrimitive(translateY);
-    
-    // Translate along Z axis - Pistachio
-    FDemoCubePrimitive* translateZ = new FDemoCubePrimitive();
-    translateZ->SetColor(FColor(0.73f, 0.89f, 0.67f, 1.0f));  // Pistachio macaron
-    translateZ->SetBasePosition(FVector(2.0f, 0.5f, 0.0f));
-    translateZ->GetTransform().Position = FVector(2.0f, 0.5f, 0.0f);
-    translateZ->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
-    translateZ->SetAnimationType(EAnimationType::TranslateZ);
-    translateZ->SetAnimationSpeed(2.0f);
-    Scene->AddPrimitive(translateZ);
-    
-    // Translate diagonally - Lime Green
-    FDemoCubePrimitive* translateDiag = new FDemoCubePrimitive();
-    translateDiag->SetColor(FColor(0.82f, 0.95f, 0.55f, 1.0f));  // Lime Green macaron
-    translateDiag->SetBasePosition(FVector(4.0f, 0.5f, 0.0f));
-    translateDiag->GetTransform().Position = FVector(4.0f, 0.5f, 0.0f);
-    translateDiag->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
-    translateDiag->SetAnimationType(EAnimationType::TranslateDiagonal);
-    translateDiag->SetAnimationSpeed(2.0f);
-    Scene->AddPrimitive(translateDiag);
-    
-    // ==========================================
-    // Group 3: Scale demos (Lavender/Purple macaron colors)
-    // Positioned in a row at Z = 3
-    // ==========================================
-    
-    // Scale uniformly - Lavender
-    FDemoCubePrimitive* scale1 = new FDemoCubePrimitive();
-    scale1->SetColor(FColor(0.79f, 0.69f, 0.89f, 1.0f));  // Lavender macaron
-    scale1->SetBasePosition(FVector(-2.0f, 0.5f, 3.0f));
-    scale1->SetBaseScale(FVector(0.6f, 0.6f, 0.6f));
-    scale1->GetTransform().Position = FVector(-2.0f, 0.5f, 3.0f);
-    scale1->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
-    scale1->SetAnimationType(EAnimationType::Scale);
-    scale1->SetAnimationSpeed(3.0f);
-    Scene->AddPrimitive(scale1);
-    
-    // Scale uniformly (different phase) - Violet
-    FDemoCubePrimitive* scale2 = new FDemoCubePrimitive();
-    scale2->SetColor(FColor(0.85f, 0.68f, 0.95f, 1.0f));  // Violet macaron
-    scale2->SetBasePosition(FVector(0.0f, 0.5f, 3.0f));
-    scale2->SetBaseScale(FVector(0.6f, 0.6f, 0.6f));
-    scale2->GetTransform().Position = FVector(0.0f, 0.5f, 3.0f);
-    scale2->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
-    scale2->SetAnimationType(EAnimationType::Scale);
-    scale2->SetAnimationSpeed(2.5f);
-    Scene->AddPrimitive(scale2);
-    
-    // Scale uniformly (different phase) - Grape
-    FDemoCubePrimitive* scale3 = new FDemoCubePrimitive();
-    scale3->SetColor(FColor(0.70f, 0.58f, 0.85f, 1.0f));  // Grape macaron
-    scale3->SetBasePosition(FVector(2.0f, 0.5f, 3.0f));
-    scale3->SetBaseScale(FVector(0.6f, 0.6f, 0.6f));
-    scale3->GetTransform().Position = FVector(2.0f, 0.5f, 3.0f);
-    scale3->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
-    scale3->SetAnimationType(EAnimationType::Scale);
-    scale3->SetAnimationSpeed(2.0f);
-    Scene->AddPrimitive(scale3);
-    
-    // ==========================================
-    // Additional demo: Sky Blue sphere at center for reference
-    // ==========================================
-    FSpherePrimitive* centerSphere = new FSpherePrimitive(24, 16);
-    centerSphere->SetColor(FColor(0.68f, 0.85f, 0.95f, 1.0f));  // Sky Blue macaron
-    centerSphere->GetTransform().Position = FVector(0.0f, 0.5f, 0.0f);
-    centerSphere->GetTransform().Scale = FVector(0.4f, 0.4f, 0.4f);
-    centerSphere->SetAutoRotate(false);
-    Scene->AddPrimitive(centerSphere);
+    // Setup the lit demo scene
+    SetupLitScene();
     
     // Update render scene with all primitives
     Renderer->UpdateFromScene(Scene.get());
@@ -212,8 +81,244 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
         FLog::Log(ELogLevel::Info, "Multi-threaded rendering initialized");
     }
     
-    FLog::Log(ELogLevel::Info, "Game initialized successfully with multiple primitives");
+    FLog::Log(ELogLevel::Info, "Game initialized successfully with lighting system");
     return true;
+}
+
+void FGame::SetupLitScene()
+{
+    // ==========================================
+    // LIGHTING SETUP - Daylight Scene
+    // ==========================================
+    
+    // Set bright ambient light for daytime
+    LightScene->SetAmbientLight(FColor(0.3f, 0.35f, 0.4f, 1.0f));
+    
+    // Main directional light (Sun) - warm daylight from above-right
+    FDirectionalLight* sunLight = new FDirectionalLight();
+    sunLight->SetDirection(FVector(0.5f, -0.8f, 0.3f));  // Coming from upper-right
+    sunLight->SetColor(FColor(1.0f, 0.95f, 0.85f, 1.0f)); // Warm white
+    sunLight->SetIntensity(1.2f);
+    LightScene->AddLight(sunLight);
+    
+    // Fill light (weaker directional from opposite side)
+    FDirectionalLight* fillLight = new FDirectionalLight();
+    fillLight->SetDirection(FVector(-0.3f, -0.5f, -0.4f));
+    fillLight->SetColor(FColor(0.6f, 0.7f, 0.9f, 1.0f)); // Cool blue tint
+    fillLight->SetIntensity(0.3f);
+    LightScene->AddLight(fillLight);
+    
+    // Point light 1 - Warm accent light
+    FPointLight* pointLight1 = new FPointLight();
+    pointLight1->SetPosition(FVector(-3.0f, 2.0f, -2.0f));
+    pointLight1->SetColor(FColor(1.0f, 0.8f, 0.4f, 1.0f)); // Warm orange
+    pointLight1->SetIntensity(2.0f);
+    pointLight1->SetRadius(8.0f);
+    LightScene->AddLight(pointLight1);
+    
+    // Point light 2 - Cool accent light
+    FPointLight* pointLight2 = new FPointLight();
+    pointLight2->SetPosition(FVector(3.0f, 2.0f, 2.0f));
+    pointLight2->SetColor(FColor(0.4f, 0.6f, 1.0f, 1.0f)); // Cool blue
+    pointLight2->SetIntensity(1.5f);
+    pointLight2->SetRadius(8.0f);
+    LightScene->AddLight(pointLight2);
+    
+    // ==========================================
+    // SCENE OBJECTS - Lit Primitives
+    // ==========================================
+    
+    // --- Gizmo at scene origin (UE-style coordinate axes, unlit) ---
+    FGizmoPrimitive* gizmo = new FGizmoPrimitive(1.5f);
+    gizmo->GetTransform().Position = FVector(0.0f, 0.0f, 0.0f);
+    Scene->AddPrimitive(gizmo);
+    
+    // --- Lit Ground Plane ---
+    FLitPlanePrimitive* groundPlane = new FLitPlanePrimitive(8);
+    groundPlane->SetPosition(FVector(0.0f, -1.0f, 0.0f));
+    groundPlane->SetScale(FVector(20.0f, 1.0f, 20.0f));
+    FMaterial groundMat = FMaterial::Diffuse(FColor(0.4f, 0.45f, 0.4f, 1.0f));
+    groundMat.Shininess = 8.0f;  // Low shininess for ground
+    groundPlane->SetMaterial(groundMat);
+    LitPrimitives.push_back(groundPlane);
+    
+    // --- Central sphere (glossy, like a metallic ball) ---
+    FLitSpherePrimitive* centerSphere = new FLitSpherePrimitive(32, 24);
+    centerSphere->SetPosition(FVector(0.0f, 0.5f, 0.0f));
+    centerSphere->SetScale(FVector(1.5f, 1.5f, 1.5f));
+    centerSphere->SetMaterial(FMaterial::Glossy(FColor(0.9f, 0.9f, 0.9f, 1.0f), 128.0f));
+    LitPrimitives.push_back(centerSphere);
+    
+    // --- Row of cubes with different materials ---
+    
+    // Red matte cube
+    FLitCubePrimitive* redCube = new FLitCubePrimitive();
+    redCube->SetPosition(FVector(-4.0f, 0.0f, -3.0f));
+    redCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
+    redCube->SetMaterial(FMaterial::Diffuse(FColor(0.9f, 0.2f, 0.2f, 1.0f)));
+    redCube->SetAutoRotate(true);
+    LitPrimitives.push_back(redCube);
+    
+    // Green glossy cube
+    FLitCubePrimitive* greenCube = new FLitCubePrimitive();
+    greenCube->SetPosition(FVector(-1.5f, 0.0f, -3.0f));
+    greenCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
+    greenCube->SetMaterial(FMaterial::Glossy(FColor(0.2f, 0.8f, 0.3f, 1.0f), 64.0f));
+    greenCube->SetAutoRotate(true);
+    LitPrimitives.push_back(greenCube);
+    
+    // Blue metallic cube
+    FLitCubePrimitive* blueCube = new FLitCubePrimitive();
+    blueCube->SetPosition(FVector(1.5f, 0.0f, -3.0f));
+    blueCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
+    blueCube->SetMaterial(FMaterial::Metal(FColor(0.3f, 0.4f, 0.9f, 1.0f), 96.0f));
+    blueCube->SetAutoRotate(true);
+    LitPrimitives.push_back(blueCube);
+    
+    // Gold metallic cube
+    FLitCubePrimitive* goldCube = new FLitCubePrimitive();
+    goldCube->SetPosition(FVector(4.0f, 0.0f, -3.0f));
+    goldCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
+    goldCube->SetMaterial(FMaterial::Metal(FColor(1.0f, 0.84f, 0.0f, 1.0f), 128.0f));
+    goldCube->SetAutoRotate(true);
+    LitPrimitives.push_back(goldCube);
+    
+    // --- Spheres with various materials ---
+    
+    // Pink diffuse sphere
+    FLitSpherePrimitive* pinkSphere = new FLitSpherePrimitive(24, 16);
+    pinkSphere->SetPosition(FVector(-3.0f, 0.5f, 2.0f));
+    pinkSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
+    pinkSphere->SetMaterial(FMaterial::Diffuse(FColor(1.0f, 0.6f, 0.7f, 1.0f)));
+    LitPrimitives.push_back(pinkSphere);
+    
+    // Cyan glossy sphere
+    FLitSpherePrimitive* cyanSphere = new FLitSpherePrimitive(24, 16);
+    cyanSphere->SetPosition(FVector(0.0f, 0.5f, 3.0f));
+    cyanSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
+    cyanSphere->SetMaterial(FMaterial::Glossy(FColor(0.2f, 0.9f, 0.9f, 1.0f), 48.0f));
+    LitPrimitives.push_back(cyanSphere);
+    
+    // Purple metallic sphere
+    FLitSpherePrimitive* purpleSphere = new FLitSpherePrimitive(24, 16);
+    purpleSphere->SetPosition(FVector(3.0f, 0.5f, 2.0f));
+    purpleSphere->SetScale(FVector(1.0f, 1.0f, 1.0f));
+    purpleSphere->SetMaterial(FMaterial::Metal(FColor(0.7f, 0.3f, 0.9f, 1.0f), 80.0f));
+    LitPrimitives.push_back(purpleSphere);
+    
+    // --- Cylinders ---
+    
+    // White cylinder (pillar)
+    FLitCylinderPrimitive* whiteCylinder = new FLitCylinderPrimitive(24);
+    whiteCylinder->SetPosition(FVector(-5.0f, 0.5f, 0.0f));
+    whiteCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
+    whiteCylinder->SetMaterial(FMaterial::Glossy(FColor(0.95f, 0.95f, 0.95f, 1.0f), 32.0f));
+    LitPrimitives.push_back(whiteCylinder);
+    
+    // Bronze cylinder (pillar)
+    FLitCylinderPrimitive* bronzeCylinder = new FLitCylinderPrimitive(24);
+    bronzeCylinder->SetPosition(FVector(5.0f, 0.5f, 0.0f));
+    bronzeCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
+    bronzeCylinder->SetMaterial(FMaterial::Metal(FColor(0.8f, 0.5f, 0.2f, 1.0f), 64.0f));
+    LitPrimitives.push_back(bronzeCylinder);
+    
+    // Create scene proxies for all lit primitives
+    for (FLitPrimitive* litPrim : LitPrimitives)
+    {
+        FSceneProxy* proxy = litPrim->CreateSceneProxy(RHI.get(), LightScene.get());
+        if (proxy)
+        {
+            Renderer->AddSceneProxy(proxy);
+        }
+    }
+    
+    // ==========================================
+    // LIGHT VISUALIZATION (Wireframe)
+    // ==========================================
+    
+    // Create wireframe visualization for point lights
+    auto pointLights = LightScene->GetPointLights();
+    for (size_t i = 0; i < pointLights.size(); ++i)
+    {
+        FPointLight* light = pointLights[i];
+        
+        // Generate sphere wireframe for light range
+        std::vector<FVertex> vertices;
+        std::vector<uint32> indices;
+        FLightVisualization::GeneratePointLightGeometry(
+            light->GetRadius(), 
+            light->GetColor(),
+            24,
+            vertices, indices);
+        
+        if (!vertices.empty())
+        {
+            FRHIBuffer* vb = RHI->CreateVertexBuffer(vertices.size() * sizeof(FVertex), vertices.data());
+            FRHIBuffer* ib = RHI->CreateIndexBuffer(indices.size() * sizeof(uint32), indices.data());
+            FRHIBuffer* cb = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
+            
+            EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::LineTopology;
+            FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
+            
+            FLightVisualizationProxy* lightVizProxy = new FLightVisualizationProxy(
+                vb, ib, cb, pso, indices.size(), g_Camera, light->GetPosition(), true);
+            Renderer->AddSceneProxy(lightVizProxy);
+        }
+        
+        // Add small marker at light center
+        std::vector<FVertex> markerVerts;
+        std::vector<uint32> markerIndices;
+        FLightVisualization::GenerateLightMarker(light->GetColor(), 0.2f, markerVerts, markerIndices);
+        
+        if (!markerVerts.empty())
+        {
+            FRHIBuffer* mvb = RHI->CreateVertexBuffer(markerVerts.size() * sizeof(FVertex), markerVerts.data());
+            FRHIBuffer* mib = RHI->CreateIndexBuffer(markerIndices.size() * sizeof(uint32), markerIndices.data());
+            FRHIBuffer* mcb = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
+            
+            EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::LineTopology;
+            FRHIPipelineState* mpso = RHI->CreateGraphicsPipelineStateEx(flags);
+            
+            FLightVisualizationProxy* markerProxy = new FLightVisualizationProxy(
+                mvb, mib, mcb, mpso, markerIndices.size(), g_Camera, light->GetPosition(), true);
+            Renderer->AddSceneProxy(markerProxy);
+        }
+    }
+    
+    // Create visualization for directional light
+    auto dirLights = LightScene->GetDirectionalLights();
+    for (size_t i = 0; i < dirLights.size() && i < 1; ++i)  // Only first directional light
+    {
+        FDirectionalLight* light = dirLights[i];
+        
+        std::vector<FVertex> vertices;
+        std::vector<uint32> indices;
+        FLightVisualization::GenerateDirectionalLightGeometry(
+            light->GetDirection(),
+            FColor(1.0f, 1.0f, 0.0f, 1.0f),  // Yellow for sun
+            2.0f,
+            vertices, indices);
+        
+        if (!vertices.empty())
+        {
+            FRHIBuffer* vb = RHI->CreateVertexBuffer(vertices.size() * sizeof(FVertex), vertices.data());
+            FRHIBuffer* ib = RHI->CreateIndexBuffer(indices.size() * sizeof(uint32), indices.data());
+            FRHIBuffer* cb = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
+            
+            EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::LineTopology;
+            FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
+            
+            // Position the sun icon in the sky
+            FVector sunIconPos(5.0f, 8.0f, 5.0f);
+            FLightVisualizationProxy* sunVizProxy = new FLightVisualizationProxy(
+                vb, ib, cb, pso, indices.size(), g_Camera, sunIconPos, true);
+            Renderer->AddSceneProxy(sunVizProxy);
+        }
+    }
+    
+    FLog::Log(ELogLevel::Info, std::string("Lit scene setup complete: ") + 
+              std::to_string(LitPrimitives.size()) + " lit primitives, " +
+              std::to_string(LightScene->GetLights().size()) + " lights");
 }
 
 void FGame::Shutdown()
@@ -233,6 +338,21 @@ void FGame::Shutdown()
         FRenderThread::Get().Stop();
         FRHIThread::Get().Stop();
     }
+    
+    // Cleanup lit primitives
+    for (FLitPrimitive* litPrim : LitPrimitives)
+    {
+        delete litPrim;
+    }
+    LitPrimitives.clear();
+    
+    // Cleanup light scene
+    if (LightScene)
+    {
+        LightScene->ClearLights();
+        LightScene.reset();
+    }
+    g_LightScene = nullptr;
     
     if (Scene)
     {
@@ -291,6 +411,12 @@ void FGame::TickSingleThreaded(float DeltaTime)
         Renderer->UpdateFromScene(Scene.get());
     }
     
+    // Tick lit primitives
+    for (FLitPrimitive* litPrim : LitPrimitives)
+    {
+        litPrim->Tick(DeltaTime);
+    }
+    
     Renderer->GetStats().EndGameThreadTiming();
     
     // Track render thread time (in single-threaded mode, this runs on same thread)
@@ -332,6 +458,12 @@ void FGame::TickMultiThreaded(float DeltaTime)
         
         // Update render scene on game thread (prepare data for render thread)
         Renderer->UpdateFromScene(Scene.get());
+    }
+    
+    // Tick lit primitives
+    for (FLitPrimitive* litPrim : LitPrimitives)
+    {
+        litPrim->Tick(DeltaTime);
     }
     
     Renderer->GetStats().EndGameThreadTiming();
