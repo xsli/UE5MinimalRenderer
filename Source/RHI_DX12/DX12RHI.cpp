@@ -236,7 +236,14 @@ void FDX12CommandList::SetVertexBuffer(FRHIBuffer* VertexBuffer, uint32 Offset, 
 {
     FLog::Log(ELogLevel::Info, std::string("SetVertexBuffer - Stride: ") + std::to_string(Stride));
     FDX12Buffer* DX12Buffer = static_cast<FDX12Buffer*>(VertexBuffer);
-    D3D12_VERTEX_BUFFER_VIEW vbv = DX12Buffer->GetVertexBufferView();
+    
+    // Create a vertex buffer view with the specified stride
+    // (don't use the stored view which has a fixed stride)
+    D3D12_VERTEX_BUFFER_VIEW vbv = {};
+    vbv.BufferLocation = DX12Buffer->GetGPUVirtualAddress();
+    vbv.SizeInBytes = DX12Buffer->GetVertexBufferView().SizeInBytes;
+    vbv.StrideInBytes = Stride;  // Use the caller-specified stride
+    
     FLog::Log(ELogLevel::Info, std::string("  VBV - Location: 0x") + 
         std::to_string(vbv.BufferLocation) + 
         ", Size: " + std::to_string(vbv.SizeInBytes) + 
