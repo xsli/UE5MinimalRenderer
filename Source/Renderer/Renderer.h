@@ -126,14 +126,9 @@ public:
     const FRTPoolStats* GetRTPoolStats() const;
     uint32 GetDrawCallCount() const { return DrawCallCount; }
     
-    // Debug shadow map visualization toggle
-    void SetShowShadowMapDebug(bool bShow) { bShowShadowMapDebug = bShow; }
-    bool GetShowShadowMapDebug() const { return bShowShadowMapDebug; }
-    
 private:
     void RenderStats(FRHICommandList* RHICmdList);
     void RenderShadowPasses(FRHICommandList* RHICmdList);
-    void RenderShadowMapDebug(FRHICommandList* RHICmdList);
     
     FRHI* RHI;
     std::unique_ptr<FRenderScene> RenderScene;
@@ -147,7 +142,4 @@ private:
     
     // Scene reference for shadow pass updates
     FScene* CurrentScene;
-    
-    // Debug visualization
-    bool bShowShadowMapDebug;
 };

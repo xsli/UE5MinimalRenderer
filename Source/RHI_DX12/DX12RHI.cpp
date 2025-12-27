@@ -76,7 +76,8 @@ void FDX12Buffer::Unmap()
 // FDX12Texture implementation
 FDX12Texture::FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
                            uint32 InArraySize, DXGI_FORMAT InFormat,
-                           ID3D12DescriptorHeap* InDSVHeap, ID3D12DescriptorHeap* InSRVHeap)
+                           ID3D12DescriptorHeap* InDSVHeap, ID3D12DescriptorHeap* InSRVHeap,
+                           D3D12_RESOURCE_STATES InInitialState)
     : Resource(InResource)
     , DSVHeap(InDSVHeap)
     , SRVHeap(InSRVHeap)
@@ -86,6 +87,7 @@ FDX12Texture::FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 In
     , Format(InFormat)
     , DSVDescriptorSize(0)
     , SRVDescriptorSize(0)
+    , CurrentState(InInitialState)
 {
     // Get descriptor sizes from device
     ComPtr<ID3D12Device> device;
@@ -477,12 +479,17 @@ void FDX12CommandList::BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex)
     SavedViewport = Viewport;
     SavedScissorRect = ScissorRect;
     
-    // Transition shadow map to depth write state if needed
-    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        DX12ShadowMap->GetResource(),
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-        D3D12_RESOURCE_STATE_DEPTH_WRITE);
-    GraphicsCommandList->ResourceBarrier(1, &barrier);
+    // Transition shadow map to depth write state if needed (check current state)
+    D3D12_RESOURCE_STATES currentState = DX12ShadowMap->GetCurrentState();
+    if (currentState != D3D12_RESOURCE_STATE_DEPTH_WRITE)
+    {
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            DX12ShadowMap->GetResource(),
+            currentState,
+            D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        GraphicsCommandList->ResourceBarrier(1, &barrier);
+        DX12ShadowMap->SetCurrentState(D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    }
     
     // Get DSV handle for the specified face
     D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DX12ShadowMap->GetDSVHandle(FaceIndex);
@@ -506,12 +513,17 @@ void FDX12CommandList::EndShadowPass()
         return;
     }
     
-    // Transition shadow map back to shader resource state
-    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-        CurrentShadowMap->GetResource(),
-        D3D12_RESOURCE_STATE_DEPTH_WRITE,
-        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    GraphicsCommandList->ResourceBarrier(1, &barrier);
+    // Transition shadow map back to shader resource state (track state)
+    D3D12_RESOURCE_STATES currentState = CurrentShadowMap->GetCurrentState();
+    if (currentState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+    {
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentShadowMap->GetResource(),
+            currentState,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        GraphicsCommandList->ResourceBarrier(1, &barrier);
+        CurrentShadowMap->SetCurrentState(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    }
     
     // Restore viewport and scissor
     Viewport = SavedViewport;
@@ -987,7 +999,7 @@ FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data)
 {
     FLog::Log(ELogLevel::Info, std::string("Creating vertex buffer - Size: ") + std::to_string(Size) + " bytes");
     
-    // Create upload heap
+    // Create upload heap - buffers on upload heaps are effectively in COMMON state
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
     
@@ -996,7 +1008,7 @@ FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data)
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&vertexBuffer)));
     
@@ -1019,7 +1031,7 @@ FRHIBuffer* FDX12RHI::CreateIndexBuffer(uint32 Size, const void* Data)
 {
     FLog::Log(ELogLevel::Info, std::string("Creating index buffer - Size: ") + std::to_string(Size) + " bytes");
     
-    // Create upload heap
+    // Create upload heap - buffers on upload heaps are effectively in COMMON state
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
     
@@ -1028,7 +1040,7 @@ FRHIBuffer* FDX12RHI::CreateIndexBuffer(uint32 Size, const void* Data)
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&indexBuffer)));
     
@@ -1055,7 +1067,7 @@ FRHIBuffer* FDX12RHI::CreateConstantBuffer(uint32 Size)
     static constexpr uint32 CONSTANT_BUFFER_ALIGNMENT = 256;
     uint32 alignedSize = (Size + CONSTANT_BUFFER_ALIGNMENT - 1) & ~(CONSTANT_BUFFER_ALIGNMENT - 1);
     
-    // Create upload heap
+    // Create upload heap - buffers on upload heaps are effectively in COMMON state
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(alignedSize);
     
@@ -1064,7 +1076,7 @@ FRHIBuffer* FDX12RHI::CreateConstantBuffer(uint32 Size)
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&constantBuffer)));
     
@@ -1212,8 +1224,9 @@ FRHITexture* FDX12RHI::CreateDepthTexture(uint32 InWidth, uint32 InHeight, ERTFo
     
     FLog::Log(ELogLevel::Info, "Depth texture created successfully");
     
+    // Pass the initial state (DEPTH_WRITE) to the texture so it can track state transitions
     return new FDX12Texture(texture.Detach(), InWidth, InHeight, ArraySize, dsvFormat, 
-                            dsvHeap.Detach(), srvHeap.Detach());
+                            dsvHeap.Detach(), srvHeap.Detach(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 }
 
 FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)

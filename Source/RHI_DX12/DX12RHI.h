@@ -49,7 +49,8 @@ class FDX12Texture : public FRHITexture
 public:
     FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
                  uint32 InArraySize, DXGI_FORMAT InFormat,
-                 ID3D12DescriptorHeap* InDSVHeap = nullptr, ID3D12DescriptorHeap* InSRVHeap = nullptr);
+                 ID3D12DescriptorHeap* InDSVHeap = nullptr, ID3D12DescriptorHeap* InSRVHeap = nullptr,
+                 D3D12_RESOURCE_STATES InInitialState = D3D12_RESOURCE_STATE_COMMON);
     virtual ~FDX12Texture() override;
     
     virtual uint32 GetWidth() const override { return Width; }
@@ -71,6 +72,10 @@ public:
     // Get GPU descriptor handle for SRV (for shader sampling)
     D3D12_GPU_DESCRIPTOR_HANDLE GetSRVGPUHandle() const;
     
+    // Resource state tracking
+    D3D12_RESOURCE_STATES GetCurrentState() const { return CurrentState; }
+    void SetCurrentState(D3D12_RESOURCE_STATES State) { CurrentState = State; }
+    
 private:
     ComPtr<ID3D12Resource> Resource;
     ComPtr<ID3D12DescriptorHeap> DSVHeap;  // For rendering to depth
@@ -81,6 +86,7 @@ private:
     DXGI_FORMAT Format;
     uint32 DSVDescriptorSize;
     uint32 SRVDescriptorSize;
+    D3D12_RESOURCE_STATES CurrentState;
 };
 
 class FDX12PipelineState : public FRHIPipelineState 
