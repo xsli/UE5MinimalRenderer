@@ -660,16 +660,19 @@ FSceneProxy* FGizmoPrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*LightSc
     FRHIBuffer* vertexBuffer = RHI->CreateVertexBuffer(vertices.size() * sizeof(FVertex), vertices.data());
     FRHIBuffer* indexBuffer = RHI->CreateIndexBuffer(indices.size() * sizeof(uint32), indices.data());
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
-    FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
     if (bScreenSpace)
     {
+        // Screen-space gizmo: Disable depth testing so it always renders on top
+        FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(false);  // Depth disabled
         // Screen-space gizmo renders in corner showing world axis orientation
         return new FScreenSpaceGizmoProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
                                           indices.size(), g_Camera, ScreenCorner, GizmoSize);
     }
     else
     {
+        // World-space gizmo: Enable depth testing for proper occlusion
+        FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);  // Depth enabled
         // World-space gizmo renders at transform position
         return new FUnlitPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
                                              indices.size(), g_Camera, Transform);
