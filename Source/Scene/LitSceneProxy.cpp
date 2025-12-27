@@ -33,10 +33,13 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(
     // Create shadow constant buffer if RHI is available
     if (RHI)
     {
-        ShadowConstantBuffer = RHI->CreateConstantBuffer(256);  // 256-byte aligned
+        // Larger buffer for extended shadow data (point light matrices, etc.)
+        ShadowConstantBuffer = RHI->CreateConstantBuffer(1024);  // 1024-byte aligned for ~864 bytes of data
         // Enable shadows by default for directional light
         ShadowData.SetEnabled(true);
-        ShadowData.SetStrength(0.5f);  // 50% shadow strength for visible effect
+        ShadowData.SetStrength(0.8f);  // 80% shadow strength
+        ShadowData.SetBias(0.0005f);   // Constant bias
+        ShadowData.SetSlopeBias(0.002f);  // Slope-scaled bias
     }
 }
 

@@ -1472,11 +1472,16 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         cbuffer ShadowBuffer : register(b2)
         {
             float4x4 DirLightViewProj;  // Directional light view-projection matrix
-            float4 ShadowParams;        // x = bias, y = enabled, z = shadow strength, w = unused
+            float4 ShadowParams;        // x = constant bias, y = enabled, z = shadow strength, w = slope bias
+            float4x4 PointLight0ViewProj[6];  // 6 cubemap face matrices for point light 0
+            float4x4 PointLight1ViewProj[6];  // 6 cubemap face matrices for point light 1
+            float4 PointShadowParams;   // x = enabled0, y = enabled1, z = point shadow strength, w = unused
         };
         
         // Shadow map texture and sampler
         Texture2D<float> ShadowMap : register(t0);
+        Texture2D<float> PointShadowAtlas0 : register(t1);
+        Texture2D<float> PointShadowAtlas1 : register(t2);
         SamplerComparisonState ShadowSampler : register(s0);
         
         struct VSInput {
@@ -1519,8 +1524,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             return result;
         }
         
-        // Calculate shadow factor by sampling the shadow map
-        float CalcShadow(float4 lightSpacePos, float bias)
+        // Calculate shadow factor by sampling the shadow map with slope-scaled bias + normal offset
+        float CalcShadow(float4 lightSpacePos, float3 worldNormal, float3 lightDir, float constantBias, float slopeBias)
         {
             // Perform perspective divide
             float3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
@@ -1536,6 +1541,14 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             {
                 return 1.0f;  // Not in shadow (outside light frustum)
             }
+            
+            // Calculate slope-scaled bias
+            // The bias should increase when the surface is nearly parallel to the light
+            float NdotL = max(dot(worldNormal, -lightDir), 0.0f);
+            float sinAngle = sqrt(1.0f - NdotL * NdotL);
+            float tanAngle = sinAngle / max(NdotL, 0.001f);
+            float bias = constantBias + slopeBias * tanAngle;
+            bias = clamp(bias, 0.0f, 0.01f);  // Clamp max bias
             
             // Apply bias to avoid shadow acne
             float currentDepth = projCoords.z - bias;
@@ -1553,6 +1566,77 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
                 }
             }
             shadow /= 9.0f;  // Average 9 samples
+            
+            return shadow;
+        }
+        
+        // Determine which cubemap face to sample based on direction
+        int GetCubemapFace(float3 dir)
+        {
+            float3 absDir = abs(dir);
+            if (absDir.x >= absDir.y && absDir.x >= absDir.z)
+                return dir.x > 0.0f ? 0 : 1;  // +X or -X
+            if (absDir.y >= absDir.x && absDir.y >= absDir.z)
+                return dir.y > 0.0f ? 2 : 3;  // +Y or -Y
+            return dir.z > 0.0f ? 4 : 5;       // +Z or -Z
+        }
+        
+        // Calculate point light shadow factor
+        float CalcPointShadow(float3 worldPos, float3 lightPos, float4x4 viewProj[6], 
+                             Texture2D<float> shadowAtlas, float constantBias, float slopeBias, float3 worldNormal)
+        {
+            float3 lightToFrag = worldPos - lightPos;
+            float3 dir = normalize(lightToFrag);
+            
+            // Get cubemap face
+            int faceIndex = GetCubemapFace(dir);
+            
+            // Transform to light space for this face
+            float4 lightSpacePos = mul(float4(worldPos, 1.0f), viewProj[faceIndex]);
+            float3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+            
+            // Transform to [0,1] range
+            projCoords.x = projCoords.x * 0.5f + 0.5f;
+            projCoords.y = -projCoords.y * 0.5f + 0.5f;
+            
+            // Check bounds
+            if (projCoords.z < 0.0f || projCoords.z > 1.0f)
+                return 1.0f;
+            
+            // Calculate atlas UV (3x2 layout: faces 0,1,2 in row 0; faces 3,4,5 in row 1)
+            int faceCol = faceIndex % 3;
+            int faceRow = faceIndex / 3;
+            float2 atlasUV;
+            atlasUV.x = (faceCol + projCoords.x) / 3.0f;
+            atlasUV.y = (faceRow + projCoords.y) / 2.0f;
+            
+            // Check atlas bounds
+            if (atlasUV.x < 0.0f || atlasUV.x > 1.0f || atlasUV.y < 0.0f || atlasUV.y > 1.0f)
+                return 1.0f;
+            
+            // Calculate slope-scaled bias for point light
+            float3 lightDir = -dir;  // Direction toward light
+            float NdotL = max(dot(worldNormal, lightDir), 0.0f);
+            float sinAngle = sqrt(1.0f - NdotL * NdotL);
+            float tanAngle = sinAngle / max(NdotL, 0.001f);
+            float bias = constantBias + slopeBias * tanAngle;
+            bias = clamp(bias, 0.0f, 0.02f);  // Clamp max bias (slightly higher for point lights)
+            
+            float currentDepth = projCoords.z - bias;
+            
+            // PCF 3x3 sampling for point light
+            float shadow = 0.0f;
+            float texelSize = 1.0f / (512.0f * 3.0f);  // Atlas width = 512 * 3
+            
+            for (int x = -1; x <= 1; ++x)
+            {
+                for (int y = -1; y <= 1; ++y)
+                {
+                    float2 uv = atlasUV + float2(x, y) * texelSize;
+                    shadow += shadowAtlas.SampleCmpLevelZero(ShadowSampler, uv, currentDepth);
+                }
+            }
+            shadow /= 9.0f;
             
             return shadow;
         }
@@ -1610,15 +1694,18 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             // Ambient contribution
             float3 ambient = ambientColor * AmbientLight.xyz * AmbientLight.w;
             
-            // Calculate shadow factor for directional light
-            float shadowBias = ShadowParams.x;
+            // Shadow parameters
+            float constantBias = ShadowParams.x;
             float shadowEnabled = ShadowParams.y;
             float shadowStrength = ShadowParams.z;
-            float shadow = 1.0f;
+            float slopeBias = ShadowParams.w;
             
-            if (shadowEnabled > 0.5f)
+            // Calculate directional light shadow factor using slope-scaled bias + normal offset
+            float shadow = 1.0f;
+            if (shadowEnabled > 0.5f && DirLightDirection.w > 0.5f)
             {
-                shadow = CalcShadow(input.lightSpacePos, shadowBias);
+                float3 lightDir = normalize(DirLightDirection.xyz);
+                shadow = CalcShadow(input.lightSpacePos, N, lightDir, constantBias, slopeBias);
                 shadow = lerp(1.0f, shadow, shadowStrength);
             }
             
@@ -1628,9 +1715,6 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             {
                 float3 L = normalize(-DirLightDirection.xyz); // Direction toward light
                 float NdotL = max(dot(N, L), 0.0f);
-                
-                // Apply shadow - surfaces facing away from light are in shadow
-                float selfShadow = NdotL;
                 
                 float3 lightColorRGB = DirLightColor.xyz * DirLightColor.w;
                 
@@ -1645,10 +1729,70 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
                 directional = diffuse + specular;
             }
             
-            // Point light contributions
+            // Point light contributions (with shadow where available)
             float3 pointLights = float3(0, 0, 0);
-            pointLights += CalcPointLight(input.worldPos, N, V, PointLight0Position, PointLight0Color, PointLight0Params, diffuseColor, specularColor, shininess);
-            pointLights += CalcPointLight(input.worldPos, N, V, PointLight1Position, PointLight1Color, PointLight1Params, diffuseColor, specularColor, shininess);
+            
+            // Point light 0 (with shadow if enabled)
+            if (PointLight0Position.w > 0.5f)
+            {
+                float3 lightPosition = PointLight0Position.xyz;
+                float3 L = normalize(lightPosition - input.worldPos);
+                float distance = length(lightPosition - input.worldPos);
+                float attenuation = CalcAttenuation(distance, PointLight0Params.x, PointLight0Params.y);
+                
+                if (attenuation > 0.001f)
+                {
+                    float3 lightColorRGB = PointLight0Color.xyz * PointLight0Color.w;
+                    float NdotL = max(dot(N, L), 0.0f);
+                    float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+                    float3 H = normalize(L + V);
+                    float NdotH = max(dot(N, H), 0.0f);
+                    float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+                    
+                    // Apply point light shadow if enabled
+                    float pointShadow = 1.0f;
+                    if (PointShadowParams.x > 0.5f)
+                    {
+                        pointShadow = CalcPointShadow(input.worldPos, lightPosition, PointLight0ViewProj, 
+                                                      PointShadowAtlas0, constantBias, slopeBias, N);
+                        pointShadow = lerp(1.0f, pointShadow, PointShadowParams.z);
+                    }
+                    
+                    pointLights += (diffuse + specular) * attenuation * pointShadow;
+                }
+            }
+            
+            // Point light 1 (with shadow if enabled)
+            if (PointLight1Position.w > 0.5f)
+            {
+                float3 lightPosition = PointLight1Position.xyz;
+                float3 L = normalize(lightPosition - input.worldPos);
+                float distance = length(lightPosition - input.worldPos);
+                float attenuation = CalcAttenuation(distance, PointLight1Params.x, PointLight1Params.y);
+                
+                if (attenuation > 0.001f)
+                {
+                    float3 lightColorRGB = PointLight1Color.xyz * PointLight1Color.w;
+                    float NdotL = max(dot(N, L), 0.0f);
+                    float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+                    float3 H = normalize(L + V);
+                    float NdotH = max(dot(N, H), 0.0f);
+                    float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+                    
+                    // Apply point light shadow if enabled
+                    float pointShadow = 1.0f;
+                    if (PointShadowParams.y > 0.5f)
+                    {
+                        pointShadow = CalcPointShadow(input.worldPos, lightPosition, PointLight1ViewProj, 
+                                                      PointShadowAtlas1, constantBias, slopeBias, N);
+                        pointShadow = lerp(1.0f, pointShadow, PointShadowParams.z);
+                    }
+                    
+                    pointLights += (diffuse + specular) * attenuation * pointShadow;
+                }
+            }
+            
+            // Point lights 2 and 3 (no shadow support, simplified)
             pointLights += CalcPointLight(input.worldPos, N, V, PointLight2Position, PointLight2Color, PointLight2Params, diffuseColor, specularColor, shininess);
             pointLights += CalcPointLight(input.worldPos, N, V, PointLight3Position, PointLight3Color, PointLight3Params, diffuseColor, specularColor, shininess);
             
