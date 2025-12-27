@@ -125,7 +125,7 @@ FSceneProxy* FCubePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightScene
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, Transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, Transform, LightScene, Material, RHI);
 }
 
 // FSpherePrimitive implementation (lit)
@@ -202,7 +202,7 @@ FSceneProxy* FSpherePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightSce
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, Transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, Transform, LightScene, Material, RHI);
 }
 
 // FPlanePrimitive implementation (lit)
@@ -269,7 +269,7 @@ FSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightScen
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, Transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, Transform, LightScene, Material, RHI);
 }
 
 // FCylinderPrimitive implementation (lit)
@@ -382,7 +382,7 @@ FSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightS
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, Transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, Transform, LightScene, Material, RHI);
 }
 
 // ============================================================================
@@ -658,5 +658,5 @@ FSceneProxy* FDemoCubePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightS
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, Transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, Transform, LightScene, Material, RHI);
 }

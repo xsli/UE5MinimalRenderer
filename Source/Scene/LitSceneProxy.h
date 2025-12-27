@@ -11,6 +11,38 @@
 // FTransform is defined in ScenePrimitive.h (included above)
 
 /**
+ * FShadowRenderConstants - Simple shadow constant buffer data
+ * Used for passing shadow matrix and parameters to shader
+ */
+struct FShadowRenderConstants
+{
+    DirectX::XMMATRIX DirLightViewProj;  // 64 bytes
+    DirectX::XMFLOAT4 ShadowParams;       // 16 bytes - x=bias, y=enabled, z=strength, w=unused
+    // Total: 80 bytes, padded to 256 for constant buffer alignment
+    
+    FShadowRenderConstants()
+    {
+        DirLightViewProj = DirectX::XMMatrixIdentity();
+        ShadowParams = { 0.001f, 0.0f, 1.0f, 0.0f };  // Disabled by default
+    }
+    
+    void SetEnabled(bool bEnabled)
+    {
+        ShadowParams.y = bEnabled ? 1.0f : 0.0f;
+    }
+    
+    void SetBias(float Bias)
+    {
+        ShadowParams.x = Bias;
+    }
+    
+    void SetStrength(float Strength)
+    {
+        ShadowParams.z = Strength;
+    }
+};
+
+/**
  * FPrimitiveSceneProxy - Default scene proxy for lit primitives with Phong shading
  * Uses FLitVertex format (position, normal, color) and lighting constant buffer
  * This is the primary proxy type for scene rendering with lighting support
@@ -28,7 +60,8 @@ public:
         FCamera* InCamera, 
         const FTransform& InTransform,
         FLightScene* InLightScene,
-        const FMaterial& InMaterial);
+        const FMaterial& InMaterial,
+        FRHI* InRHI = nullptr);
     
     virtual ~FPrimitiveSceneProxy();
     
@@ -50,13 +83,21 @@ public:
     // Update material
     void SetMaterial(const FMaterial& InMaterial) { Material = InMaterial; }
     
+    // Update shadow constants from shadow system
+    void SetShadowMatrix(const FMatrix4x4& LightViewProj);
+    void SetShadowEnabled(bool bEnabled);
+    void SetShadowBias(float Bias);
+    void SetShadowStrength(float Strength);
+    
 protected:
     void UpdateLightingConstants();
+    void UpdateShadowConstants();
     
     FRHIBuffer* VertexBuffer;
     FRHIBuffer* IndexBuffer;
     FRHIBuffer* MVPConstantBuffer;
     FRHIBuffer* LightingConstantBuffer;
+    FRHIBuffer* ShadowConstantBuffer;  // NEW: Shadow constant buffer
     FRHIPipelineState* PipelineState;
     uint32 IndexCount;
     FCamera* Camera;
@@ -64,6 +105,8 @@ protected:
     FLightScene* LightScene;
     FMaterial Material;
     FLightingConstants LightingData;
+    FShadowRenderConstants ShadowData;  // NEW: Shadow data
+    FRHI* RHI;  // NEW: RHI reference for creating shadow buffer
 };
 
 /**

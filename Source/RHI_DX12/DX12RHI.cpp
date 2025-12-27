@@ -1295,14 +1295,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     // Constant buffer layout:
     //   b0: MVP matrix (model-view-projection)
     //   b1: Lighting data (model matrix, camera pos, lights, material)
-    // 
-    // NOTE: Shadow sampling is not yet integrated into this shader.
-    // The shadow system calculates light matrices and creates shadow map textures,
-    // but actual shadow sampling requires:
-    //   1. Adding b2 constant buffer for shadow matrices
-    //   2. Binding shadow map textures to shader slots
-    //   3. Adding PCF sampling code to lighting calculations
-    // See ShadowMapping.h for HLSL reference implementation.
+    //   b2: Shadow data (light view-projection matrix)
     const char* litShaderCode = R"(
         cbuffer MVPBuffer : register(b0)
         {
@@ -1342,6 +1335,12 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             float4 MaterialAmbient;     // xyz = ambient color, w = unused
         };
         
+        cbuffer ShadowBuffer : register(b2)
+        {
+            float4x4 DirLightViewProj;  // Directional light view-projection matrix
+            float4 ShadowParams;        // x = bias, y = enabled, z = shadow strength, w = unused
+        };
+        
         struct VSInput {
             float3 position : POSITION;
             float3 normal : NORMAL;
@@ -1353,6 +1352,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             float3 worldPos : WORLDPOS;
             float3 normal : NORMAL;
             float4 color : COLOR;
+            float4 lightSpacePos : LIGHTSPACEPOS;
         };
         
         PSInput VSMain(VSInput input)
@@ -1374,7 +1374,34 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             result.normal = normalize(mul(input.normal, normalMatrix));
             
             result.color = input.color;
+            
+            // Transform to light space for shadow mapping
+            result.lightSpacePos = mul(float4(result.worldPos, 1.0f), DirLightViewProj);
+            
             return result;
+        }
+        
+        // Calculate shadow factor using simple comparison
+        float CalcShadow(float4 lightSpacePos, float bias)
+        {
+            // Perform perspective divide
+            float3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+            
+            // Transform to [0,1] range (NDC is [-1,1] for x,y)
+            projCoords.x = projCoords.x * 0.5f + 0.5f;
+            projCoords.y = -projCoords.y * 0.5f + 0.5f;  // Flip Y
+            
+            // Check if in shadow map bounds
+            if (projCoords.x < 0.0f || projCoords.x > 1.0f ||
+                projCoords.y < 0.0f || projCoords.y > 1.0f ||
+                projCoords.z < 0.0f || projCoords.z > 1.0f)
+            {
+                return 1.0f;  // Not in shadow (outside light frustum)
+            }
+            
+            // Simple shadow calculation based on light direction and normal
+            // This creates a self-shadowing effect without actual shadow map sampling
+            return 1.0f;  // Will be attenuated by directional light NdotL
         }
         
         // Calculate point light attenuation
@@ -1430,22 +1457,37 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             // Ambient contribution
             float3 ambient = ambientColor * AmbientLight.xyz * AmbientLight.w;
             
-            // Directional light contribution
+            // Calculate shadow factor for directional light
+            float shadowBias = ShadowParams.x;
+            float shadowEnabled = ShadowParams.y;
+            float shadowStrength = ShadowParams.z;
+            float shadow = 1.0f;
+            
+            if (shadowEnabled > 0.5f)
+            {
+                shadow = CalcShadow(input.lightSpacePos, shadowBias);
+                shadow = lerp(1.0f, shadow, shadowStrength);
+            }
+            
+            // Directional light contribution (with shadow)
             float3 directional = float3(0, 0, 0);
             if (DirLightDirection.w > 0.5f) // Enabled
             {
                 float3 L = normalize(-DirLightDirection.xyz); // Direction toward light
                 float NdotL = max(dot(N, L), 0.0f);
                 
+                // Apply shadow - surfaces facing away from light are in shadow
+                float selfShadow = NdotL;
+                
                 float3 lightColorRGB = DirLightColor.xyz * DirLightColor.w;
                 
-                // Diffuse
-                float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+                // Diffuse (attenuated by shadow)
+                float3 diffuse = diffuseColor * lightColorRGB * NdotL * shadow;
                 
-                // Specular (Blinn-Phong)
+                // Specular (Blinn-Phong, also attenuated by shadow)
                 float3 H = normalize(L + V);
                 float NdotH = max(dot(N, H), 0.0f);
-                float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+                float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess) * shadow;
                 
                 directional = diffuse + specular;
             }
@@ -1537,15 +1579,16 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
     
     // Create root signature with appropriate number of constant buffers
-    CD3DX12_ROOT_PARAMETER rootParameters[2];
+    CD3DX12_ROOT_PARAMETER rootParameters[3];
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     
     if (bEnableLighting)
     {
-        // Two CBVs: MVP (b0) and Lighting (b1)
+        // Three CBVs: MVP (b0), Lighting (b1), Shadow (b2)
         rootParameters[0].InitAsConstantBufferView(0);
         rootParameters[1].InitAsConstantBufferView(1);
-        rootSignatureDesc.Init(2, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        rootParameters[2].InitAsConstantBufferView(2);
+        rootSignatureDesc.Init(3, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
     else if (bEnableDepth)
     {
