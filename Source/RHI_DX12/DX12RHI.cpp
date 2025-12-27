@@ -1285,7 +1285,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
 #endif
     
     // Compile vertex shader
-    if (FAILED(D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
+    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), "BasicShader", nullptr, nullptr,
                          "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
 {
         if (error)
@@ -1297,7 +1297,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully");
     
     // Compile pixel shader
-    if (FAILED(D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
+    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), "BasicShader", nullptr, nullptr,
                          "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
 {
         if (error)

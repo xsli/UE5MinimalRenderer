@@ -1,5 +1,5 @@
 #include "ShaderLoader.h"
-#include "Log.h"
+#include "CoreTypes.h"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
