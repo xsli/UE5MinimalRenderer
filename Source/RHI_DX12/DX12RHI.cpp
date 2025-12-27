@@ -381,8 +381,6 @@ void FDX12CommandList::Present()
 
 void FDX12CommandList::FlushCommandsFor2D()
 {
-	FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: Submitting 3D rendering commands");
-
 	try
 	{
 		// Close and execute D3D12 command list
@@ -406,8 +404,6 @@ void FDX12CommandList::FlushCommandsFor2D()
 		// Reset viewport and scissor since we reset the command list
 		GraphicsCommandList->RSSetViewports(1, &Viewport);
 		GraphicsCommandList->RSSetScissorRects(1, &ScissorRect);
-
-		FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: 3D commands submitted, ready for 2D rendering");
 	}
 	catch (const std::exception& e)
 	{

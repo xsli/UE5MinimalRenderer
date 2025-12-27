@@ -23,7 +23,6 @@ FTriangleMeshProxy::~FTriangleMeshProxy()
 
 void FTriangleMeshProxy::Render(FRHICommandList* RHICmdList)
 {
-    FLog::Log(ELogLevel::Info, "FTriangleMeshProxy::Render called");
     RHICmdList->SetPipelineState(PipelineState);
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FVertex));
     RHICmdList->DrawPrimitive(VertexCount, 0);
@@ -52,8 +51,6 @@ FCubeMeshProxy::~FCubeMeshProxy()
 
 void FCubeMeshProxy::Render(FRHICommandList* RHICmdList)
 {
-    FLog::Log(ELogLevel::Info, "FCubeMeshProxy::Render called");
-    
     // Calculate MVP matrix with current model matrix
     FMatrix4x4 viewProjection = Camera->GetViewProjectionMatrix();
     FMatrix4x4 mvp = ModelMatrix * viewProjection;
@@ -190,6 +187,12 @@ void FRenderer::RenderFrame()
         // Render shadow passes (directional + point lights)
         ShadowSystem->RenderShadowPasses(RHICmdList, RenderScene.get());
         DrawCallCount += ShadowSystem->GetShadowDrawCallCount();
+        
+        // === CRITICAL: Flush shadow pass commands before main pass ===
+        // Each proxy uses its own MVPConstantBuffer for shadow rendering.
+        // The main pass will overwrite these buffers with camera matrices.
+        // We must ensure the GPU has read the shadow MVP data before overwriting.
+        RHICmdList->FlushCommandsFor2D();  // Reuse existing flush mechanism
     }
     
     // Clear screen (main render target)

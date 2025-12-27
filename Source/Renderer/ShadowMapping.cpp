@@ -117,12 +117,6 @@ void FShadowMapPass::UpdatePointLight(const FPointLight* Light)
 
 void FShadowMapPass::CalculateDirectionalMatrices(const FVector& LightDir, const FVector& SceneCenter, float SceneRadius)
 {
-    // Log input parameters
-    FLog::Log(ELogLevel::Info, "CalculateDirectionalMatrices: LightDir=(" + 
-              std::to_string(LightDir.X) + ", " + std::to_string(LightDir.Y) + ", " + std::to_string(LightDir.Z) + 
-              ") SceneCenter=(" + std::to_string(SceneCenter.X) + ", " + std::to_string(SceneCenter.Y) + ", " + 
-              std::to_string(SceneCenter.Z) + ") SceneRadius=" + std::to_string(SceneRadius));
-    
     // Normalize light direction
     DirectX::XMVECTOR lightDirVec = DirectX::XMVector3Normalize(
         DirectX::XMVectorSet(LightDir.X, LightDir.Y, LightDir.Z, 0.0f));
@@ -131,13 +125,6 @@ void FShadowMapPass::CalculateDirectionalMatrices(const FVector& LightDir, const
     DirectX::XMVECTOR sceneCenterVec = DirectX::XMVectorSet(SceneCenter.X, SceneCenter.Y, SceneCenter.Z, 1.0f);
     DirectX::XMVECTOR lightPosVec = DirectX::XMVectorSubtract(sceneCenterVec, 
         DirectX::XMVectorScale(lightDirVec, SceneRadius * 2.0f));
-    
-    // Log light position
-    float lightPosX = DirectX::XMVectorGetX(lightPosVec);
-    float lightPosY = DirectX::XMVectorGetY(lightPosVec);
-    float lightPosZ = DirectX::XMVectorGetZ(lightPosVec);
-    FLog::Log(ELogLevel::Info, "Light position: (" + std::to_string(lightPosX) + ", " + 
-              std::to_string(lightPosY) + ", " + std::to_string(lightPosZ) + ")");
     
     // Calculate up vector (avoid parallel to light direction)
     DirectX::XMVECTOR upVec = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -157,13 +144,6 @@ void FShadowMapPass::CalculateDirectionalMatrices(const FVector& LightDir, const
     
     // Combine view and projection
     ViewProjectionMatrices[0] = DirectX::XMMatrixMultiply(viewMatrix, projMatrix);
-    
-    // Log the resulting matrix (first row to verify it's different from identity/camera)
-    FLog::Log(ELogLevel::Info, "Light ViewProj[0] row 0: [" + 
-              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[0]) + ", " +
-              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[1]) + ", " +
-              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[2]) + ", " +
-              std::to_string(ViewProjectionMatrices[0].r[0].m128_f32[3]) + "]");
 }
 
 void FShadowMapPass::CalculatePointLightMatrices(const FVector& LightPos, float Radius)
@@ -437,29 +417,12 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     FRHIPipelineState* shadowPSO = DirectionalShadowPass.GetShadowPSO();
     FRHIBuffer* shadowMVPBuffer = DirectionalShadowPass.GetShadowConstantBuffer();
     
-    if (!shadowTexture)
+    if (!shadowTexture || !shadowPSO || !Scene)
     {
-        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Shadow texture is null!");
-        return;
-    }
-    if (!shadowPSO)
-    {
-        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Shadow PSO is null!");
-        return;
-    }
-    if (!shadowMVPBuffer)
-    {
-        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Shadow MVP buffer is null!");
-        return;
-    }
-    if (!Scene)
-    {
-        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Scene is null!");
         return;
     }
     
     const auto& proxies = Scene->GetProxies();
-    FLog::Log(ELogLevel::Info, "RenderDirectionalShadowPass: Starting with " + std::to_string(proxies.size()) + " proxies");
     
     // Begin shadow pass - sets depth-only render target and clears depth buffer
     RHICmdList->BeginShadowPass(shadowTexture, 0);
@@ -472,37 +435,22 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     RHICmdList->SetPipelineState(shadowPSO);
     
     // Get light view-projection matrix (calculated from light direction)
-    // This should be DIFFERENT from the camera's view-projection matrix
     FMatrix4x4 lightVP = DirectionalShadowPass.GetViewProjectionMatrix();
     
-    // Log the light VP matrix diagonal for debugging
-    FLog::Log(ELogLevel::Info, "Light VP matrix diagonal: [" + 
-              std::to_string(lightVP.Matrix.r[0].m128_f32[0]) + ", " +
-              std::to_string(lightVP.Matrix.r[1].m128_f32[1]) + ", " +
-              std::to_string(lightVP.Matrix.r[2].m128_f32[2]) + ", " +
-              std::to_string(lightVP.Matrix.r[3].m128_f32[3]) + "]");
-    
     // Render each proxy with shadow pass (only if it casts shadows)
-    // IMPORTANT: Pass shadowMVPBuffer to avoid GPU race condition with main pass
-    // The main pass will later overwrite each proxy's MVPConstantBuffer with camera matrix,
-    // but the GPU needs to read the light matrix for shadow pass rendering first.
-    // Using a separate buffer ensures the shadow MVP is preserved until GPU reads it.
-    uint32 shadowCasters = 0;
+    // Note: Each proxy uses its own MVPConstantBuffer. Caller must flush after
+    // shadow pass to ensure GPU reads shadow data before main pass overwrites it.
     for (FSceneProxy* proxy : proxies)
     {
         if (proxy && proxy->GetCastShadow())
         {
-            // RenderShadow uses Model * LightViewProj (NOT camera's viewproj)
             proxy->RenderShadow(RHICmdList, lightVP, shadowMVPBuffer);
             ShadowDrawCallCount++;
-            shadowCasters++;
         }
     }
     
     // End shadow pass - restores main render target
     RHICmdList->EndShadowPass();
-    
-    FLog::Log(ELogLevel::Info, "Directional shadow pass complete - " + std::to_string(shadowCasters) + "/" + std::to_string(proxies.size()) + " shadow casters");
 }
 
 void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRenderScene* Scene, uint32 LightIndex)
@@ -513,9 +461,7 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     FRHITexture* shadowTexture = shadowPass.GetShadowTexture();
     FRHIPipelineState* shadowPSO = shadowPass.GetShadowPSO();
     FRHIBuffer* shadowMVPBuffer = shadowPass.GetShadowConstantBuffer();
-    if (!shadowTexture || !shadowPSO || !shadowMVPBuffer) return;
-    
-    FLog::Log(ELogLevel::Info, "Rendering point light " + std::to_string(LightIndex) + " shadow pass");
+    if (!shadowTexture || !shadowPSO) return;
     
     uint32 faceSize = shadowPass.GetMapSize();
     const auto& proxies = Scene->GetProxies();
@@ -526,7 +472,6 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     
     // Begin shadow pass for the atlas texture
     // NOTE: BeginShadowPass clears the entire depth buffer once (this is correct)
-    // We should NOT call ClearDepthOnly per-face since ClearDepthStencilView clears the whole DSV
     RHICmdList->BeginShadowPass(shadowTexture, 0);
     
     // Set shadow PSO once for all faces
@@ -542,23 +487,16 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
         float y = static_cast<float>(row * faceSize);
         
         // Set viewport to face region
-        // NOTE: The viewport clips rendering to this region only
-        // The depth buffer was already cleared once in BeginShadowPass
         RHICmdList->SetViewport(x, y, static_cast<float>(faceSize), static_cast<float>(faceSize));
         
         // Get face view-projection matrix
         FMatrix4x4 faceVP = shadowPass.GetViewProjectionMatrix(face);
         
-        FLog::Log(ELogLevel::Info, "Rendering point light face " + std::to_string(face) + 
-                  " at viewport (" + std::to_string(x) + ", " + std::to_string(y) + ")");
-        
         // Render each proxy (only if it casts shadows)
-        // Pass shadowMVPBuffer to avoid GPU race condition with main pass
         for (FSceneProxy* proxy : proxies)
         {
             if (proxy && proxy->GetCastShadow())
             {
-                // Use the shadow-specific render method with dedicated MVP buffer
                 proxy->RenderShadow(RHICmdList, faceVP, shadowMVPBuffer);
                 ShadowDrawCallCount++;
             }
@@ -567,6 +505,4 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     
     // End shadow pass
     RHICmdList->EndShadowPass();
-    
-    FLog::Log(ELogLevel::Info, "Point light " + std::to_string(LightIndex) + " shadow pass complete");
 }

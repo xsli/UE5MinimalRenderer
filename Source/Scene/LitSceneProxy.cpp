@@ -185,17 +185,12 @@ void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
 
 void FPrimitiveSceneProxy::RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj, FRHIBuffer* ShadowMVPBuffer)
 {
-    // Use provided ShadowMVPBuffer if available, otherwise fall back to proxy's buffer
-    // IMPORTANT: Using a separate buffer for shadow pass avoids GPU race condition
-    // where the main pass would overwrite the buffer before GPU reads it for shadow rendering
-    FRHIBuffer* mvpBuffer = ShadowMVPBuffer ? ShadowMVPBuffer : MVPConstantBuffer;
-    
-    // Log the incoming LightViewProj matrix (first row) to verify it's the light's matrix
-    FLog::Log(ELogLevel::Info, "RenderShadow: LightViewProj row 0: [" + 
-              std::to_string(LightViewProj.Matrix.r[0].m128_f32[0]) + ", " +
-              std::to_string(LightViewProj.Matrix.r[0].m128_f32[1]) + ", " +
-              std::to_string(LightViewProj.Matrix.r[0].m128_f32[2]) + ", " +
-              std::to_string(LightViewProj.Matrix.r[0].m128_f32[3]) + "]");
+    // IMPORTANT: Always use the proxy's own MVPConstantBuffer for shadow rendering.
+    // Using a shared buffer would cause all proxies to overwrite each other's data,
+    // resulting in only the last proxy's matrix being visible to the GPU.
+    // The caller is responsible for flushing commands after shadow pass so that
+    // GPU reads this data before main pass overwrites the buffer.
+    (void)ShadowMVPBuffer;  // Unused - kept for API compatibility
     
     // Calculate shadow MVP matrix: Model * LightViewProj
     FMatrix4x4 shadowMVP = ModelMatrix * LightViewProj;
@@ -203,21 +198,14 @@ void FPrimitiveSceneProxy::RenderShadow(FRHICommandList* RHICmdList, const FMatr
     // Transpose for HLSL (column-major)
     FMatrix4x4 shadowMVPTransposed = shadowMVP.Transpose();
     
-    // Log the final matrix being uploaded
-    FLog::Log(ELogLevel::Info, "RenderShadow: Final MVP (transposed) row 0: [" + 
-              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[0]) + ", " +
-              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[1]) + ", " +
-              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[2]) + ", " +
-              std::to_string(shadowMVPTransposed.Matrix.r[0].m128_f32[3]) + "]");
-    
     // Update MVP constant buffer with shadow matrix
-    void* mvpData = mvpBuffer->Map();
+    void* mvpData = MVPConstantBuffer->Map();
     memcpy(mvpData, &shadowMVPTransposed.Matrix, sizeof(DirectX::XMMATRIX));
-    mvpBuffer->Unmap();
+    MVPConstantBuffer->Unmap();
     
     // Set render state and draw (PSO should be shadow/depth-only PSO)
     // Note: Pipeline state is already set by the shadow pass
-    RHICmdList->SetConstantBuffer(mvpBuffer, 0);      // b0 = MVP
+    RHICmdList->SetConstantBuffer(MVPConstantBuffer, 0);      // b0 = MVP
     RHICmdList->SetVertexBuffer(VertexBuffer, 0, sizeof(FLitVertex));
     RHICmdList->SetIndexBuffer(IndexBuffer);
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
