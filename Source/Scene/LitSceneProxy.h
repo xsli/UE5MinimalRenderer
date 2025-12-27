@@ -69,7 +69,8 @@ public:
     virtual void Render(FRHICommandList* RHICmdList) override;
     
     // Shadow pass rendering - renders depth-only with light's view-projection
-    virtual void RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj) override;
+    // @param ShadowMVPBuffer - Separate buffer for shadow MVP to avoid GPU race condition
+    virtual void RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj, FRHIBuffer* ShadowMVPBuffer = nullptr) override;
     
     // Get triangle count (override from FSceneProxy)
     virtual uint32 GetTriangleCount() const override;

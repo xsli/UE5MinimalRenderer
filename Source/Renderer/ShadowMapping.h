@@ -161,6 +161,9 @@ public:
     
     // Get shadow pass pipeline state
     FRHIPipelineState* GetShadowPSO() const { return ShadowPSO; }
+    
+    // Get shadow MVP constant buffer (for shadow pass rendering)
+    FRHIBuffer* GetShadowConstantBuffer() const { return ShadowConstantBuffer; }
 
 private:
     void CalculateDirectionalMatrices(const FVector& LightDir, const FVector& SceneCenter, float SceneRadius);

@@ -435,6 +435,7 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
 {
     FRHITexture* shadowTexture = DirectionalShadowPass.GetShadowTexture();
     FRHIPipelineState* shadowPSO = DirectionalShadowPass.GetShadowPSO();
+    FRHIBuffer* shadowMVPBuffer = DirectionalShadowPass.GetShadowConstantBuffer();
     
     if (!shadowTexture)
     {
@@ -444,6 +445,11 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     if (!shadowPSO)
     {
         FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Shadow PSO is null!");
+        return;
+    }
+    if (!shadowMVPBuffer)
+    {
+        FLog::Log(ELogLevel::Error, "RenderDirectionalShadowPass: Shadow MVP buffer is null!");
         return;
     }
     if (!Scene)
@@ -477,13 +483,17 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
               std::to_string(lightVP.Matrix.r[3].m128_f32[3]) + "]");
     
     // Render each proxy with shadow pass (only if it casts shadows)
+    // IMPORTANT: Pass shadowMVPBuffer to avoid GPU race condition with main pass
+    // The main pass will later overwrite each proxy's MVPConstantBuffer with camera matrix,
+    // but the GPU needs to read the light matrix for shadow pass rendering first.
+    // Using a separate buffer ensures the shadow MVP is preserved until GPU reads it.
     uint32 shadowCasters = 0;
     for (FSceneProxy* proxy : proxies)
     {
         if (proxy && proxy->GetCastShadow())
         {
             // RenderShadow uses Model * LightViewProj (NOT camera's viewproj)
-            proxy->RenderShadow(RHICmdList, lightVP);
+            proxy->RenderShadow(RHICmdList, lightVP, shadowMVPBuffer);
             ShadowDrawCallCount++;
             shadowCasters++;
         }
@@ -502,7 +512,8 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
     FShadowMapPass& shadowPass = PointLightShadowPasses[LightIndex];
     FRHITexture* shadowTexture = shadowPass.GetShadowTexture();
     FRHIPipelineState* shadowPSO = shadowPass.GetShadowPSO();
-    if (!shadowTexture || !shadowPSO) return;
+    FRHIBuffer* shadowMVPBuffer = shadowPass.GetShadowConstantBuffer();
+    if (!shadowTexture || !shadowPSO || !shadowMVPBuffer) return;
     
     FLog::Log(ELogLevel::Info, "Rendering point light " + std::to_string(LightIndex) + " shadow pass");
     
@@ -542,12 +553,13 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
                   " at viewport (" + std::to_string(x) + ", " + std::to_string(y) + ")");
         
         // Render each proxy (only if it casts shadows)
+        // Pass shadowMVPBuffer to avoid GPU race condition with main pass
         for (FSceneProxy* proxy : proxies)
         {
             if (proxy && proxy->GetCastShadow())
             {
-                // Use the shadow-specific render method
-                proxy->RenderShadow(RHICmdList, faceVP);
+                // Use the shadow-specific render method with dedicated MVP buffer
+                proxy->RenderShadow(RHICmdList, faceVP, shadowMVPBuffer);
                 ShadowDrawCallCount++;
             }
         }

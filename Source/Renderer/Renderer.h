@@ -29,7 +29,10 @@ public:
     
     // Shadow pass rendering - renders with light's view-projection matrix
     // Default implementation does nothing - override for shadow-casting objects
-    virtual void RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj) {}
+    // @param RHICmdList - Command list to record draw commands
+    // @param LightViewProj - Light's view-projection matrix
+    // @param ShadowMVPBuffer - Optional separate constant buffer for shadow MVP (avoids GPU race with main pass)
+    virtual void RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj, FRHIBuffer* ShadowMVPBuffer = nullptr) {}
     
     // Update transform - default implementation does nothing
     // Derived classes should override this to handle transform updates
