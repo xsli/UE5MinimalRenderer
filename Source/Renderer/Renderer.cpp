@@ -207,12 +207,12 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
     
     // Position from top-right (assuming 1280 width, leaving margin)
     const float rightMargin = 10.0f;
-    const float startX = 1280.0f - 200.0f - rightMargin;  // Right-aligned with 200px width
-    float yPos = 10.0f;
+    const float startX = 1280.0f - 120.0f - rightMargin;  // Right-aligned with 200px width
+    float yPos = 100.0f;
     
     // Header
-    RHICmdList->RHIDrawText("stat unit", FVector2D(startX, yPos), fontSize, headerColor);
-    yPos += lineHeight;
+//     RHICmdList->RHIDrawText("stat unit", FVector2D(startX, yPos), fontSize, headerColor);
+//     yPos += lineHeight;
     
     // Frame number
     char buffer[128];
@@ -244,6 +244,6 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
     yPos += lineHeight;
     
     // Triangle count
-    snprintf(buffer, sizeof(buffer), "Triangles: %u", Stats.GetTriangleCount());
+    snprintf(buffer, sizeof(buffer), "Primitives: %u", Stats.GetTriangleCount());
     RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
 }
