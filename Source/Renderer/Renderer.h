@@ -87,6 +87,7 @@ public:
     
     // Get statistics
     const FRenderStats& GetStats() const { return Stats; }
+    FRenderStats& GetStats() { return Stats; }
     
     // Get camera
     FCamera* GetCamera() { return Camera.get(); }

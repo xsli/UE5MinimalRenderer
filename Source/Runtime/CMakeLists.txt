@@ -8,6 +8,7 @@ target_link_libraries(UE5MinimalRenderer PRIVATE
     RHI_DX12
     RHI
     Core
+    TaskGraph
 )
 
 # Set as startup project

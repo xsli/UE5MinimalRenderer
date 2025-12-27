@@ -11,6 +11,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.0] - Multi-Threading Architecture
+
+### Added
+- **TaskGraph System (TaskGraph/)**
+  - `FTaskGraph` class - Worker thread pool for parallel task execution
+  - `FTask` base class - Executable task with completion event
+  - `FLambdaTask` - Lambda-based task for quick task creation
+  - `FTaskEvent` - Synchronization primitive for task completion
+  - Auto-detection of hardware thread count
+
+- **Named Thread Management**
+  - `FThreadManager` class - Manages named threads (Game, Render, RHI)
+  - `ENamedThreads` enum - Thread type identification
+  - Thread registration and validation macros
+
+- **Render Command System**
+  - `FRenderCommandQueue` - Thread-safe queue for render commands
+  - `FRenderCommandBase` - Base class for render commands
+  - `FLambdaRenderCommand` - Lambda-based render command
+  - `ENQUEUE_RENDER_COMMAND` macro - UE5-style command enqueuing
+
+- **Render Thread**
+  - `FRenderThread` class - Dedicated render thread management
+  - Command processing loop
+  - Frame-based synchronization
+
+- **RHI Thread**
+  - `FRHIThread` class - Dedicated RHI/GPU command thread
+  - Work queue for RHI operations
+  - Separate GPU submission
+
+- **Frame Synchronization**
+  - `FFrameSyncManager` class - Game/Render/RHI synchronization
+  - 1-frame lead support (Game can be 1 frame ahead of Render)
+  - `FRenderFence` - Fence for synchronization between threads
+
+### Changed
+- `FGame` class now supports both single-threaded and multi-threaded modes
+- Added `TickSingleThreaded()` and `TickMultiThreaded()` methods
+- Multi-threading is enabled by default
+- Updated layer architecture to include TaskGraph module
+
+### Technical Details
+- Game thread can lead render thread by up to 1 frame
+- Condition variable-based synchronization for frame boundaries
+- Worker thread pool reserves threads for named threads
+- Thread-safe command queue with producer-consumer pattern
+
+---
+
 ## [0.5.0] - Scene Management System
 
 ### Added
@@ -181,6 +231,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 | Version | Release | Key Features |
 |---------|---------|--------------|
+| 0.6.0 | Multi-Threading | TaskGraph, FRenderThread, FRHIThread, 1-frame lead sync |
 | 0.5.0 | Scene Management | FScene, FPrimitive, multiple primitive types |
 | 0.4.0 | Camera Controls | UE5-style mouse controls, camera orientation |
 | 0.3.0 | 3D Rendering | DirectXMath, camera system, depth buffer, cube |

@@ -134,6 +134,9 @@ void FRenderer::RenderFrame()
     
     FRHICommandList* RHICmdList = RHI->GetCommandList();
     
+    // Begin RHI timing (tracks GPU command submission time)
+    Stats.BeginRHIThreadTiming();
+    
     // Begin rendering
     RHICmdList->BeginFrame();
     
@@ -158,6 +161,9 @@ void FRenderer::RenderFrame()
     
     // Present
     RHICmdList->Present();
+    
+    // End RHI timing
+    Stats.EndRHIThreadTiming();
     
     // End stats tracking
     Stats.EndFrame();
@@ -193,30 +199,51 @@ void FRenderer::RemoveSceneProxy(FSceneProxy* Proxy)
 
 void FRenderer::RenderStats(FRHICommandList* RHICmdList)
 {
-    // Draw statistics overlay
-    float yPos = 10.0f;
-    const float fontSize = 18.0f;
-    const float lineHeight = 25.0f;
-    const FColor textColor(1.0f, 1.0f, 0.0f, 1.0f);  // Yellow
+    // UE5-style stat display: green text, top-right corner, monospace-style font
+    const float fontSize = 14.0f;
+    const float lineHeight = 18.0f;
+    const FColor statColor(0.0f, 1.0f, 0.0f, 1.0f);  // Green (UE5 stat style)
+    const FColor headerColor(0.3f, 1.0f, 0.3f, 1.0f);  // Lighter green for headers
     
-    // Frame count
-    std::string frameCountText = "Frame: " + std::to_string(Stats.GetFrameCount());
-    RHICmdList->RHIDrawText(frameCountText, FVector2D(10.0f, yPos), fontSize, textColor);
+    // Position from top-right (assuming 1280 width, leaving margin)
+    const float rightMargin = 10.0f;
+    const float startX = 1280.0f - 120.0f - rightMargin;  // Right-aligned with 200px width
+    float yPos = 100.0f;
+    
+    // Header
+//     RHICmdList->RHIDrawText("stat unit", FVector2D(startX, yPos), fontSize, headerColor);
+//     yPos += lineHeight;
+    
+    // Frame number
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "Frame: %llu", Stats.GetFrameCount());
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
     yPos += lineHeight;
     
     // FPS
-    char fpsBuffer[64];
-    snprintf(fpsBuffer, sizeof(fpsBuffer), "FPS: %.1f", Stats.GetFPS());
-    RHICmdList->RHIDrawText(std::string(fpsBuffer), FVector2D(10.0f, yPos), fontSize, textColor);
+    snprintf(buffer, sizeof(buffer), "FPS: %.1f", Stats.GetFPS());
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
     yPos += lineHeight;
     
     // Frame time
-    char frameTimeBuffer[64];
-    snprintf(frameTimeBuffer, sizeof(frameTimeBuffer), "Frame Time: %.2f ms", Stats.GetFrameTime());
-    RHICmdList->RHIDrawText(std::string(frameTimeBuffer), FVector2D(10.0f, yPos), fontSize, textColor);
+    snprintf(buffer, sizeof(buffer), "Frame: %.2f ms", Stats.GetFrameTime());
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+    yPos += lineHeight;
+    
+    // Thread times - UE5 style "Thread: X.XX ms"
+    snprintf(buffer, sizeof(buffer), "Game: %.2f ms", Stats.GetGameThreadTime());
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+    yPos += lineHeight;
+    
+    snprintf(buffer, sizeof(buffer), "Draw: %.2f ms", Stats.GetRenderThreadTime());
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+    yPos += lineHeight;
+    
+    snprintf(buffer, sizeof(buffer), "RHI: %.2f ms", Stats.GetRHIThreadTime());
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
     yPos += lineHeight;
     
     // Triangle count
-    std::string triangleCountText = "Triangles: " + std::to_string(Stats.GetTriangleCount());
-    RHICmdList->RHIDrawText(triangleCountText, FVector2D(10.0f, yPos), fontSize, textColor);
+    snprintf(buffer, sizeof(buffer), "Primitives: %u", Stats.GetTriangleCount());
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
 }

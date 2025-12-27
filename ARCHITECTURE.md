@@ -15,6 +15,7 @@ This project implements a minimal version of Unreal Engine 5's parallel renderin
 7. [DirectX 12 Implementation](#directx-12-specifics)
 8. [Text Rendering System](#text-rendering-system)
 9. [UE5 Comparison](#ue5-parallel-rendering-comparison)
+10. [Multi-Threading Architecture](#multi-threading-architecture)
 
 ---
 
@@ -52,7 +53,7 @@ This project implements a minimal version of Unreal Engine 5's parallel renderin
 │  • FPrimitiveSceneProxy: Unified render representation           │
 │  • FCamera: 3D camera with view/projection matrices              │
 │  • FRenderStats: Performance tracking                            │
-│  • Simulates render thread (UE5 uses separate thread)            │
+│  • Runs on separate render thread (multi-threaded mode)          │
 └───────────────────────────┬─────────────────────────────────────┘
                             │ RHI abstraction
                             ▼
@@ -93,6 +94,10 @@ This project implements a minimal version of Unreal Engine 5's parallel renderin
 Runtime
   └── Game
        ├── Scene (FScene, FPrimitive)
+       ├── TaskGraph
+       │    ├── FTaskGraph (worker thread pool)
+       │    ├── FRenderThread, FRHIThread
+       │    └── FRenderCommandQueue
        └── Renderer
             ├── Camera
             ├── RenderStats
@@ -419,12 +424,133 @@ class FRenderStats {
 
 | Feature | UE5 | This Demo |
 |---------|-----|-----------|
-| Render Thread | Separate thread | Simulated (same thread) |
-| Command Buffering | Multi-frame | Single frame |
+| Render Thread | Separate thread | Separate thread (multi-threaded mode) |
+| RHI Thread | Separate thread | Separate thread (multi-threaded mode) |
+| Command Buffering | Multi-frame | Single frame with 1-frame lead |
+| Task Graph | Complex FTaskGraph | Simplified FTaskGraph |
 | Scene Representation | Complex proxy system | Simple proxy |
 | RHI Abstraction | Full multi-platform | DX12 only (but extensible) |
 | Resource Streaming | Async streaming | Immediate creation |
 | Shader System | Material system | Hardcoded HLSL |
+
+---
+
+## Multi-Threading Architecture
+
+The project implements a true multi-threaded rendering model inspired by UE5's parallel rendering architecture.
+
+### Thread Types
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           GAME THREAD                                    │
+│  • Window message processing                                             │
+│  • Input handling                                                        │
+│  • Game logic updates (FPrimitive::Tick)                                 │
+│  • Scene synchronization                                                 │
+│  • Enqueues render commands via ENQUEUE_RENDER_COMMAND                   │
+│  • Can lead render thread by up to 1 frame                               │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ FRenderCommandQueue
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          RENDER THREAD                                   │
+│  • Processes render commands from queue                                  │
+│  • Updates scene proxies                                                 │
+│  • Executes FRenderer::RenderFrame()                                     │
+│  • Records RHI commands                                                  │
+│  • Manages render scene state                                            │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ FRHIThread Work Queue
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            RHI THREAD                                    │
+│  • Translates RHI commands to GPU commands                               │
+│  • Manages command list submission                                       │
+│  • Handles GPU synchronization                                           │
+│  • Executes Present()                                                    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+#### TaskGraph System (TaskGraph/)
+
+```cpp
+// FTaskGraph - Worker thread pool for parallel tasks
+FTaskGraph::Get().CreateTask([]() { /* work */ });
+
+// FTaskEvent - Synchronization primitive
+FTaskEvent* Event = task->GetEvent();
+Event->Wait();  // Block until complete
+Event->IsComplete();  // Non-blocking check
+
+// FThreadManager - Named thread management
+FThreadManager::Get().SetCurrentThread(ENamedThreads::GameThread);
+FThreadManager::Get().IsCurrentThread(ENamedThreads::RenderThread);
+```
+
+#### Render Command System
+
+```cpp
+// Enqueue a render command from game thread
+ENQUEUE_RENDER_COMMAND(MyCommand)([=]() {
+    // This code runs on the render thread
+    Renderer->DoSomething();
+});
+
+// FRenderFence - Synchronization between threads
+FRenderFence Fence;
+Fence.BeginFence();  // Start fence
+// ... do work ...
+Fence.Wait();        // Block until render completes
+```
+
+#### Frame Synchronization
+
+```cpp
+// Game thread can lead render by 1 frame
+// This allows game to start frame N+1 while render processes frame N
+
+// Game Thread                    Render Thread
+// Frame N: Tick()                Frame N-1: RenderFrame()
+// Frame N: EndFrame() ---------> Signal frame ready
+//                                Frame N: RenderFrame()
+// Frame N+1: BeginFrame()  <---- Wait if too far ahead
+```
+
+### Threading Flow
+
+```
+Game Thread                    Render Thread                 RHI Thread
+─────────────────────────────────────────────────────────────────────────
+Frame N:
+  GameThread_BeginFrame()
+  Scene->Tick()
+  Renderer->UpdateFromScene()
+  ENQUEUE_RENDER_COMMAND() ───────> 
+  GameThread_EndFrame() ──────────> SignalFrameReady()
+                                   RenderThread_BeginFrame()
+                                   ProcessCommands()
+                                     └─> Renderer->RenderFrame()
+                                   RenderThread_EndFrame() ─────────> SignalFrameReady()
+                                                                      RHIThread_BeginFrame()
+                                                                      ProcessWork()
+                                                                      RHIThread_EndFrame()
+Frame N+1:
+  GameThread_BeginFrame() <──────── (may wait if 1 frame ahead)
+  ...
+```
+
+### Configuration
+
+Multi-threading can be enabled/disabled at runtime:
+
+```cpp
+FGame* game = ...;
+game->SetMultiThreaded(true);   // Enable multi-threading (default)
+game->SetMultiThreaded(false);  // Fall back to single-threaded mode
+```
 
 ---
 
@@ -436,24 +562,26 @@ To extend this renderer:
 2. **Add new primitives**: Create new FGameObject/FSceneProxy types
 3. **Add textures**: Extend RHI with texture support
 4. **Add transforms**: Add matrix support to shaders
-5. **Add multi-threading**: Move renderer to separate thread
-6. **Add async resource loading**: Stream resources on background thread
+5. **Add async resource loading**: Stream resources on background thread
+6. **Add parallel command recording**: Use TaskGraph for parallel command list recording
 
 ---
 
 ## Performance Considerations
 
 ### Current Implementation
-- Synchronous rendering (waits for GPU each frame)
+- Multi-threaded rendering with separate Game/Render/RHI threads
+- 1-frame latency for game to render synchronization
+- Worker thread pool for parallel tasks
+- Synchronous GPU waiting within RHI thread
 - No resource pooling
 - Immediate vertex buffer upload
-- Single-threaded
 
 ### Potential Optimizations
 - Triple buffering for less GPU waiting
 - Command allocator/list pooling
 - Separate upload thread for resources
-- Parallel command list recording
+- Parallel command list recording via TaskGraph
 - Culling & batching
 
 ---
