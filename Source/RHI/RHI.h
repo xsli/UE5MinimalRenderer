@@ -39,11 +39,30 @@ public:
     virtual void Unmap() = 0;
 };
 
+/**
+ * ERTFormat - Render texture format enumeration
+ * Maps to underlying graphics API formats
+ */
+enum class ERTFormat
+{
+    R8G8B8A8_UNORM,     // Standard color format
+    R16G16B16A16_FLOAT, // HDR color format
+    R32_FLOAT,          // Single channel float (used for shadow maps)
+    D32_FLOAT,          // 32-bit depth format (primary shadow format)
+    D16_UNORM,          // 16-bit depth format (compact shadow format)
+    D24_UNORM_S8_UINT,  // Depth-stencil format
+};
+
 // RHI Texture
 class FRHITexture : public FRHIResource 
 {
 public:
     virtual ~FRHITexture() = default;
+    
+    // Get texture dimensions
+    virtual uint32 GetWidth() const = 0;
+    virtual uint32 GetHeight() const = 0;
+    virtual uint32 GetArraySize() const = 0;
 };
 
 // Pipeline state
@@ -129,6 +148,9 @@ public:
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) = 0;
+    
+    // Texture creation for render targets and shadow maps
+    virtual FRHITexture* CreateDepthTexture(uint32 Width, uint32 Height, ERTFormat Format, uint32 ArraySize = 1) = 0;
     
     // Legacy pipeline state creation (unlit)
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) = 0;

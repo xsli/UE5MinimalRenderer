@@ -73,6 +73,65 @@ void FDX12Buffer::Unmap()
     Resource->Unmap(0, nullptr);
 }
 
+// FDX12Texture implementation
+FDX12Texture::FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
+                           uint32 InArraySize, DXGI_FORMAT InFormat,
+                           ID3D12DescriptorHeap* InDSVHeap, ID3D12DescriptorHeap* InSRVHeap)
+    : Resource(InResource)
+    , DSVHeap(InDSVHeap)
+    , SRVHeap(InSRVHeap)
+    , Width(InWidth)
+    , Height(InHeight)
+    , ArraySize(InArraySize)
+    , Format(InFormat)
+    , DSVDescriptorSize(0)
+    , SRVDescriptorSize(0)
+{
+    // Get descriptor sizes from device
+    ComPtr<ID3D12Device> device;
+    if (Resource)
+    {
+        Resource->GetDevice(IID_PPV_ARGS(&device));
+        if (device)
+        {
+            DSVDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+            SRVDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        }
+    }
+    
+    FLog::Log(ELogLevel::Info, "FDX12Texture created: " + std::to_string(Width) + "x" + std::to_string(Height) + 
+              " ArraySize=" + std::to_string(ArraySize));
+}
+
+FDX12Texture::~FDX12Texture()
+{
+    FLog::Log(ELogLevel::Info, "FDX12Texture destroyed");
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE FDX12Texture::GetDSVHandle(uint32 ArrayIndex) const
+{
+    if (!DSVHeap)
+    {
+        return {};
+    }
+    
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = DSVHeap->GetCPUDescriptorHandleForHeapStart();
+    if (ArrayIndex > 0 && ArrayIndex < ArraySize)
+    {
+        handle.ptr += ArrayIndex * DSVDescriptorSize;
+    }
+    return handle;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE FDX12Texture::GetSRVGPUHandle() const
+{
+    if (!SRVHeap)
+    {
+        return {};
+    }
+    return SRVHeap->GetGPUDescriptorHandleForHeapStart();
+}
+
 // FDX12PipelineState implementation
 FDX12PipelineState::FDX12PipelineState(ID3D12PipelineState* InPSO, ID3D12RootSignature* InRootSig)
     : PSO(InPSO), RootSignature(InRootSig)
@@ -768,6 +827,150 @@ FRHIBuffer* FDX12RHI::CreateConstantBuffer(uint32 Size)
     
     FLog::Log(ELogLevel::Info, "Constant buffer created successfully");
     return new FDX12Buffer(constantBuffer.Detach(), FDX12Buffer::EBufferType::Constant);
+}
+
+FRHITexture* FDX12RHI::CreateDepthTexture(uint32 InWidth, uint32 InHeight, ERTFormat Format, uint32 ArraySize)
+{
+    FLog::Log(ELogLevel::Info, "Creating depth texture: " + std::to_string(InWidth) + "x" + 
+              std::to_string(InHeight) + " ArraySize=" + std::to_string(ArraySize));
+    
+    // Map ERTFormat to DXGI_FORMAT
+    DXGI_FORMAT resourceFormat;
+    DXGI_FORMAT dsvFormat;
+    DXGI_FORMAT srvFormat;
+    
+    switch (Format)
+    {
+        case ERTFormat::D32_FLOAT:
+            resourceFormat = DXGI_FORMAT_R32_TYPELESS;  // Typeless for multi-use
+            dsvFormat = DXGI_FORMAT_D32_FLOAT;
+            srvFormat = DXGI_FORMAT_R32_FLOAT;
+            break;
+        case ERTFormat::D16_UNORM:
+            resourceFormat = DXGI_FORMAT_R16_TYPELESS;
+            dsvFormat = DXGI_FORMAT_D16_UNORM;
+            srvFormat = DXGI_FORMAT_R16_UNORM;
+            break;
+        case ERTFormat::D24_UNORM_S8_UINT:
+            resourceFormat = DXGI_FORMAT_R24G8_TYPELESS;
+            dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+            srvFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+            break;
+        case ERTFormat::R32_FLOAT:
+            resourceFormat = DXGI_FORMAT_R32_FLOAT;
+            dsvFormat = DXGI_FORMAT_D32_FLOAT;
+            srvFormat = DXGI_FORMAT_R32_FLOAT;
+            break;
+        default:
+            FLog::Log(ELogLevel::Error, "Unsupported depth format");
+            return nullptr;
+    }
+    
+    // Create texture resource
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+    
+    D3D12_RESOURCE_DESC texDesc = {};
+    texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    texDesc.Alignment = 0;
+    texDesc.Width = InWidth;
+    texDesc.Height = InHeight;
+    texDesc.DepthOrArraySize = static_cast<UINT16>(ArraySize);
+    texDesc.MipLevels = 1;
+    texDesc.Format = resourceFormat;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.SampleDesc.Quality = 0;
+    texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    
+    D3D12_CLEAR_VALUE clearValue = {};
+    clearValue.Format = dsvFormat;
+    clearValue.DepthStencil.Depth = 1.0f;
+    clearValue.DepthStencil.Stencil = 0;
+    
+    ComPtr<ID3D12Resource> texture;
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &texDesc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        &clearValue,
+        IID_PPV_ARGS(&texture)));
+    
+    // Create DSV descriptor heap (one DSV per array slice)
+    D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+    dsvHeapDesc.NumDescriptors = ArraySize;
+    dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+    dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    
+    ComPtr<ID3D12DescriptorHeap> dsvHeap;
+    ThrowIfFailed(Device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsvHeap)));
+    
+    uint32 dsvDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    
+    // Create DSVs for each array slice
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(dsvHeap->GetCPUDescriptorHandleForHeapStart());
+    for (uint32 i = 0; i < ArraySize; ++i)
+    {
+        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+        dsvDesc.Format = dsvFormat;
+        
+        if (ArraySize > 1)
+        {
+            dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
+            dsvDesc.Texture2DArray.MipSlice = 0;
+            dsvDesc.Texture2DArray.FirstArraySlice = i;
+            dsvDesc.Texture2DArray.ArraySize = 1;
+        }
+        else
+        {
+            dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+            dsvDesc.Texture2D.MipSlice = 0;
+        }
+        dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+        
+        Device->CreateDepthStencilView(texture.Get(), &dsvDesc, dsvHandle);
+        dsvHandle.Offset(1, dsvDescriptorSize);
+    }
+    
+    // Create SRV descriptor heap (for sampling in shaders)
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 1;  // Single SRV for entire texture/array
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    
+    ComPtr<ID3D12DescriptorHeap> srvHeap;
+    ThrowIfFailed(Device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap)));
+    
+    // Create SRV
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = srvFormat;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    
+    if (ArraySize > 1)
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+        srvDesc.Texture2DArray.MostDetailedMip = 0;
+        srvDesc.Texture2DArray.MipLevels = 1;
+        srvDesc.Texture2DArray.FirstArraySlice = 0;
+        srvDesc.Texture2DArray.ArraySize = ArraySize;
+        srvDesc.Texture2DArray.PlaneSlice = 0;
+        srvDesc.Texture2DArray.ResourceMinLODClamp = 0.0f;
+    }
+    else
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = 1;
+        srvDesc.Texture2D.PlaneSlice = 0;
+        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+    }
+    
+    Device->CreateShaderResourceView(texture.Get(), &srvDesc, srvHeap->GetCPUDescriptorHandleForHeapStart());
+    
+    FLog::Log(ELogLevel::Info, "Depth texture created successfully");
+    
+    return new FDX12Texture(texture.Detach(), InWidth, InHeight, ArraySize, dsvFormat, 
+                            dsvHeap.Detach(), srvHeap.Detach());
 }
 
 FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)

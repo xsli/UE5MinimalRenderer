@@ -29,6 +29,10 @@ add_executable(UE5MinimalRenderer WIN32
     ../Renderer/RenderStats.h
     ../Renderer/Camera.cpp
     ../Renderer/Camera.h
+    ../Renderer/RTPool.cpp
+    ../Renderer/RTPool.h
+    ../Renderer/ShadowMapping.cpp
+    ../Renderer/ShadowMapping.h
     
     # Lighting
     ../Lighting/Light.cpp
@@ -84,7 +88,9 @@ source_group("RHI_DX12" FILES ../RHI_DX12/DX12RHI.cpp ../RHI_DX12/DX12RHI.h)
 source_group("Renderer" FILES 
     ../Renderer/Renderer.cpp ../Renderer/Renderer.h
     ../Renderer/RenderStats.cpp ../Renderer/RenderStats.h
-    ../Renderer/Camera.cpp ../Renderer/Camera.h)
+    ../Renderer/Camera.cpp ../Renderer/Camera.h
+    ../Renderer/RTPool.cpp ../Renderer/RTPool.h
+    ../Renderer/ShadowMapping.cpp ../Renderer/ShadowMapping.h)
 source_group("Lighting" FILES 
     ../Lighting/Light.cpp ../Lighting/Light.h
     ../Lighting/LightingConstants.h

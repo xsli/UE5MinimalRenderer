@@ -86,6 +86,8 @@ void FCubeMeshProxy::UpdateModelMatrix(const FMatrix4x4& InModelMatrix)
 // FRenderer implementation
 FRenderer::FRenderer(FRHI* InRHI)
     : RHI(InRHI)
+    , DrawCallCount(0)
+    , CurrentScene(nullptr)
 {
 }
 
@@ -104,16 +106,41 @@ void FRenderer::Initialize()
     // Create render scene
     RenderScene = std::make_unique<FRenderScene>();
     
-    FLog::Log(ELogLevel::Info, "Renderer initialized");
+    // Initialize RT pool
+    RTPool = std::make_unique<FRTPool>(RHI);
+    FRTPool::Initialize(RHI);  // Also set as global singleton
+    
+    // Initialize shadow system
+    ShadowSystem = std::make_unique<FShadowSystem>();
+    ShadowSystem->Initialize(RHI);
+    
+    FLog::Log(ELogLevel::Info, "Renderer initialized with RT pool and shadow system");
 }
 
 void FRenderer::Shutdown()
 {
+    // Shutdown shadow system
+    if (ShadowSystem)
+    {
+        ShadowSystem->Shutdown();
+        ShadowSystem.reset();
+    }
+    
+    // Shutdown RT pool
+    if (RTPool)
+    {
+        RTPool->ClearAll();
+        RTPool.reset();
+    }
+    FRTPool::Shutdown();
+    
     if (RenderScene)
     {
         RenderScene->ClearProxies();
         RenderScene.reset();
     }
+    
+    CurrentScene = nullptr;
     
     FLog::Log(ELogLevel::Info, "Renderer shutdown");
 }
@@ -131,6 +158,15 @@ void FRenderer::RenderFrame()
     // Begin stats tracking for this frame
     Stats.BeginFrame();
     
+    // Reset draw call count
+    DrawCallCount = 0;
+    
+    // Begin RT pool frame
+    if (RTPool)
+    {
+        RTPool->BeginFrame(Stats.GetFrameCount());
+    }
+    
     // This simulates UE5's parallel rendering architecture
     // In real UE5, this would kick off a render thread task
     
@@ -138,6 +174,18 @@ void FRenderer::RenderFrame()
     
     // Begin RHI timing (tracks GPU command submission time)
     Stats.BeginRHIThreadTiming();
+    
+    // Update shadow system with current scene
+    if (ShadowSystem && CurrentScene)
+    {
+        FVector sceneCenter(0.0f, 0.0f, 0.0f);
+        float sceneRadius = 20.0f;  // Approximate scene bounds
+        ShadowSystem->Update(CurrentScene->GetLightScene(), sceneCenter, sceneRadius);
+        
+        // Render shadow passes (before main scene)
+        // ShadowSystem->RenderShadowPasses(RHICmdList, RenderScene.get());
+        DrawCallCount += ShadowSystem->GetShadowDrawCallCount();
+    }
     
     // Begin rendering
     RHICmdList->BeginFrame();
@@ -150,6 +198,7 @@ void FRenderer::RenderFrame()
     if (RenderScene)
     {
         RenderScene->Render(RHICmdList, Stats);
+        DrawCallCount += static_cast<uint32>(RenderScene->GetProxies().size());
     }
 
 	// === CRITICAL: Flush 3D commands before 2D rendering ===
@@ -167,12 +216,21 @@ void FRenderer::RenderFrame()
     // End RHI timing
     Stats.EndRHIThreadTiming();
     
+    // End RT pool frame
+    if (RTPool)
+    {
+        RTPool->EndFrame();
+    }
+    
     // End stats tracking
     Stats.EndFrame();
 }
 
 void FRenderer::UpdateFromScene(FScene* GameScene)
 {
+    // Store scene reference for shadow system
+    CurrentScene = GameScene;
+    
     // This is the sync point between game and render thread
     // In real UE5, this would be more sophisticated with command queues
     if (GameScene && RenderScene)
@@ -209,12 +267,8 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
     
     // Position from top-right (assuming 1280 width, leaving margin)
     const float rightMargin = 10.0f;
-    const float startX = 1280.0f - 120.0f - rightMargin;  // Right-aligned with 200px width
+    const float startX = 1280.0f - 150.0f - rightMargin;  // Right-aligned with wider space
     float yPos = 100.0f;
-    
-    // Header
-//     RHICmdList->RHIDrawText("stat unit", FVector2D(startX, yPos), fontSize, headerColor);
-//     yPos += lineHeight;
     
     // Frame number
     char buffer[128];
@@ -246,6 +300,37 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
     yPos += lineHeight;
     
     // Triangle count
-    snprintf(buffer, sizeof(buffer), "Primitives: %u", Stats.GetTriangleCount());
+    snprintf(buffer, sizeof(buffer), "Tris: %u", Stats.GetTriangleCount());
     RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+    yPos += lineHeight;
+    
+    // Draw call count
+    snprintf(buffer, sizeof(buffer), "DrawCalls: %u", DrawCallCount);
+    RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+    yPos += lineHeight;
+    
+    // RT Pool statistics
+    if (RTPool)
+    {
+        const FRTPoolStats& poolStats = RTPool->GetStats();
+        snprintf(buffer, sizeof(buffer), "RT Pool: %u/%u", poolStats.ActiveRTs, poolStats.TotalPooledRTs);
+        RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+    }
+}
+
+const FRTPoolStats* FRenderer::GetRTPoolStats() const
+{
+    if (RTPool)
+    {
+        return &RTPool->GetStats();
+    }
+    return nullptr;
+}
+
+void FRenderer::RenderShadowPasses(FRHICommandList* RHICmdList)
+{
+    if (ShadowSystem && RenderScene)
+    {
+        ShadowSystem->RenderShadowPasses(RHICmdList, RenderScene.get());
+    }
 }

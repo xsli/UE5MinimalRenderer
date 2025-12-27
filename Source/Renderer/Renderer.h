@@ -3,6 +3,8 @@
 #include "../RHI/RHI.h"
 #include "RenderStats.h"
 #include "Camera.h"
+#include "RTPool.h"
+#include "ShadowMapping.h"
 #include <memory>
 
 // Render commands that can be enqueued from game thread
@@ -99,11 +101,27 @@ public:
     // Get camera
     FCamera* GetCamera() { return Camera.get(); }
     
+    // Get shadow system
+    FShadowSystem* GetShadowSystem() { return ShadowSystem.get(); }
+    
+    // Get RT pool statistics
+    const FRTPoolStats* GetRTPoolStats() const;
+    uint32 GetDrawCallCount() const { return DrawCallCount; }
+    
 private:
     void RenderStats(FRHICommandList* RHICmdList);
+    void RenderShadowPasses(FRHICommandList* RHICmdList);
     
     FRHI* RHI;
     std::unique_ptr<FRenderScene> RenderScene;
     FRenderStats Stats;
     std::unique_ptr<FCamera> Camera;
+    std::unique_ptr<FRTPool> RTPool;
+    std::unique_ptr<FShadowSystem> ShadowSystem;
+    
+    // Per-frame tracking
+    uint32 DrawCallCount;
+    
+    // Scene reference for shadow pass updates
+    FScene* CurrentScene;
 };

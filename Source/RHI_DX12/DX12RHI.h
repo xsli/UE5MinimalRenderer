@@ -40,6 +40,49 @@ private:
     D3D12_INDEX_BUFFER_VIEW IndexBufferView;
 };
 
+/**
+ * FDX12Texture - DirectX 12 texture implementation
+ * Used for depth textures, render targets, and shadow maps
+ */
+class FDX12Texture : public FRHITexture
+{
+public:
+    FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
+                 uint32 InArraySize, DXGI_FORMAT InFormat,
+                 ID3D12DescriptorHeap* InDSVHeap = nullptr, ID3D12DescriptorHeap* InSRVHeap = nullptr);
+    virtual ~FDX12Texture() override;
+    
+    virtual uint32 GetWidth() const override { return Width; }
+    virtual uint32 GetHeight() const override { return Height; }
+    virtual uint32 GetArraySize() const override { return ArraySize; }
+    
+    ID3D12Resource* GetResource() const { return Resource.Get(); }
+    DXGI_FORMAT GetFormat() const { return Format; }
+    
+    // Get descriptor heap for depth stencil views
+    ID3D12DescriptorHeap* GetDSVHeap() const { return DSVHeap.Get(); }
+    
+    // Get descriptor heap for shader resource views
+    ID3D12DescriptorHeap* GetSRVHeap() const { return SRVHeap.Get(); }
+    
+    // Get CPU descriptor handle for DSV
+    D3D12_CPU_DESCRIPTOR_HANDLE GetDSVHandle(uint32 ArrayIndex = 0) const;
+    
+    // Get GPU descriptor handle for SRV (for shader sampling)
+    D3D12_GPU_DESCRIPTOR_HANDLE GetSRVGPUHandle() const;
+    
+private:
+    ComPtr<ID3D12Resource> Resource;
+    ComPtr<ID3D12DescriptorHeap> DSVHeap;  // For rendering to depth
+    ComPtr<ID3D12DescriptorHeap> SRVHeap;  // For sampling in shaders
+    uint32 Width;
+    uint32 Height;
+    uint32 ArraySize;
+    DXGI_FORMAT Format;
+    uint32 DSVDescriptorSize;
+    uint32 SRVDescriptorSize;
+};
+
 class FDX12PipelineState : public FRHIPipelineState 
 {
 public:
@@ -133,6 +176,7 @@ public:
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) override;
     virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) override;
     virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) override;
+    virtual FRHITexture* CreateDepthTexture(uint32 Width, uint32 Height, ERTFormat Format, uint32 ArraySize = 1) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineStateEx(EPipelineFlags Flags) override;
     

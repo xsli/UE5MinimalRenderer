@@ -6,10 +6,10 @@ Minimal renderer mimicking UE5 parallel rendering architecture.
 
 This project demonstrates a simplified version of Unreal Engine 5's parallel rendering architecture with the following layers:
 - **Game Layer**: Scene management with primitives (cube, sphere, cylinder, plane)
-- **Renderer Layer**: Camera system, scene proxies, and render command processing
+- **Renderer Layer**: Camera system, scene proxies, shadow mapping, and render command processing
 - **TaskGraph Layer**: Multi-threading with dedicated Game, Render, and RHI threads
 - **RHI (Render Hardware Interface)**: Platform-agnostic rendering interface
-- **DX12 Backend**: DirectX 12 implementation with depth buffer and text rendering
+- **DX12 Backend**: DirectX 12 implementation with depth buffer, shadow maps, and text rendering
 
 ## Demo
 
@@ -22,12 +22,78 @@ The project renders a **3D scene with multiple rotating primitives**:
 
 Features demonstrated:
 - **Multi-threaded rendering**: Separate Game, Render, and RHI threads
+- **Shadow Mapping**: Directional light and point light shadows with PCF filtering
+- **RT Pool System**: Efficient render texture management with pooling
 - 3D camera system with perspective projection
 - Model-View-Projection (MVP) matrix transformations
 - Depth testing and depth buffer
 - Indexed rendering with multiple primitive types
 - UE5-style interactive camera controls
-- Real-time statistics overlay (FPS, frame time, triangle count)
+- Real-time statistics overlay (FPS, frame time, triangle count, draw calls, RT pool stats)
+
+## Shadow Mapping System
+
+### Features
+- **Directional Light Shadows**: Orthographic projection shadow maps (1024x1024 D32_FLOAT)
+- **Point Light Shadows**: Omnidirectional shadow mapping with 6-face atlas (512x512 per face)
+- **Shadow Bias**: Configurable constant bias and slope-scaled bias to eliminate shadow acne
+- **PCF Filtering**: 3x3 percentage closer filtering for smooth shadow edges
+
+### Shadow Map Constant Buffer Structure (HLSL)
+```hlsl
+cbuffer ShadowBuffer : register(b2)
+{
+    // Directional light shadow matrix (world -> light clip space)
+    float4x4 DirLightViewProj;        // 64 bytes
+    
+    // Point light shadow matrices (6 faces for omnidirectional)
+    float4x4 PointLight0ViewProj[6];  // 384 bytes
+    float4x4 PointLight1ViewProj[6];  // 384 bytes
+    
+    // Shadow parameters: x = constant bias, y = slope bias, z = PCF radius, w = strength
+    float4 ShadowParams;              // 16 bytes
+    
+    // Shadow info: x = enabled, y = map size, z = near, w = far
+    float4 DirShadowInfo;             // 16 bytes
+    float4 PointLight0ShadowInfo;     // 16 bytes
+    float4 PointLight1ShadowInfo;     // 16 bytes
+    
+    // Atlas offsets for point light faces (UV offset/scale)
+    float4 PointLight0AtlasOffsets[6]; // 96 bytes
+    float4 PointLight1AtlasOffsets[6]; // 96 bytes
+};
+```
+
+## RT Pool System
+
+The render texture pool efficiently manages GPU texture resources through pooling and lifecycle management.
+
+### Features
+- **Descriptor-Based Lookup**: Textures are pooled by (Width, Height, Format, MipLevels, ArraySize, SampleCount)
+- **Automatic Reuse**: Matching textures are reused across frames
+- **Lifecycle Management**: Unused textures are automatically cleaned up after timeout
+- **Capacity Limits**: Configurable maximum pool size to prevent VRAM overflow
+
+### Pool Flow
+```
+BeginFrame(frameNumber)
+    └── Mark pool ready for new frame
+
+Fetch(descriptor)
+    ├── Look for matching idle RT in pool
+    │   └── If found: mark as active, return
+    └── If not found: create new RT (if under capacity)
+
+Release(RT)
+    └── Mark RT as idle, available for reuse
+
+EndFrame()
+    └── Cleanup stale RTs (unused for 60+ frames)
+```
+
+### Configuration
+- `MaxCapacity`: Default 64 textures
+- `CleanupTimeoutFrames`: Default 60 frames (~1 second at 60fps)
 
 ## Documentation
 
@@ -100,10 +166,18 @@ Source/
 │   └── DX12RHI.*   # DX12 RHI implementation with depth buffer support
 ├── Renderer/       # Rendering layer with 3D camera system
 │   ├── Camera.*    # 3D camera with view/projection matrices
-│   └── Renderer.*  # Scene management and rendering
+│   ├── Renderer.*  # Scene management and rendering
+│   ├── RTPool.*    # Render texture pool system
+│   └── ShadowMapping.* # Shadow map generation and sampling
+├── Lighting/       # Lighting system
+│   ├── Light.*     # Light types (directional, point)
+│   └── LightingConstants.* # GPU constant buffer for lighting
+├── Scene/          # Scene management
+│   ├── Scene.*     # Scene container
+│   ├── ScenePrimitive.* # Primitive types
+│   ├── LitSceneProxy.* # Lit rendering proxy
+│   └── UnlitSceneProxy.* # Unlit rendering proxy
 ├── Game/           # Game logic layer
-│   ├── Scene.*     # Scene and primitive management
-│   ├── Primitive.* # Cube, sphere, cylinder, plane primitives
 │   └── Game.*      # Main game class
 └── Runtime/        # Application entry point
 ```
@@ -131,6 +205,17 @@ All required dependencies are included in the repository:
 - **Indexed Rendering**: Efficient rendering with index buffers
 - **Multiple Primitives**: Cube, sphere, cylinder, and plane support
 
+### Shadow Mapping
+- **Directional Light Shadows**: Orthographic projection for sun-like lights
+- **Point Light Shadows**: 6-face omnidirectional shadow atlas
+- **Shadow Bias**: Constant and slope-scaled bias for artifact reduction
+- **PCF Filtering**: Smooth shadow edges with 3x3 kernel
+
+### Resource Management
+- **RT Pool**: Pooled render texture allocation with automatic cleanup
+- **Lifecycle Tracking**: Frame-based timeout for unused resources
+- **Memory Limits**: Configurable pool capacity
+
 ### Scene Management
 - **FScene**: Game thread primitive management
 - **FPrimitive**: Base class with transform system
@@ -139,7 +224,7 @@ All required dependencies are included in the repository:
 
 ### Rendering Pipeline
 - **Vertex Shader**: MVP matrix transformation in HLSL
-- **Pixel Shader**: Per-vertex color interpolation
+- **Pixel Shader**: Per-vertex color interpolation with lighting
 - **Constant Buffers**: 256-byte aligned GPU buffers
 - **Text Overlay**: Statistics rendered with Direct2D/DirectWrite
 
