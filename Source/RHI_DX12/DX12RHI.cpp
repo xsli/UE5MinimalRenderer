@@ -983,8 +983,12 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             result.worldPos = mul(float4(input.position, 1.0f), ModelMatrix).xyz;
             
             // Transform normal to world space (using upper 3x3 of model matrix)
-            // For proper normal transformation, we should use inverse transpose
-            // but for uniform scaling this approximation works
+            // NOTE: For proper normal transformation with non-uniform scaling,
+            // we should use the inverse transpose of the model matrix.
+            // This simplified approach works correctly for:
+            //   - Uniform scaling (same scale in X, Y, Z)
+            //   - Rotation and translation only
+            // Limitation: Non-uniform scaling will produce incorrect normals.
             float3x3 normalMatrix = (float3x3)ModelMatrix;
             result.normal = normalize(mul(input.normal, normalMatrix));
             

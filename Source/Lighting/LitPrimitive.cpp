@@ -37,6 +37,15 @@ FMatrix4x4 FLitPrimitive::GetTransformMatrix() const
     return scale * rotationX * rotationY * rotationZ * translation;
 }
 
+FTransform FLitPrimitive::GetTransform() const
+{
+    FTransform transform;
+    transform.Position = Position;
+    transform.Rotation = Rotation;
+    transform.Scale = Scale;
+    return transform;
+}
+
 // FLitCubePrimitive implementation
 FLitCubePrimitive::FLitCubePrimitive()
     : bAutoRotate(false)
@@ -130,14 +139,8 @@ FSceneProxy* FLitCubePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightSc
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    // Create transform for proxy
-    FTransform transform;
-    transform.Position = Position;
-    transform.Rotation = Rotation;
-    transform.Scale = Scale;
-    
     return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, GetTransform(), LightScene, Material);
 }
 
 // FLitSpherePrimitive implementation
@@ -219,13 +222,8 @@ FSceneProxy* FLitSpherePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* Light
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    FTransform transform;
-    transform.Position = Position;
-    transform.Rotation = Rotation;
-    transform.Scale = Scale;
-    
     return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, GetTransform(), LightScene, Material);
 }
 
 // FLitPlanePrimitive implementation
@@ -296,13 +294,8 @@ FSceneProxy* FLitPlanePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightS
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    FTransform transform;
-    transform.Position = Position;
-    transform.Rotation = Rotation;
-    transform.Scale = Scale;
-    
     return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, GetTransform(), LightScene, Material);
 }
 
 // FLitCylinderPrimitive implementation
@@ -418,11 +411,6 @@ FSceneProxy* FLitCylinderPrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* Lig
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    FTransform transform;
-    transform.Position = Position;
-    transform.Rotation = Rotation;
-    transform.Scale = Scale;
-    
     return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
-                                        pso, indices.size(), g_Camera, transform, LightScene, Material);
+                                        pso, indices.size(), g_Camera, GetTransform(), LightScene, Material);
 }

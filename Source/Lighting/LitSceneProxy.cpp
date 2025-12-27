@@ -174,8 +174,8 @@ void FLightVisualizationProxy::Render(FRHICommandList* RHICmdList)
 
 uint32 FLightVisualizationProxy::GetTriangleCount() const
 {
-    // For line lists, this is actually line count / 2 but we report vertices / 3
-    // to maintain consistency with the stats system
+    // Line lists don't contribute to triangle count since they're debug visualization
+    // For triangle mode, calculate normally
     return bLineList ? 0 : IndexCount / 3;
 }
 

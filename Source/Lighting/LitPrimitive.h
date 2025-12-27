@@ -2,6 +2,7 @@
 
 #include "../Core/CoreTypes.h"
 #include "../RHI/RHI.h"
+#include "../Game/Primitive.h"  // For FTransform
 #include "Light.h"
 
 // Forward declarations
@@ -49,6 +50,9 @@ public:
 
     // Get transform matrix
     FMatrix4x4 GetTransformMatrix() const;
+    
+    // Get transform struct (for passing to scene proxy)
+    FTransform GetTransform() const;
 
 protected:
     FVector Position;

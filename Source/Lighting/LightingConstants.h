@@ -46,7 +46,8 @@ struct FLightingConstants
     DirectX::XMFLOAT4 MaterialSpecular;      // 16 bytes (xyz = color, w = shininess)
     DirectX::XMFLOAT4 MaterialAmbient;       // 16 bytes (xyz = color, w = unused)
     
-    // Total: 64 + 16*20 = 384 bytes (aligned to 256 for DX12)
+    // Total: 64 + 16*20 = 384 bytes
+    // Note: DX12 constant buffers are automatically aligned to 256 bytes by CreateConstantBuffer()
     
     FLightingConstants()
     {
@@ -106,7 +107,8 @@ struct FLightingConstants
     
     void SetModelMatrix(const FMatrix4x4& Matrix)
     {
-        // Transpose for HLSL column-major convention
+        // DirectXMath uses row-major storage, HLSL uses column-major by default.
+        // Transpose is required to convert from CPU row-major to GPU column-major.
         ModelMatrix = DirectX::XMMatrixTranspose(Matrix.Matrix);
     }
     
