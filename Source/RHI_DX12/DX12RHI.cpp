@@ -214,7 +214,42 @@ FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* I
 FDX12CommandList::~FDX12CommandList()
 {
     WaitForGPU();
+    
+    // Release D2D/D3D11on12 resources first (they hold references to D3D12 resources)
+    for (int i = 0; i < FrameCount; ++i)
+    {
+        D2DRenderTargets[i].Reset();
+        WrappedBackBuffers[i].Reset();
+    }
+    D2DDeviceContext.Reset();
+    D2DDevice.Reset();
+    D2DFactory.Reset();
+    DWriteFactory.Reset();
+    D3D11On12Device.Reset();
+    D3D11DeviceContext.Reset();
+    D3D11Device.Reset();
+    
+    // Release command list and allocator
+    GraphicsCommandList.Reset();
+    CommandAllocator.Reset();
+    
+    // Release render targets and descriptor heaps
+    for (int i = 0; i < FrameCount; ++i)
+    {
+        RenderTargets[i].Reset();
+    }
+    RTVHeap.Reset();
+    
+    // Release depth stencil resources
+    DepthStencilBuffer.Reset();
+    DSVHeap.Reset();
+    
+    // Release fence
+    Fence.Reset();
     CloseHandle(FenceEvent);
+    
+    // Note: Device, CommandQueue, SwapChain are shared with FDX12RHI
+    // They will be released there
 }
 
 void FDX12CommandList::BeginFrame()
