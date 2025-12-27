@@ -11,13 +11,14 @@
 struct FTransform;
 
 /**
- * FLitPrimitiveSceneProxy - Scene proxy for lit primitives with Phong shading
+ * FPrimitiveSceneProxy - Default scene proxy for lit primitives with Phong shading
  * Uses FLitVertex format (position, normal, color) and lighting constant buffer
+ * This is the primary proxy type for scene rendering with lighting support
  */
-class FLitPrimitiveSceneProxy : public FSceneProxy 
+class FPrimitiveSceneProxy : public FSceneProxy 
 {
 public:
-    FLitPrimitiveSceneProxy(
+    FPrimitiveSceneProxy(
         FRHIBuffer* InVertexBuffer, 
         FRHIBuffer* InIndexBuffer, 
         FRHIBuffer* InMVPConstantBuffer,
@@ -29,7 +30,7 @@ public:
         FLightScene* InLightScene,
         const FMaterial& InMaterial);
     
-    virtual ~FLitPrimitiveSceneProxy();
+    virtual ~FPrimitiveSceneProxy();
     
     // Render this proxy (override from FSceneProxy)
     virtual void Render(FRHICommandList* RHICmdList) override;

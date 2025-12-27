@@ -2,8 +2,8 @@
 #include "../Scene/ScenePrimitive.h"  // For FTransform implementation
 #include <cstring>
 
-// FLitPrimitiveSceneProxy implementation
-FLitPrimitiveSceneProxy::FLitPrimitiveSceneProxy(
+// FPrimitiveSceneProxy implementation (lit rendering with Phong shading)
+FPrimitiveSceneProxy::FPrimitiveSceneProxy(
     FRHIBuffer* InVertexBuffer,
     FRHIBuffer* InIndexBuffer,
     FRHIBuffer* InMVPConstantBuffer,
@@ -27,7 +27,7 @@ FLitPrimitiveSceneProxy::FLitPrimitiveSceneProxy(
 {
 }
 
-FLitPrimitiveSceneProxy::~FLitPrimitiveSceneProxy()
+FPrimitiveSceneProxy::~FPrimitiveSceneProxy()
 {
     delete VertexBuffer;
     delete IndexBuffer;
@@ -36,7 +36,7 @@ FLitPrimitiveSceneProxy::~FLitPrimitiveSceneProxy()
     delete PipelineState;
 }
 
-void FLitPrimitiveSceneProxy::UpdateLightingConstants()
+void FPrimitiveSceneProxy::UpdateLightingConstants()
 {
     // Set model matrix
     LightingData.SetModelMatrix(ModelMatrix);
@@ -79,7 +79,7 @@ void FLitPrimitiveSceneProxy::UpdateLightingConstants()
     }
 }
 
-void FLitPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
+void FPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
 {
     // Calculate MVP matrix
     FMatrix4x4 viewProjection = Camera->GetViewProjectionMatrix();
@@ -108,12 +108,12 @@ void FLitPrimitiveSceneProxy::Render(FRHICommandList* RHICmdList)
     RHICmdList->DrawIndexedPrimitive(IndexCount, 0, 0);
 }
 
-uint32 FLitPrimitiveSceneProxy::GetTriangleCount() const
+uint32 FPrimitiveSceneProxy::GetTriangleCount() const
 {
     return IndexCount / 3;
 }
 
-void FLitPrimitiveSceneProxy::UpdateTransform(const FTransform& InTransform)
+void FPrimitiveSceneProxy::UpdateTransform(const FTransform& InTransform)
 {
     ModelMatrix = InTransform.GetMatrix();
 }

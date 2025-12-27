@@ -124,7 +124,7 @@ FSceneProxy* FCubePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightScene
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
+    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
                                         pso, indices.size(), g_Camera, Transform, LightScene, Material);
 }
 
@@ -201,7 +201,7 @@ FSceneProxy* FSpherePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightSce
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
+    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
                                         pso, indices.size(), g_Camera, Transform, LightScene, Material);
 }
 
@@ -268,7 +268,7 @@ FSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightScen
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
+    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
                                         pso, indices.size(), g_Camera, Transform, LightScene, Material);
 }
 
@@ -381,7 +381,7 @@ FSceneProxy* FCylinderPrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightS
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
+    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
                                         pso, indices.size(), g_Camera, Transform, LightScene, Material);
 }
 
@@ -451,7 +451,7 @@ FSceneProxy* FUnlitCubePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*Lig
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 
+    return new FUnlitPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 
                                     indices.size(), g_Camera, Transform);
 }
 
@@ -518,7 +518,7 @@ FSceneProxy* FUnlitSpherePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*L
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
+    return new FUnlitPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
                                     indices.size(), g_Camera, Transform);
 }
 
@@ -529,7 +529,7 @@ FSceneProxy* FUnlitSpherePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*L
 // FGizmoPrimitive implementation
 FGizmoPrimitive::FGizmoPrimitive(float InAxisLength)
     : AxisLength(InAxisLength)
-    , bScreenSpace(false)
+    , bScreenSpace(true)  // Screen-space by default now
     , ScreenCorner(3)  // Bottom-right by default
 {
     PrimitiveType = EPrimitiveType::Unlit;  // Gizmo is always unlit
@@ -661,8 +661,19 @@ FSceneProxy* FGizmoPrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* /*LightSc
     FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
     
-    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
-                                    indices.size(), g_Camera, Transform);
+    if (bScreenSpace)
+    {
+        // Screen-space gizmo renders in corner showing world axis orientation
+        const float gizmoScreenSize = 80.0f;  // Size in pixels
+        return new FScreenSpaceGizmoProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
+                                          indices.size(), g_Camera, ScreenCorner, gizmoScreenSize);
+    }
+    else
+    {
+        // World-space gizmo renders at transform position
+        return new FUnlitPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
+                                             indices.size(), g_Camera, Transform);
+    }
 }
 
 // FDemoCubePrimitive implementation
@@ -796,6 +807,6 @@ FSceneProxy* FDemoCubePrimitive::CreateSceneProxy(FRHI* RHI, FLightScene* LightS
     EPipelineFlags flags = EPipelineFlags::EnableDepth | EPipelineFlags::EnableLighting;
     FRHIPipelineState* pso = RHI->CreateGraphicsPipelineStateEx(flags);
     
-    return new FLitPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
+    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, mvpBuffer, lightingBuffer,
                                         pso, indices.size(), g_Camera, Transform, LightScene, Material);
 }
