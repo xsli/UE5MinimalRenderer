@@ -443,18 +443,12 @@ void FShadowSystem::RenderDirectionalShadowPass(FRHICommandList* RHICmdList, FRe
     // Render each proxy with shadow pass (only if it casts shadows)
     // Note: Each proxy uses its own MVPConstantBuffer. Caller must flush after
     // shadow pass to ensure GPU reads shadow data before main pass overwrites it.
-    int proxyIndex = 0;
     for (FSceneProxy* proxy : proxies)
     {
         if (proxy && proxy->GetCastShadow())
         {
-            // GPU Event: Individual shadow caster
-            RHICmdList->BeginEvent("Shadow Caster " + std::to_string(proxyIndex));
             proxy->RenderShadow(RHICmdList, lightVP, shadowMVPBuffer);
-            RHICmdList->EndEvent();
-            
             ShadowDrawCallCount++;
-            proxyIndex++;
         }
     }
     
@@ -513,17 +507,12 @@ void FShadowSystem::RenderPointLightShadowPass(FRHICommandList* RHICmdList, FRen
         FMatrix4x4 faceVP = shadowPass.GetViewProjectionMatrix(face);
         
         // Render each proxy (only if it casts shadows)
-        int proxyIndex = 0;
         for (FSceneProxy* proxy : proxies)
         {
             if (proxy && proxy->GetCastShadow())
             {
-                RHICmdList->BeginEvent("Caster " + std::to_string(proxyIndex));
                 proxy->RenderShadow(RHICmdList, faceVP, shadowMVPBuffer);
-                RHICmdList->EndEvent();
-                
                 ShadowDrawCallCount++;
-                proxyIndex++;
             }
         }
         

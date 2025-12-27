@@ -618,6 +618,27 @@ void FDX12CommandList::SetRootConstants(uint32 RootParameterIndex, uint32 Num32B
     GraphicsCommandList->SetGraphicsRoot32BitConstants(RootParameterIndex, Num32BitValues, Data, DestOffset);
 }
 
+void FDX12CommandList::SetShadowMapTexture(FRHITexture* ShadowMap)
+{
+    if (!ShadowMap) return;
+    
+    FDX12Texture* dx12Texture = static_cast<FDX12Texture*>(ShadowMap);
+    ID3D12DescriptorHeap* srvHeap = dx12Texture->GetSRVHeap();
+    
+    if (!srvHeap)
+    {
+        FLog::Log(ELogLevel::Warning, "SetShadowMapTexture: Shadow map has no SRV heap");
+        return;
+    }
+    
+    // Set the descriptor heap for the shadow map SRV
+    ID3D12DescriptorHeap* heaps[] = { srvHeap };
+    GraphicsCommandList->SetDescriptorHeaps(1, heaps);
+    
+    // Set the descriptor table for the shadow map (root parameter index 3 for lit shader)
+    GraphicsCommandList->SetGraphicsRootDescriptorTable(3, dx12Texture->GetSRVGPUHandle());
+}
+
 void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwapChain3* InSwapChain)
 {
     FLog::Log(ELogLevel::Info, "Initializing text rendering (D2D/DWrite)...");
@@ -1454,6 +1475,10 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             float4 ShadowParams;        // x = bias, y = enabled, z = shadow strength, w = unused
         };
         
+        // Shadow map texture and sampler
+        Texture2D<float> ShadowMap : register(t0);
+        SamplerComparisonState ShadowSampler : register(s0);
+        
         struct VSInput {
             float3 position : POSITION;
             float3 normal : NORMAL;
@@ -1494,7 +1519,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             return result;
         }
         
-        // Calculate shadow factor using simple comparison
+        // Calculate shadow factor by sampling the shadow map
         float CalcShadow(float4 lightSpacePos, float bias)
         {
             // Perform perspective divide
@@ -1512,9 +1537,24 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
                 return 1.0f;  // Not in shadow (outside light frustum)
             }
             
-            // Simple shadow calculation based on light direction and normal
-            // This creates a self-shadowing effect without actual shadow map sampling
-            return 1.0f;  // Will be attenuated by directional light NdotL
+            // Apply bias to avoid shadow acne
+            float currentDepth = projCoords.z - bias;
+            
+            // Sample shadow map with PCF 3x3 kernel
+            float shadow = 0.0f;
+            float texelSize = 1.0f / 1024.0f;  // Shadow map resolution
+            
+            for (int x = -1; x <= 1; ++x)
+            {
+                for (int y = -1; y <= 1; ++y)
+                {
+                    float2 uv = projCoords.xy + float2(x, y) * texelSize;
+                    shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, uv, currentDepth);
+                }
+            }
+            shadow /= 9.0f;  // Average 9 samples
+            
+            return shadow;
         }
         
         // Calculate point light attenuation
@@ -1701,16 +1741,43 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
     
     // Create root signature with appropriate number of constant buffers
-    CD3DX12_ROOT_PARAMETER rootParameters[3];
+    CD3DX12_ROOT_PARAMETER rootParameters[4];
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     
     if (bEnableLighting)
     {
-        // Three CBVs: MVP (b0), Lighting (b1), Shadow (b2)
+        // Four root parameters:
+        // 0: CBV for MVP (b0)
+        // 1: CBV for Lighting (b1)
+        // 2: CBV for Shadow (b2)
+        // 3: Descriptor table for shadow map texture (t0)
         rootParameters[0].InitAsConstantBufferView(0);
         rootParameters[1].InitAsConstantBufferView(1);
         rootParameters[2].InitAsConstantBufferView(2);
-        rootSignatureDesc.Init(3, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        
+        // Descriptor range for shadow map texture (t0)
+        CD3DX12_DESCRIPTOR_RANGE srvRange;
+        srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);  // 1 SRV at t0
+        rootParameters[3].InitAsDescriptorTable(1, &srvRange);
+        
+        // Static sampler for shadow map comparison sampling
+        D3D12_STATIC_SAMPLER_DESC shadowSampler = {};
+        shadowSampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+        shadowSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        shadowSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        shadowSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        shadowSampler.MipLODBias = 0;
+        shadowSampler.MaxAnisotropy = 1;
+        shadowSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+        shadowSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;  // White border = no shadow outside
+        shadowSampler.MinLOD = 0.0f;
+        shadowSampler.MaxLOD = D3D12_FLOAT32_MAX;
+        shadowSampler.ShaderRegister = 0;  // s0
+        shadowSampler.RegisterSpace = 0;
+        shadowSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        
+        rootSignatureDesc.Init(4, rootParameters, 1, &shadowSampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        FLog::Log(ELogLevel::Info, "Creating lit PSO with shadow map sampling support");
     }
     else if (bDepthOnly)
     {

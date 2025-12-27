@@ -199,6 +199,16 @@ void FRenderer::RenderFrame()
     RHICmdList->ClearRenderTarget(FColor(0.2f, 0.3f, 0.4f, 1.0f));
     RHICmdList->ClearDepthStencil();
     
+    // Bind shadow map texture for shader sampling (before rendering lit geometry)
+    if (ShadowSystem)
+    {
+        FRHITexture* shadowMap = ShadowSystem->GetDirectionalShadowMap();
+        if (shadowMap)
+        {
+            RHICmdList->SetShadowMapTexture(shadowMap);
+        }
+    }
+    
     // Render scene using render scene
     if (RenderScene)
     {

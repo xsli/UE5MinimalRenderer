@@ -129,6 +129,10 @@ public:
     // Set inline root constants (avoids constant buffer synchronization issues)
     // Data is copied directly into the root signature at record time
     virtual void SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset = 0) = 0;
+    
+    // Bind shadow map texture for shader sampling
+    // Call this before rendering lit geometry that receives shadows
+    virtual void SetShadowMapTexture(FRHITexture* ShadowMap) = 0;
 };
 
 // Pipeline state creation flags

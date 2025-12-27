@@ -135,6 +135,9 @@ public:
     // Set inline root constants
     virtual void SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset = 0) override;
     
+    // Bind shadow map texture for shader sampling
+    virtual void SetShadowMapTexture(FRHITexture* ShadowMap) override;
+    
     void InitializeTextRendering(ID3D12Device* Device, IDXGISwapChain3* SwapChain);
     
 private:
