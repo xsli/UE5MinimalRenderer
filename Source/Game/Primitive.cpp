@@ -374,3 +374,308 @@ FPrimitiveSceneProxy* FPlanePrimitive::CreateSceneProxy(FRHI* RHI)
     return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
                                     indices.size(), g_Camera, Transform);
 }
+
+// FGizmoPrimitive implementation - UE-style coordinate axis
+FGizmoPrimitive::FGizmoPrimitive(float InAxisLength)
+    : AxisLength(InAxisLength)
+{
+    // Gizmo stays at origin by default
+}
+
+FGizmoPrimitive::~FGizmoPrimitive()
+{
+}
+
+void FGizmoPrimitive::Tick(float DeltaTime)
+{
+    // Gizmo doesn't animate
+}
+
+FPrimitiveSceneProxy* FGizmoPrimitive::CreateSceneProxy(FRHI* RHI)
+{
+    FLog::Log(ELogLevel::Info, "Creating gizmo primitive proxy...");
+    
+    std::vector<FVertex> vertices;
+    std::vector<uint32> indices;
+    
+    const float arrowHeadLength = AxisLength * 0.15f;
+    const float arrowHeadRadius = 0.08f;
+    const float shaftRadius = 0.02f;
+    const uint32 segments = 12;
+    
+    // UE5 coordinate system colors:
+    // X axis = Red, Y axis = Green, Z axis = Blue
+    FColor xColor(1.0f, 0.2f, 0.2f, 1.0f);  // Red for X
+    FColor yColor(0.2f, 1.0f, 0.2f, 1.0f);  // Green for Y
+    FColor zColor(0.3f, 0.5f, 1.0f, 1.0f);  // Blue for Z
+    
+    // Helper lambda to add an axis (shaft + arrow head)
+    auto AddAxis = [&](const FVector& direction, const FColor& color) {
+        uint32 baseIdx = vertices.size();
+        
+        // Normalize direction
+        float length = std::sqrt(direction.X * direction.X + direction.Y * direction.Y + direction.Z * direction.Z);
+        FVector dir(direction.X / length, direction.Y / length, direction.Z / length);
+        
+        // Find perpendicular vectors for the cylinder cross-section
+        FVector perp1, perp2;
+        if (std::abs(dir.Y) < 0.9f) {
+            // Cross with Y axis
+            perp1 = FVector(-dir.Z, 0.0f, dir.X);
+        } else {
+            // Cross with X axis
+            perp1 = FVector(0.0f, dir.Z, -dir.Y);
+        }
+        // Normalize perp1
+        float p1len = std::sqrt(perp1.X * perp1.X + perp1.Y * perp1.Y + perp1.Z * perp1.Z);
+        perp1 = FVector(perp1.X / p1len, perp1.Y / p1len, perp1.Z / p1len);
+        
+        // perp2 = dir cross perp1
+        perp2 = FVector(
+            dir.Y * perp1.Z - dir.Z * perp1.Y,
+            dir.Z * perp1.X - dir.X * perp1.Z,
+            dir.X * perp1.Y - dir.Y * perp1.X
+        );
+        
+        float shaftLength = AxisLength - arrowHeadLength;
+        
+        // Generate shaft cylinder
+        for (uint32 i = 0; i <= segments; ++i) {
+            float angle = 2.0f * M_PI * float(i) / float(segments);
+            float c = cosf(angle);
+            float s = sinf(angle);
+            
+            // Point on circle at base (origin)
+            FVector base(
+                shaftRadius * (c * perp1.X + s * perp2.X),
+                shaftRadius * (c * perp1.Y + s * perp2.Y),
+                shaftRadius * (c * perp1.Z + s * perp2.Z)
+            );
+            
+            // Point on circle at shaft end
+            FVector top(
+                base.X + dir.X * shaftLength,
+                base.Y + dir.Y * shaftLength,
+                base.Z + dir.Z * shaftLength
+            );
+            
+            vertices.push_back({ base, color });
+            vertices.push_back({ top, color });
+        }
+        
+        // Generate shaft indices
+        for (uint32 i = 0; i < segments; ++i) {
+            uint32 curr = baseIdx + i * 2;
+            uint32 next = baseIdx + (i + 1) * 2;
+            
+            indices.push_back(curr);
+            indices.push_back(curr + 1);
+            indices.push_back(next);
+            
+            indices.push_back(next);
+            indices.push_back(curr + 1);
+            indices.push_back(next + 1);
+        }
+        
+        // Arrow head (cone)
+        uint32 coneBaseIdx = vertices.size();
+        FVector coneBase(dir.X * shaftLength, dir.Y * shaftLength, dir.Z * shaftLength);
+        FVector coneTip(dir.X * AxisLength, dir.Y * AxisLength, dir.Z * AxisLength);
+        
+        // Cone tip vertex
+        uint32 tipIdx = vertices.size();
+        vertices.push_back({ coneTip, color });
+        
+        // Cone base vertices
+        for (uint32 i = 0; i <= segments; ++i) {
+            float angle = 2.0f * M_PI * float(i) / float(segments);
+            float c = cosf(angle);
+            float s = sinf(angle);
+            
+            FVector pt(
+                coneBase.X + arrowHeadRadius * (c * perp1.X + s * perp2.X),
+                coneBase.Y + arrowHeadRadius * (c * perp1.Y + s * perp2.Y),
+                coneBase.Z + arrowHeadRadius * (c * perp1.Z + s * perp2.Z)
+            );
+            vertices.push_back({ pt, color });
+        }
+        
+        // Cone side indices
+        for (uint32 i = 0; i < segments; ++i) {
+            indices.push_back(tipIdx);
+            indices.push_back(tipIdx + 1 + i);
+            indices.push_back(tipIdx + 1 + i + 1);
+        }
+        
+        // Cone base cap
+        uint32 baseCenterIdx = vertices.size();
+        vertices.push_back({ coneBase, color });
+        for (uint32 i = 0; i < segments; ++i) {
+            indices.push_back(baseCenterIdx);
+            indices.push_back(tipIdx + 1 + i + 1);
+            indices.push_back(tipIdx + 1 + i);
+        }
+    };
+    
+    // Add the three axes
+    AddAxis(FVector(1.0f, 0.0f, 0.0f), xColor);  // X axis - Red
+    AddAxis(FVector(0.0f, 1.0f, 0.0f), yColor);  // Y axis - Green
+    AddAxis(FVector(0.0f, 0.0f, 1.0f), zColor);  // Z axis - Blue
+    
+    FLog::Log(ELogLevel::Info, std::string("Gizmo: ") + std::to_string(vertices.size()) + 
+              " vertices, " + std::to_string(indices.size()) + " indices");
+    
+    // Create buffers
+    FRHIBuffer* vertexBuffer = RHI->CreateVertexBuffer(vertices.size() * sizeof(FVertex), vertices.data());
+    FRHIBuffer* indexBuffer = RHI->CreateIndexBuffer(indices.size() * sizeof(uint32), indices.data());
+    FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
+    FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
+    
+    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso,
+                                    indices.size(), g_Camera, Transform);
+}
+
+// FDemoCubePrimitive implementation - cube with configurable animation
+FDemoCubePrimitive::FDemoCubePrimitive()
+    : AnimationType(EAnimationType::None)
+    , AnimationSpeed(1.0f)
+    , AnimationTime(0.0f)
+    , BasePosition(0.0f, 0.0f, 0.0f)
+    , BaseScale(1.0f, 1.0f, 1.0f)
+{
+}
+
+FDemoCubePrimitive::~FDemoCubePrimitive()
+{
+}
+
+void FDemoCubePrimitive::Tick(float DeltaTime)
+{
+    AnimationTime += DeltaTime * AnimationSpeed;
+    
+    switch (AnimationType)
+    {
+        case EAnimationType::RotateX:
+            Transform.Rotation.X = AnimationTime;
+            MarkTransformDirty();
+            break;
+            
+        case EAnimationType::RotateY:
+            Transform.Rotation.Y = AnimationTime;
+            MarkTransformDirty();
+            break;
+            
+        case EAnimationType::RotateZ:
+            Transform.Rotation.Z = AnimationTime;
+            MarkTransformDirty();
+            break;
+            
+        case EAnimationType::TranslateX:
+            Transform.Position.X = BasePosition.X + sinf(AnimationTime) * 1.0f;
+            MarkTransformDirty();
+            break;
+            
+        case EAnimationType::TranslateY:
+            Transform.Position.Y = BasePosition.Y + sinf(AnimationTime) * 1.0f;
+            MarkTransformDirty();
+            break;
+            
+        case EAnimationType::TranslateZ:
+            Transform.Position.Z = BasePosition.Z + sinf(AnimationTime) * 1.0f;
+            MarkTransformDirty();
+            break;
+            
+        case EAnimationType::TranslateDiagonal:
+            {
+                float offset = sinf(AnimationTime) * 0.8f;
+                Transform.Position.X = BasePosition.X + offset;
+                Transform.Position.Y = BasePosition.Y + offset;
+                Transform.Position.Z = BasePosition.Z + offset;
+                MarkTransformDirty();
+            }
+            break;
+            
+        case EAnimationType::Scale:
+            {
+                float scaleFactor = 1.0f + 0.3f * sinf(AnimationTime);
+                Transform.Scale.X = BaseScale.X * scaleFactor;
+                Transform.Scale.Y = BaseScale.Y * scaleFactor;
+                Transform.Scale.Z = BaseScale.Z * scaleFactor;
+                MarkTransformDirty();
+            }
+            break;
+            
+        case EAnimationType::None:
+        default:
+            break;
+    }
+}
+
+FPrimitiveSceneProxy* FDemoCubePrimitive::CreateSceneProxy(FRHI* RHI)
+{
+    FLog::Log(ELogLevel::Info, "Creating demo cube primitive proxy...");
+    
+    // Define cube vertices (24 vertices, 4 per face for proper normals)
+    std::vector<FVertex> vertices = {
+        // Front face (+Z)
+        { FVector(-0.5f, -0.5f,  0.5f), Color },
+        { FVector( 0.5f, -0.5f,  0.5f), Color },
+        { FVector( 0.5f,  0.5f,  0.5f), Color },
+        { FVector(-0.5f,  0.5f,  0.5f), Color },
+        
+        // Back face (-Z)
+        { FVector(-0.5f, -0.5f, -0.5f), Color },
+        { FVector( 0.5f, -0.5f, -0.5f), Color },
+        { FVector( 0.5f,  0.5f, -0.5f), Color },
+        { FVector(-0.5f,  0.5f, -0.5f), Color },
+        
+        // Top face (+Y)
+        { FVector(-0.5f,  0.5f,  0.5f), Color },
+        { FVector( 0.5f,  0.5f,  0.5f), Color },
+        { FVector( 0.5f,  0.5f, -0.5f), Color },
+        { FVector(-0.5f,  0.5f, -0.5f), Color },
+        
+        // Bottom face (-Y)
+        { FVector(-0.5f, -0.5f,  0.5f), Color },
+        { FVector( 0.5f, -0.5f,  0.5f), Color },
+        { FVector( 0.5f, -0.5f, -0.5f), Color },
+        { FVector(-0.5f, -0.5f, -0.5f), Color },
+        
+        // Right face (+X)
+        { FVector( 0.5f, -0.5f,  0.5f), Color },
+        { FVector( 0.5f, -0.5f, -0.5f), Color },
+        { FVector( 0.5f,  0.5f, -0.5f), Color },
+        { FVector( 0.5f,  0.5f,  0.5f), Color },
+        
+        // Left face (-X)
+        { FVector(-0.5f, -0.5f,  0.5f), Color },
+        { FVector(-0.5f, -0.5f, -0.5f), Color },
+        { FVector(-0.5f,  0.5f, -0.5f), Color },
+        { FVector(-0.5f,  0.5f,  0.5f), Color },
+    };
+    
+    // Define indices (6 faces * 2 triangles * 3 indices = 36)
+    std::vector<uint32> indices = {
+        // Front
+        0, 1, 2,    0, 2, 3,
+        // Back
+        5, 4, 7,    5, 7, 6,
+        // Top
+        8, 9, 10,   8, 10, 11,
+        // Bottom
+        15, 14, 13, 15, 13, 12,
+        // Right
+        16, 17, 18, 16, 18, 19,
+        // Left
+        21, 20, 23, 21, 23, 22
+    };
+    
+    // Create buffers
+    FRHIBuffer* vertexBuffer = RHI->CreateVertexBuffer(vertices.size() * sizeof(FVertex), vertices.data());
+    FRHIBuffer* indexBuffer = RHI->CreateIndexBuffer(indices.size() * sizeof(uint32), indices.data());
+    FRHIBuffer* constantBuffer = RHI->CreateConstantBuffer(sizeof(FMatrix4x4));
+    FRHIPipelineState* pso = RHI->CreateGraphicsPipelineState(true);
+    
+    return new FPrimitiveSceneProxy(vertexBuffer, indexBuffer, constantBuffer, pso, 
+                                    indices.size(), g_Camera, Transform);
+}

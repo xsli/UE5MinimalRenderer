@@ -143,3 +143,55 @@ public:
 private:
 	uint32 Subdivisions;
 };
+
+// Gizmo primitive - UE-style coordinate axis visualization
+// X axis = Red, Y axis = Green, Z axis = Blue
+class FGizmoPrimitive : public FPrimitive 
+{
+public:
+	FGizmoPrimitive(float InAxisLength = 1.5f);
+	virtual ~FGizmoPrimitive() override;
+
+	virtual void Tick(float DeltaTime) override;
+	virtual FPrimitiveSceneProxy* CreateSceneProxy(FRHI* RHI) override;
+
+private:
+	float AxisLength;
+};
+
+// Animation type for demo primitives
+enum class EAnimationType
+{
+	None,
+	RotateX,      // Rotate around X axis
+	RotateY,      // Rotate around Y axis
+	RotateZ,      // Rotate around Z axis
+	TranslateX,   // Move along X axis (oscillate)
+	TranslateY,   // Move along Y axis (oscillate)
+	TranslateZ,   // Move along Z axis (oscillate)
+	TranslateDiagonal, // Move along diagonal (oscillate)
+	Scale         // Scale over time (oscillate)
+};
+
+// Demo cube primitive with configurable animation
+class FDemoCubePrimitive : public FPrimitive 
+{
+public:
+	FDemoCubePrimitive();
+	virtual ~FDemoCubePrimitive() override;
+
+	virtual void Tick(float DeltaTime) override;
+	virtual FPrimitiveSceneProxy* CreateSceneProxy(FRHI* RHI) override;
+
+	void SetAnimationType(EAnimationType InType) { AnimationType = InType; }
+	void SetAnimationSpeed(float InSpeed) { AnimationSpeed = InSpeed; }
+	void SetBasePosition(const FVector& InPos) { BasePosition = InPos; }
+	void SetBaseScale(const FVector& InScale) { BaseScale = InScale; }
+
+private:
+	EAnimationType AnimationType;
+	float AnimationSpeed;
+	float AnimationTime;
+	FVector BasePosition;
+	FVector BaseScale;
+};

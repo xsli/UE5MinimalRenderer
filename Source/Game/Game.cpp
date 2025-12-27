@@ -42,54 +42,149 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
     // Create scene
     Scene = std::make_unique<FScene>(RHI.get());
     
-    // Create and add multiple primitives to demonstrate the system
+    // ==========================================
+    // Create demo scene showcasing matrix transformations
+    // ==========================================
     
-    // Cube at center-left, rotating
-    FCubePrimitive* cube = new FCubePrimitive();
-    cube->SetColor(FColor(1.0f, 0.3f, 0.3f, 1.0f));  // Reddish
-    cube->GetTransform().Position = FVector(-2.0f, 0.5f, 0.0f);
-    cube->GetTransform().Scale = FVector(0.8f, 0.8f, 0.8f);
-    cube->SetAutoRotate(true);
-    Scene->AddPrimitive(cube);
+    // --- Gizmo at scene origin (UE-style coordinate axes) ---
+    FGizmoPrimitive* gizmo = new FGizmoPrimitive(1.5f);
+    gizmo->GetTransform().Position = FVector(0.0f, 0.0f, 0.0f);
+    Scene->AddPrimitive(gizmo);
     
-    // Sphere at center-right, rotating
-    FSpherePrimitive* sphere = new FSpherePrimitive(24, 16);
-    sphere->SetColor(FColor(0.3f, 0.7f, 1.0f, 1.0f));  // Blue
-    sphere->GetTransform().Position = FVector(2.0f, 0.5f, 0.0f);
-    sphere->GetTransform().Scale = FVector(0.8f, 0.8f, 0.8f);
-    sphere->SetAutoRotate(true);
-    Scene->AddPrimitive(sphere);
-    
-    // Cylinder in front, rotating
-    FCylinderPrimitive* cylinder = new FCylinderPrimitive(20);
-    cylinder->SetColor(FColor(0.3f, 1.0f, 0.3f, 1.0f));  // Green
-    cylinder->GetTransform().Position = FVector(0.0f, 0.0f, 2.0f);
-    cylinder->GetTransform().Scale = FVector(0.6f, 1.0f, 0.6f);
-    cylinder->SetAutoRotate(true);
-    Scene->AddPrimitive(cylinder);
-    
-    // Ground plane
+    // --- Ground plane ---
     FPlanePrimitive* plane = new FPlanePrimitive(4);
-    plane->SetColor(FColor(0.6f, 0.6f, 0.6f, 1.0f));  // Gray
-    plane->GetTransform().Position = FVector(0.0f, -1.0f, 0.0f);
-    plane->GetTransform().Scale = FVector(10.0f, 1.0f, 10.0f);
+    plane->SetColor(FColor(0.5f, 0.5f, 0.5f, 1.0f));  // Gray
+    plane->GetTransform().Position = FVector(0.0f, -1.5f, 0.0f);
+    plane->GetTransform().Scale = FVector(15.0f, 1.0f, 15.0f);
     Scene->AddPrimitive(plane);
     
-    // Small cube on the back-left
-    FCubePrimitive* smallCube = new FCubePrimitive();
-    smallCube->SetColor(FColor(1.0f, 1.0f, 0.3f, 1.0f));  // Yellow
-    smallCube->GetTransform().Position = FVector(-1.5f, 0.2f, -2.0f);
-    smallCube->GetTransform().Scale = FVector(0.4f, 0.4f, 0.4f);
-    smallCube->SetAutoRotate(true);
-    Scene->AddPrimitive(smallCube);
+    // ==========================================
+    // Group 1: Rotation demos (Pink/Rose macaron colors)
+    // Positioned in a row at Z = -3
+    // ==========================================
     
-    // Small sphere on the back-right
-    FSpherePrimitive* smallSphere = new FSpherePrimitive(16, 12);
-    smallSphere->SetColor(FColor(1.0f, 0.3f, 1.0f, 1.0f));  // Magenta
-    smallSphere->GetTransform().Position = FVector(1.5f, 0.2f, -2.0f);
-    smallSphere->GetTransform().Scale = FVector(0.4f, 0.4f, 0.4f);
-    smallSphere->SetAutoRotate(false);
-    Scene->AddPrimitive(smallSphere);
+    // Rotate around X axis - Pale Pink
+    FDemoCubePrimitive* rotateX = new FDemoCubePrimitive();
+    rotateX->SetColor(FColor(0.98f, 0.76f, 0.80f, 1.0f));  // Pale Pink macaron
+    rotateX->SetBasePosition(FVector(-3.0f, 0.5f, -3.0f));
+    rotateX->GetTransform().Position = FVector(-3.0f, 0.5f, -3.0f);
+    rotateX->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
+    rotateX->SetAnimationType(EAnimationType::RotateX);
+    rotateX->SetAnimationSpeed(1.0f);
+    Scene->AddPrimitive(rotateX);
+    
+    // Rotate around Y axis - Rose Pink
+    FDemoCubePrimitive* rotateY = new FDemoCubePrimitive();
+    rotateY->SetColor(FColor(1.0f, 0.71f, 0.76f, 1.0f));  // Rose Pink macaron
+    rotateY->SetBasePosition(FVector(0.0f, 0.5f, -3.0f));
+    rotateY->GetTransform().Position = FVector(0.0f, 0.5f, -3.0f);
+    rotateY->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
+    rotateY->SetAnimationType(EAnimationType::RotateY);
+    rotateY->SetAnimationSpeed(1.0f);
+    Scene->AddPrimitive(rotateY);
+    
+    // Rotate around Z axis - Coral Pink
+    FDemoCubePrimitive* rotateZ = new FDemoCubePrimitive();
+    rotateZ->SetColor(FColor(1.0f, 0.60f, 0.65f, 1.0f));  // Coral Pink macaron
+    rotateZ->SetBasePosition(FVector(3.0f, 0.5f, -3.0f));
+    rotateZ->GetTransform().Position = FVector(3.0f, 0.5f, -3.0f);
+    rotateZ->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
+    rotateZ->SetAnimationType(EAnimationType::RotateZ);
+    rotateZ->SetAnimationSpeed(1.0f);
+    Scene->AddPrimitive(rotateZ);
+    
+    // ==========================================
+    // Group 2: Translation demos (Mint/Green macaron colors)
+    // Positioned in a row at Z = 0
+    // ==========================================
+    
+    // Translate along X axis - Mint Green
+    FDemoCubePrimitive* translateX = new FDemoCubePrimitive();
+    translateX->SetColor(FColor(0.68f, 0.93f, 0.82f, 1.0f));  // Mint Green macaron
+    translateX->SetBasePosition(FVector(-4.0f, 0.5f, 0.0f));
+    translateX->GetTransform().Position = FVector(-4.0f, 0.5f, 0.0f);
+    translateX->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
+    translateX->SetAnimationType(EAnimationType::TranslateX);
+    translateX->SetAnimationSpeed(2.0f);
+    Scene->AddPrimitive(translateX);
+    
+    // Translate along Y axis - Seafoam
+    FDemoCubePrimitive* translateY = new FDemoCubePrimitive();
+    translateY->SetColor(FColor(0.56f, 0.88f, 0.74f, 1.0f));  // Seafoam macaron
+    translateY->SetBasePosition(FVector(-2.0f, 0.5f, 0.0f));
+    translateY->GetTransform().Position = FVector(-2.0f, 0.5f, 0.0f);
+    translateY->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
+    translateY->SetAnimationType(EAnimationType::TranslateY);
+    translateY->SetAnimationSpeed(2.0f);
+    Scene->AddPrimitive(translateY);
+    
+    // Translate along Z axis - Pistachio
+    FDemoCubePrimitive* translateZ = new FDemoCubePrimitive();
+    translateZ->SetColor(FColor(0.73f, 0.89f, 0.67f, 1.0f));  // Pistachio macaron
+    translateZ->SetBasePosition(FVector(2.0f, 0.5f, 0.0f));
+    translateZ->GetTransform().Position = FVector(2.0f, 0.5f, 0.0f);
+    translateZ->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
+    translateZ->SetAnimationType(EAnimationType::TranslateZ);
+    translateZ->SetAnimationSpeed(2.0f);
+    Scene->AddPrimitive(translateZ);
+    
+    // Translate diagonally - Lime Green
+    FDemoCubePrimitive* translateDiag = new FDemoCubePrimitive();
+    translateDiag->SetColor(FColor(0.82f, 0.95f, 0.55f, 1.0f));  // Lime Green macaron
+    translateDiag->SetBasePosition(FVector(4.0f, 0.5f, 0.0f));
+    translateDiag->GetTransform().Position = FVector(4.0f, 0.5f, 0.0f);
+    translateDiag->GetTransform().Scale = FVector(0.5f, 0.5f, 0.5f);
+    translateDiag->SetAnimationType(EAnimationType::TranslateDiagonal);
+    translateDiag->SetAnimationSpeed(2.0f);
+    Scene->AddPrimitive(translateDiag);
+    
+    // ==========================================
+    // Group 3: Scale demos (Lavender/Purple macaron colors)
+    // Positioned in a row at Z = 3
+    // ==========================================
+    
+    // Scale uniformly - Lavender
+    FDemoCubePrimitive* scale1 = new FDemoCubePrimitive();
+    scale1->SetColor(FColor(0.79f, 0.69f, 0.89f, 1.0f));  // Lavender macaron
+    scale1->SetBasePosition(FVector(-2.0f, 0.5f, 3.0f));
+    scale1->SetBaseScale(FVector(0.6f, 0.6f, 0.6f));
+    scale1->GetTransform().Position = FVector(-2.0f, 0.5f, 3.0f);
+    scale1->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
+    scale1->SetAnimationType(EAnimationType::Scale);
+    scale1->SetAnimationSpeed(3.0f);
+    Scene->AddPrimitive(scale1);
+    
+    // Scale uniformly (different phase) - Violet
+    FDemoCubePrimitive* scale2 = new FDemoCubePrimitive();
+    scale2->SetColor(FColor(0.85f, 0.68f, 0.95f, 1.0f));  // Violet macaron
+    scale2->SetBasePosition(FVector(0.0f, 0.5f, 3.0f));
+    scale2->SetBaseScale(FVector(0.6f, 0.6f, 0.6f));
+    scale2->GetTransform().Position = FVector(0.0f, 0.5f, 3.0f);
+    scale2->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
+    scale2->SetAnimationType(EAnimationType::Scale);
+    scale2->SetAnimationSpeed(2.5f);
+    Scene->AddPrimitive(scale2);
+    
+    // Scale uniformly (different phase) - Grape
+    FDemoCubePrimitive* scale3 = new FDemoCubePrimitive();
+    scale3->SetColor(FColor(0.70f, 0.58f, 0.85f, 1.0f));  // Grape macaron
+    scale3->SetBasePosition(FVector(2.0f, 0.5f, 3.0f));
+    scale3->SetBaseScale(FVector(0.6f, 0.6f, 0.6f));
+    scale3->GetTransform().Position = FVector(2.0f, 0.5f, 3.0f);
+    scale3->GetTransform().Scale = FVector(0.6f, 0.6f, 0.6f);
+    scale3->SetAnimationType(EAnimationType::Scale);
+    scale3->SetAnimationSpeed(2.0f);
+    Scene->AddPrimitive(scale3);
+    
+    // ==========================================
+    // Additional demo: Sky Blue sphere at center for reference
+    // ==========================================
+    FSpherePrimitive* centerSphere = new FSpherePrimitive(24, 16);
+    centerSphere->SetColor(FColor(0.68f, 0.85f, 0.95f, 1.0f));  // Sky Blue macaron
+    centerSphere->GetTransform().Position = FVector(0.0f, 0.5f, 0.0f);
+    centerSphere->GetTransform().Scale = FVector(0.4f, 0.4f, 0.4f);
+    centerSphere->SetAutoRotate(false);
+    Scene->AddPrimitive(centerSphere);
     
     // Update render scene with all primitives
     Renderer->UpdateFromScene(Scene.get());
