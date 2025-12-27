@@ -1461,6 +1461,10 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     CD3DX12_ROOT_PARAMETER rootParameters[4];
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     
+    // Declare these outside the if block to ensure they survive until root signature is serialized
+    CD3DX12_DESCRIPTOR_RANGE srvRange;
+    D3D12_STATIC_SAMPLER_DESC shadowSampler = {};
+    
     if (bEnableLighting)
     {
         // Four root parameters:
@@ -1473,12 +1477,10 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         rootParameters[2].InitAsConstantBufferView(2);
         
         // Descriptor range for shadow map texture (t0)
-        CD3DX12_DESCRIPTOR_RANGE srvRange;
         srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);  // 1 SRV at t0
         rootParameters[3].InitAsDescriptorTable(1, &srvRange);
         
         // Static sampler for shadow map comparison sampling
-        D3D12_STATIC_SAMPLER_DESC shadowSampler = {};
         shadowSampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
         shadowSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
         shadowSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
