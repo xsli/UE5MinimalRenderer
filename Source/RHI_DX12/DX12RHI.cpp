@@ -264,7 +264,6 @@ void FDX12CommandList::DrawPrimitive(uint32 VertexCount, uint32 StartVertex)
     FLog::Log(ELogLevel::Info, std::string("DrawPrimitive - VertexCount: ") + std::to_string(VertexCount) + 
         ", StartVertex: " + std::to_string(StartVertex));
     
-    GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     GraphicsCommandList->DrawInstanced(VertexCount, 1, StartVertex, 0);
 }
 
@@ -273,8 +272,19 @@ void FDX12CommandList::DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex
     FLog::Log(ELogLevel::Info, std::string("DrawIndexedPrimitive - IndexCount: ") + std::to_string(IndexCount) + 
         ", StartIndex: " + std::to_string(StartIndex) + ", BaseVertex: " + std::to_string(BaseVertex));
     
-    GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     GraphicsCommandList->DrawIndexedInstanced(IndexCount, 1, StartIndex, BaseVertex, 0);
+}
+
+void FDX12CommandList::SetPrimitiveTopology(bool bLineList)
+{
+    if (bLineList)
+    {
+        GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+    }
+    else
+    {
+        GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    }
 }
 
 void FDX12CommandList::Present()
@@ -893,6 +903,334 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     ThrowIfFailed(Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineState)));
     
     FLog::Log(ELogLevel::Info, "Graphics pipeline state created successfully");
+    
+    return new FDX12PipelineState(pipelineState.Detach(), rootSignature.Detach());
+}
+
+FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
+{
+    bool bEnableDepth = HasFlag(Flags, EPipelineFlags::EnableDepth);
+    bool bEnableLighting = HasFlag(Flags, EPipelineFlags::EnableLighting);
+    bool bWireframe = HasFlag(Flags, EPipelineFlags::WireframeMode);
+    bool bLineTopology = HasFlag(Flags, EPipelineFlags::LineTopology);
+    
+    FLog::Log(ELogLevel::Info, std::string("Creating graphics pipeline state Ex (depth: ") + 
+        (bEnableDepth ? "on" : "off") + ", lighting: " + (bEnableLighting ? "on" : "off") + 
+        ", wireframe: " + (bWireframe ? "on" : "off") + ", lines: " + (bLineTopology ? "on" : "off") + ")...");
+    
+    // Phong lighting shader - uses FLitVertex format (position, normal, color)
+    // Constant buffer layout:
+    //   b0: MVP matrix (model-view-projection)
+    //   b1: Lighting data (model matrix, camera pos, lights, material)
+    const char* litShaderCode = R"(
+        cbuffer MVPBuffer : register(b0)
+        {
+            float4x4 MVP;
+        };
+        
+        cbuffer LightingBuffer : register(b1)
+        {
+            float4x4 ModelMatrix;
+            float4 CameraPosition;      // xyz = camera pos, w = unused
+            float4 AmbientLight;        // xyz = ambient color, w = intensity
+            
+            // Directional light
+            float4 DirLightDirection;   // xyz = direction (normalized), w = enabled
+            float4 DirLightColor;       // xyz = color, w = intensity
+            
+            // Point light (up to 4)
+            float4 PointLight0Position; // xyz = position, w = enabled
+            float4 PointLight0Color;    // xyz = color, w = intensity
+            float4 PointLight0Params;   // x = radius, y = falloff, zw = unused
+            
+            float4 PointLight1Position;
+            float4 PointLight1Color;
+            float4 PointLight1Params;
+            
+            float4 PointLight2Position;
+            float4 PointLight2Color;
+            float4 PointLight2Params;
+            
+            float4 PointLight3Position;
+            float4 PointLight3Color;
+            float4 PointLight3Params;
+            
+            // Material properties
+            float4 MaterialDiffuse;     // xyz = diffuse color, w = unused
+            float4 MaterialSpecular;    // xyz = specular color, w = shininess
+            float4 MaterialAmbient;     // xyz = ambient color, w = unused
+        };
+        
+        struct VSInput {
+            float3 position : POSITION;
+            float3 normal : NORMAL;
+            float4 color : COLOR;
+        };
+        
+        struct PSInput {
+            float4 position : SV_POSITION;
+            float3 worldPos : WORLDPOS;
+            float3 normal : NORMAL;
+            float4 color : COLOR;
+        };
+        
+        PSInput VSMain(VSInput input)
+        {
+            PSInput result;
+            result.position = mul(float4(input.position, 1.0f), MVP);
+            
+            // Transform position to world space for lighting
+            result.worldPos = mul(float4(input.position, 1.0f), ModelMatrix).xyz;
+            
+            // Transform normal to world space (using upper 3x3 of model matrix)
+            // For proper normal transformation, we should use inverse transpose
+            // but for uniform scaling this approximation works
+            float3x3 normalMatrix = (float3x3)ModelMatrix;
+            result.normal = normalize(mul(input.normal, normalMatrix));
+            
+            result.color = input.color;
+            return result;
+        }
+        
+        // Calculate point light attenuation
+        float CalcAttenuation(float distance, float radius, float falloff)
+        {
+            if (distance >= radius) return 0.0f;
+            float normalizedDist = distance / radius;
+            float attenuation = 1.0f / (1.0f + pow(normalizedDist, falloff));
+            float smooth = 1.0f - pow(normalizedDist, 4.0f);
+            return attenuation * saturate(smooth);
+        }
+        
+        // Apply point light contribution
+        float3 CalcPointLight(float3 worldPos, float3 N, float3 V, 
+                             float4 lightPos, float4 lightColor, float4 lightParams,
+                             float3 diffuseColor, float3 specularColor, float shininess)
+        {
+            if (lightPos.w < 0.5f) return float3(0, 0, 0); // Light disabled
+            
+            float3 lightPosition = lightPos.xyz;
+            float3 L = lightPosition - worldPos;
+            float distance = length(L);
+            L = normalize(L);
+            
+            float attenuation = CalcAttenuation(distance, lightParams.x, lightParams.y);
+            if (attenuation < 0.001f) return float3(0, 0, 0);
+            
+            float3 lightColorRGB = lightColor.xyz * lightColor.w;
+            
+            // Diffuse
+            float NdotL = max(dot(N, L), 0.0f);
+            float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+            
+            // Specular (Blinn-Phong)
+            float3 H = normalize(L + V);
+            float NdotH = max(dot(N, H), 0.0f);
+            float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+            
+            return (diffuse + specular) * attenuation;
+        }
+        
+        float4 PSMain(PSInput input) : SV_TARGET 
+        {
+            float3 N = normalize(input.normal);
+            float3 V = normalize(CameraPosition.xyz - input.worldPos);
+            
+            // Base material colors (multiply with vertex color)
+            float3 diffuseColor = MaterialDiffuse.xyz * input.color.xyz;
+            float3 specularColor = MaterialSpecular.xyz;
+            float3 ambientColor = MaterialAmbient.xyz * input.color.xyz;
+            float shininess = MaterialSpecular.w;
+            
+            // Ambient contribution
+            float3 ambient = ambientColor * AmbientLight.xyz * AmbientLight.w;
+            
+            // Directional light contribution
+            float3 directional = float3(0, 0, 0);
+            if (DirLightDirection.w > 0.5f) // Enabled
+            {
+                float3 L = normalize(-DirLightDirection.xyz); // Direction toward light
+                float NdotL = max(dot(N, L), 0.0f);
+                
+                float3 lightColorRGB = DirLightColor.xyz * DirLightColor.w;
+                
+                // Diffuse
+                float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+                
+                // Specular (Blinn-Phong)
+                float3 H = normalize(L + V);
+                float NdotH = max(dot(N, H), 0.0f);
+                float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+                
+                directional = diffuse + specular;
+            }
+            
+            // Point light contributions
+            float3 pointLights = float3(0, 0, 0);
+            pointLights += CalcPointLight(input.worldPos, N, V, PointLight0Position, PointLight0Color, PointLight0Params, diffuseColor, specularColor, shininess);
+            pointLights += CalcPointLight(input.worldPos, N, V, PointLight1Position, PointLight1Color, PointLight1Params, diffuseColor, specularColor, shininess);
+            pointLights += CalcPointLight(input.worldPos, N, V, PointLight2Position, PointLight2Color, PointLight2Params, diffuseColor, specularColor, shininess);
+            pointLights += CalcPointLight(input.worldPos, N, V, PointLight3Position, PointLight3Color, PointLight3Params, diffuseColor, specularColor, shininess);
+            
+            // Final color
+            float3 finalColor = ambient + directional + pointLights;
+            
+            return float4(finalColor, input.color.a);
+        }
+    )";
+    
+    // Unlit shader with MVP (for wireframes, lines, etc.)
+    const char* unlitShaderCode = R"(
+        cbuffer MVPBuffer : register(b0)
+        {
+            float4x4 MVP;
+        };
+        
+        struct VSInput {
+            float3 position : POSITION;
+            float4 color : COLOR;
+        };
+        
+        struct PSInput {
+            float4 position : SV_POSITION;
+            float4 color : COLOR;
+        };
+        
+        PSInput VSMain(VSInput input)
+        {
+            PSInput result;
+            result.position = mul(float4(input.position, 1.0f), MVP);
+            result.color = input.color;
+            return result;
+        }
+        
+        float4 PSMain(PSInput input) : SV_TARGET {
+            return input.color;
+        }
+    )";
+    
+    const char* shaderCode = bEnableLighting ? litShaderCode : unlitShaderCode;
+    
+    ComPtr<ID3DBlob> vertexShader;
+    ComPtr<ID3DBlob> pixelShader;
+    ComPtr<ID3DBlob> error;
+    
+    // Compile vertex shader
+    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
+                         "VSMain", "vs_5_0", 0, 0, &vertexShader, &error)))
+    {
+        if (error)
+        {
+            FLog::Log(ELogLevel::Error, std::string("Vertex shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
+        }
+        return nullptr;
+    }
+    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully");
+    
+    // Compile pixel shader
+    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
+                         "PSMain", "ps_5_0", 0, 0, &pixelShader, &error)))
+    {
+        if (error)
+        {
+            FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
+        }
+        return nullptr;
+    }
+    FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
+    
+    // Create root signature with appropriate number of constant buffers
+    CD3DX12_ROOT_PARAMETER rootParameters[2];
+    CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+    
+    if (bEnableLighting)
+    {
+        // Two CBVs: MVP (b0) and Lighting (b1)
+        rootParameters[0].InitAsConstantBufferView(0);
+        rootParameters[1].InitAsConstantBufferView(1);
+        rootSignatureDesc.Init(2, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    }
+    else if (bEnableDepth)
+    {
+        // One CBV: MVP (b0)
+        rootParameters[0].InitAsConstantBufferView(0);
+        rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    }
+    else
+    {
+        rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+    }
+    
+    ComPtr<ID3DBlob> signature;
+    ComPtr<ID3D12RootSignature> rootSignature;
+    ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+    ThrowIfFailed(Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
+    
+    FLog::Log(ELogLevel::Info, "Root signature created");
+    
+    // Define input layout based on vertex type
+    D3D12_INPUT_ELEMENT_DESC litInputElementDescs[] = 
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    };
+    
+    D3D12_INPUT_ELEMENT_DESC unlitInputElementDescs[] = 
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    };
+    
+    // Create PSO
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+    if (bEnableLighting)
+    {
+        psoDesc.InputLayout = { litInputElementDescs, _countof(litInputElementDescs) };
+    }
+    else
+    {
+        psoDesc.InputLayout = { unlitInputElementDescs, _countof(unlitInputElementDescs) };
+    }
+    psoDesc.pRootSignature = rootSignature.Get();
+    psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
+    psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
+    
+    // Rasterizer state
+    CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
+    rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;  // Don't cull any faces for now
+    if (bWireframe)
+    {
+        rasterizerDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
+    }
+    psoDesc.RasterizerState = rasterizerDesc;
+    
+    psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    
+    if (bEnableDepth)
+    {
+        psoDesc.DepthStencilState.DepthEnable = TRUE;
+        psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        psoDesc.DepthStencilState.StencilEnable = FALSE;
+        psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+    }
+    else
+    {
+        psoDesc.DepthStencilState.DepthEnable = FALSE;
+        psoDesc.DepthStencilState.StencilEnable = FALSE;
+    }
+    
+    psoDesc.SampleMask = UINT_MAX;
+    psoDesc.PrimitiveTopologyType = bLineTopology ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    psoDesc.NumRenderTargets = 1;
+    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    psoDesc.SampleDesc.Count = 1;
+    
+    ComPtr<ID3D12PipelineState> pipelineState;
+    ThrowIfFailed(Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineState)));
+    
+    FLog::Log(ELogLevel::Info, "Graphics pipeline state Ex created successfully");
     
     return new FDX12PipelineState(pipelineState.Detach(), rootSignature.Detach());
 }

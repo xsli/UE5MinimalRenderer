@@ -70,6 +70,7 @@ public:
     virtual void SetConstantBuffer(FRHIBuffer* ConstantBuffer, uint32 RootParameterIndex) override;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) override;
     virtual void DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) override;
+    virtual void SetPrimitiveTopology(bool bLineList = false) override;
     virtual void Present() override;
     virtual void FlushCommandsFor2D() override;
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
@@ -132,6 +133,7 @@ public:
     virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) override;
     virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) override;
+    virtual FRHIPipelineState* CreateGraphicsPipelineStateEx(EPipelineFlags Flags) override;
     
 private:
     ComPtr<IDXGIFactory4> Factory;

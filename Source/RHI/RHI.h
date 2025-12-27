@@ -8,10 +8,18 @@ class FRHIBuffer;
 class FRHIPipelineState;
 class FRHITexture;
 
-// Vertex data structure
+// Vertex data structure (basic, used for unlit rendering)
 struct FVertex 
 {
     FVector Position;
+    FColor Color;
+};
+
+// Lit vertex data structure (includes normal for lighting calculations)
+struct FLitVertex
+{
+    FVector Position;
+    FVector Normal;
     FColor Color;
 };
 
@@ -61,6 +69,10 @@ public:
     virtual void SetConstantBuffer(FRHIBuffer* ConstantBuffer, uint32 RootParameterIndex) = 0;
     virtual void DrawPrimitive(uint32 VertexCount, uint32 StartVertex) = 0;
     virtual void DrawIndexedPrimitive(uint32 IndexCount, uint32 StartIndex, uint32 BaseVertex) = 0;
+    
+    // Set primitive topology (triangle list by default)
+    virtual void SetPrimitiveTopology(bool bLineList = false) = 0;
+    
     virtual void Present() = 0;
     
     // Flush 3D rendering commands before 2D overlay rendering
@@ -70,6 +82,32 @@ public:
     // Text rendering - call FlushCommandsFor2D() before calling this
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) = 0;
 };
+
+// Pipeline state creation flags
+enum class EPipelineFlags : uint32
+{
+    None = 0,
+    EnableDepth = 1 << 0,
+    EnableLighting = 1 << 1,
+    WireframeMode = 1 << 2,
+    LineTopology = 1 << 3,  // For wireframe line rendering
+};
+
+// Operator overloads for pipeline flags
+inline EPipelineFlags operator|(EPipelineFlags a, EPipelineFlags b)
+{
+    return static_cast<EPipelineFlags>(static_cast<uint32>(a) | static_cast<uint32>(b));
+}
+
+inline EPipelineFlags operator&(EPipelineFlags a, EPipelineFlags b)
+{
+    return static_cast<EPipelineFlags>(static_cast<uint32>(a) & static_cast<uint32>(b));
+}
+
+inline bool HasFlag(EPipelineFlags flags, EPipelineFlags flag)
+{
+    return (static_cast<uint32>(flags) & static_cast<uint32>(flag)) != 0;
+}
 
 // RHI Interface - factory for creating RHI resources
 // Note: Resource ownership model - resources created by FRHI are owned by the caller
@@ -88,7 +126,12 @@ public:
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) = 0;
+    
+    // Legacy pipeline state creation (unlit)
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) = 0;
+    
+    // Extended pipeline state creation with flags
+    virtual FRHIPipelineState* CreateGraphicsPipelineStateEx(EPipelineFlags Flags) = 0;
 };
 
 // Factory function to create platform-specific RHI
