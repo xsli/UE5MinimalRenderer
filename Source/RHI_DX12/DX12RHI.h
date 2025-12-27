@@ -40,6 +40,55 @@ private:
     D3D12_INDEX_BUFFER_VIEW IndexBufferView;
 };
 
+/**
+ * FDX12Texture - DirectX 12 texture implementation
+ * Used for depth textures, render targets, and shadow maps
+ */
+class FDX12Texture : public FRHITexture
+{
+public:
+    FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
+                 uint32 InArraySize, DXGI_FORMAT InFormat,
+                 ID3D12DescriptorHeap* InDSVHeap = nullptr, ID3D12DescriptorHeap* InSRVHeap = nullptr,
+                 D3D12_RESOURCE_STATES InInitialState = D3D12_RESOURCE_STATE_COMMON);
+    virtual ~FDX12Texture() override;
+    
+    virtual uint32 GetWidth() const override { return Width; }
+    virtual uint32 GetHeight() const override { return Height; }
+    virtual uint32 GetArraySize() const override { return ArraySize; }
+    
+    ID3D12Resource* GetResource() const { return Resource.Get(); }
+    DXGI_FORMAT GetFormat() const { return Format; }
+    
+    // Get descriptor heap for depth stencil views
+    ID3D12DescriptorHeap* GetDSVHeap() const { return DSVHeap.Get(); }
+    
+    // Get descriptor heap for shader resource views
+    ID3D12DescriptorHeap* GetSRVHeap() const { return SRVHeap.Get(); }
+    
+    // Get CPU descriptor handle for DSV
+    D3D12_CPU_DESCRIPTOR_HANDLE GetDSVHandle(uint32 ArrayIndex = 0) const;
+    
+    // Get GPU descriptor handle for SRV (for shader sampling)
+    D3D12_GPU_DESCRIPTOR_HANDLE GetSRVGPUHandle() const;
+    
+    // Resource state tracking
+    D3D12_RESOURCE_STATES GetCurrentState() const { return CurrentState; }
+    void SetCurrentState(D3D12_RESOURCE_STATES State) { CurrentState = State; }
+    
+private:
+    ComPtr<ID3D12Resource> Resource;
+    ComPtr<ID3D12DescriptorHeap> DSVHeap;  // For rendering to depth
+    ComPtr<ID3D12DescriptorHeap> SRVHeap;  // For sampling in shaders
+    uint32 Width;
+    uint32 Height;
+    uint32 ArraySize;
+    DXGI_FORMAT Format;
+    uint32 DSVDescriptorSize;
+    uint32 SRVDescriptorSize;
+    D3D12_RESOURCE_STATES CurrentState;
+};
+
 class FDX12PipelineState : public FRHIPipelineState 
 {
 public:
@@ -75,6 +124,25 @@ public:
     virtual void Present() override;
     virtual void FlushCommandsFor2D() override;
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) override;
+    
+    // Debug texture visualization
+    virtual void DrawDebugTexture(FRHITexture* Texture, float X, float Y, float Width, float Height) override;
+    
+    // Shadow map support
+    virtual void BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex = 0) override;
+    virtual void EndShadowPass() override;
+    virtual void SetViewport(float X, float Y, float Width, float Height, float MinDepth = 0.0f, float MaxDepth = 1.0f) override;
+    virtual void ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex = 0) override;
+    
+    // GPU event markers for RenderDoc/PIX debugging
+    virtual void BeginEvent(const std::string& EventName) override;
+    virtual void EndEvent() override;
+    
+    // Set inline root constants
+    virtual void SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset = 0) override;
+    
+    // Bind shadow map texture for shader sampling
+    virtual void SetShadowMapTexture(FRHITexture* ShadowMap) override;
     
     void InitializeTextRendering(ID3D12Device* Device, IDXGISwapChain3* SwapChain);
     
@@ -118,6 +186,12 @@ private:
     
     // Track whether 3D commands have been flushed for 2D rendering
     bool bCommandsFlushedFor2D;
+    
+    // Shadow pass state
+    bool bInShadowPass;
+    FDX12Texture* CurrentShadowMap;
+    D3D12_VIEWPORT SavedViewport;
+    D3D12_RECT SavedScissorRect;
 };
 
 class FDX12RHI : public FRHI 
@@ -133,6 +207,7 @@ public:
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) override;
     virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) override;
     virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) override;
+    virtual FRHITexture* CreateDepthTexture(uint32 Width, uint32 Height, ERTFormat Format, uint32 ArraySize = 1) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineStateEx(EPipelineFlags Flags) override;
     

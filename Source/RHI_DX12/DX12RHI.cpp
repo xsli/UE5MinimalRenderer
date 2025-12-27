@@ -73,6 +73,67 @@ void FDX12Buffer::Unmap()
     Resource->Unmap(0, nullptr);
 }
 
+// FDX12Texture implementation
+FDX12Texture::FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
+                           uint32 InArraySize, DXGI_FORMAT InFormat,
+                           ID3D12DescriptorHeap* InDSVHeap, ID3D12DescriptorHeap* InSRVHeap,
+                           D3D12_RESOURCE_STATES InInitialState)
+    : Resource(InResource)
+    , DSVHeap(InDSVHeap)
+    , SRVHeap(InSRVHeap)
+    , Width(InWidth)
+    , Height(InHeight)
+    , ArraySize(InArraySize)
+    , Format(InFormat)
+    , DSVDescriptorSize(0)
+    , SRVDescriptorSize(0)
+    , CurrentState(InInitialState)
+{
+    // Get descriptor sizes from device
+    ComPtr<ID3D12Device> device;
+    if (Resource)
+    {
+        Resource->GetDevice(IID_PPV_ARGS(&device));
+        if (device)
+        {
+            DSVDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+            SRVDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        }
+    }
+    
+    FLog::Log(ELogLevel::Info, "FDX12Texture created: " + std::to_string(Width) + "x" + std::to_string(Height) + 
+              " ArraySize=" + std::to_string(ArraySize));
+}
+
+FDX12Texture::~FDX12Texture()
+{
+    FLog::Log(ELogLevel::Info, "FDX12Texture destroyed");
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE FDX12Texture::GetDSVHandle(uint32 ArrayIndex) const
+{
+    if (!DSVHeap)
+    {
+        return {};
+    }
+    
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = DSVHeap->GetCPUDescriptorHandleForHeapStart();
+    if (ArrayIndex > 0 && ArrayIndex < ArraySize)
+    {
+        handle.ptr += ArrayIndex * DSVDescriptorSize;
+    }
+    return handle;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE FDX12Texture::GetSRVGPUHandle() const
+{
+    if (!SRVHeap)
+    {
+        return {};
+    }
+    return SRVHeap->GetGPUDescriptorHandleForHeapStart();
+}
+
 // FDX12PipelineState implementation
 FDX12PipelineState::FDX12PipelineState(ID3D12PipelineState* InPSO, ID3D12RootSignature* InRootSig)
     : PSO(InPSO), RootSignature(InRootSig)
@@ -86,6 +147,8 @@ FDX12PipelineState::~FDX12PipelineState()
 // FDX12CommandList implementation
 FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* InQueue, IDXGISwapChain3* InSwapChain, uint32 Width, uint32 Height)
     : Device(InDevice), CommandQueue(InQueue), SwapChain(InSwapChain), FrameIndex(0), FenceValue(0)
+    , bCommandsFlushedFor2D(false), bInShadowPass(false), CurrentShadowMap(nullptr)
+    , SavedViewport{}, SavedScissorRect{}
 {
     
     // Create command allocator
@@ -151,7 +214,42 @@ FDX12CommandList::FDX12CommandList(ID3D12Device* InDevice, ID3D12CommandQueue* I
 FDX12CommandList::~FDX12CommandList()
 {
     WaitForGPU();
+    
+    // Release D2D/D3D11on12 resources first (they hold references to D3D12 resources)
+    for (int i = 0; i < FrameCount; ++i)
+    {
+        D2DRenderTargets[i].Reset();
+        WrappedBackBuffers[i].Reset();
+    }
+    D2DDeviceContext.Reset();
+    D2DDevice.Reset();
+    D2DFactory.Reset();
+    DWriteFactory.Reset();
+    D3D11On12Device.Reset();
+    D3D11DeviceContext.Reset();
+    D3D11Device.Reset();
+    
+    // Release command list and allocator
+    GraphicsCommandList.Reset();
+    CommandAllocator.Reset();
+    
+    // Release render targets and descriptor heaps
+    for (int i = 0; i < FrameCount; ++i)
+    {
+        RenderTargets[i].Reset();
+    }
+    RTVHeap.Reset();
+    
+    // Release depth stencil resources
+    DepthStencilBuffer.Reset();
+    DSVHeap.Reset();
+    
+    // Release fence
+    Fence.Reset();
     CloseHandle(FenceEvent);
+    
+    // Note: Device, CommandQueue, SwapChain are shared with FDX12RHI
+    // They will be released there
 }
 
 void FDX12CommandList::BeginFrame()
@@ -320,8 +418,6 @@ void FDX12CommandList::Present()
 
 void FDX12CommandList::FlushCommandsFor2D()
 {
-	FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: Submitting 3D rendering commands");
-
 	try
 	{
 		// Close and execute D3D12 command list
@@ -345,8 +441,6 @@ void FDX12CommandList::FlushCommandsFor2D()
 		// Reset viewport and scissor since we reset the command list
 		GraphicsCommandList->RSSetViewports(1, &Viewport);
 		GraphicsCommandList->RSSetScissorRects(1, &ScissorRect);
-
-		FLog::Log(ELogLevel::Info, "FlushCommandsFor2D: 3D commands submitted, ready for 2D rendering");
 	}
 	catch (const std::exception& e)
 	{
@@ -402,6 +496,155 @@ void FDX12CommandList::CreateDepthStencilBuffer(uint32 Width, uint32 Height)
     FLog::Log(ELogLevel::Info, "Depth stencil buffer created successfully");
 }
 
+void FDX12CommandList::BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex)
+{
+    FLog::Log(ELogLevel::Info, "BeginShadowPass - FaceIndex: " + std::to_string(FaceIndex));
+    
+    if (!ShadowMap)
+    {
+        FLog::Log(ELogLevel::Error, "BeginShadowPass: ShadowMap is null");
+        return;
+    }
+    
+    FDX12Texture* DX12ShadowMap = static_cast<FDX12Texture*>(ShadowMap);
+    
+    // Save current state
+    bInShadowPass = true;
+    CurrentShadowMap = DX12ShadowMap;
+    SavedViewport = Viewport;
+    SavedScissorRect = ScissorRect;
+    
+    // Transition shadow map to depth write state if needed (check current state)
+    D3D12_RESOURCE_STATES currentState = DX12ShadowMap->GetCurrentState();
+    if (currentState != D3D12_RESOURCE_STATE_DEPTH_WRITE)
+    {
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            DX12ShadowMap->GetResource(),
+            currentState,
+            D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        GraphicsCommandList->ResourceBarrier(1, &barrier);
+        DX12ShadowMap->SetCurrentState(D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    }
+    
+    // Get DSV handle for the specified face
+    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DX12ShadowMap->GetDSVHandle(FaceIndex);
+    
+    // Set depth-only render target (no color target)
+    GraphicsCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsvHandle);
+    
+    // Clear the depth buffer
+    GraphicsCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    
+    FLog::Log(ELogLevel::Info, "BeginShadowPass: Render target set to shadow map");
+}
+
+void FDX12CommandList::EndShadowPass()
+{
+    FLog::Log(ELogLevel::Info, "EndShadowPass");
+    
+    if (!bInShadowPass || !CurrentShadowMap)
+    {
+        FLog::Log(ELogLevel::Warning, "EndShadowPass: Not in shadow pass");
+        return;
+    }
+    
+    // Transition shadow map back to shader resource state (track state)
+    D3D12_RESOURCE_STATES currentState = CurrentShadowMap->GetCurrentState();
+    if (currentState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
+    {
+        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+            CurrentShadowMap->GetResource(),
+            currentState,
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        GraphicsCommandList->ResourceBarrier(1, &barrier);
+        CurrentShadowMap->SetCurrentState(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    }
+    
+    // Restore viewport and scissor
+    Viewport = SavedViewport;
+    ScissorRect = SavedScissorRect;
+    GraphicsCommandList->RSSetViewports(1, &Viewport);
+    GraphicsCommandList->RSSetScissorRects(1, &ScissorRect);
+    
+    // Restore main render target
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(RTVHeap->GetCPUDescriptorHandleForHeapStart(), FrameIndex, RTVDescriptorSize);
+    if (DSVHeap)
+    {
+        CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(DSVHeap->GetCPUDescriptorHandleForHeapStart());
+        GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    }
+    else
+    {
+        GraphicsCommandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+    }
+    
+    bInShadowPass = false;
+    CurrentShadowMap = nullptr;
+    
+    FLog::Log(ELogLevel::Info, "EndShadowPass: Main render target restored");
+}
+
+void FDX12CommandList::SetViewport(float X, float Y, float Width, float Height, float MinDepth, float MaxDepth)
+{
+    D3D12_VIEWPORT vp = {};
+    vp.TopLeftX = X;
+    vp.TopLeftY = Y;
+    vp.Width = Width;
+    vp.Height = Height;
+    vp.MinDepth = MinDepth;
+    vp.MaxDepth = MaxDepth;
+    
+    GraphicsCommandList->RSSetViewports(1, &vp);
+    
+    D3D12_RECT scissor = {};
+    scissor.left = static_cast<LONG>(X);
+    scissor.top = static_cast<LONG>(Y);
+    scissor.right = static_cast<LONG>(X + Width);
+    scissor.bottom = static_cast<LONG>(Y + Height);
+    
+    GraphicsCommandList->RSSetScissorRects(1, &scissor);
+}
+
+void FDX12CommandList::ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex)
+{
+    if (!DepthTexture)
+    {
+        FLog::Log(ELogLevel::Error, "ClearDepthOnly: DepthTexture is null");
+        return;
+    }
+    
+    FDX12Texture* DX12Texture = static_cast<FDX12Texture*>(DepthTexture);
+    D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = DX12Texture->GetDSVHandle(FaceIndex);
+    
+    GraphicsCommandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+}
+
+void FDX12CommandList::BeginEvent(const std::string& EventName)
+{
+    // PIXBeginEvent is preferred but requires PIX headers
+    // For RenderDoc compatibility, use SetMarker with ID3D12GraphicsCommandList
+    // Using a simple approach: SetMarker followed by the marker being visible in RenderDoc
+    
+    // Convert to wide string for D3D12 marker API
+    std::wstring wideEventName(EventName.begin(), EventName.end());
+    
+    // Use PIXSetMarker via command list (requires D3D12_MESSAGE_ID_PIX_API)
+    // For broader compatibility, we use the standard D3D12 debug layer marker
+#ifdef _DEBUG
+    // In debug mode, this marker will be visible in RenderDoc and GPU profilers
+    GraphicsCommandList->BeginEvent(0, wideEventName.c_str(), static_cast<UINT>((wideEventName.length() + 1) * sizeof(wchar_t)));
+#else
+    (void)wideEventName;  // Avoid unused variable warning in release
+#endif
+}
+
+void FDX12CommandList::EndEvent()
+{
+#ifdef _DEBUG
+    GraphicsCommandList->EndEvent();
+#endif
+}
+
 void FDX12CommandList::WaitForGPU()
 {
     const UINT64 currentFenceValue = FenceValue;
@@ -413,6 +656,34 @@ void FDX12CommandList::WaitForGPU()
         ThrowIfFailed(Fence->SetEventOnCompletion(currentFenceValue, FenceEvent));
         WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
     }
+}
+
+void FDX12CommandList::SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset)
+{
+    // Set inline root constants directly in the root signature
+    // This copies data at record time, avoiding constant buffer sync issues
+    GraphicsCommandList->SetGraphicsRoot32BitConstants(RootParameterIndex, Num32BitValues, Data, DestOffset);
+}
+
+void FDX12CommandList::SetShadowMapTexture(FRHITexture* ShadowMap)
+{
+    if (!ShadowMap) return;
+    
+    FDX12Texture* dx12Texture = static_cast<FDX12Texture*>(ShadowMap);
+    ID3D12DescriptorHeap* srvHeap = dx12Texture->GetSRVHeap();
+    
+    if (!srvHeap)
+    {
+        FLog::Log(ELogLevel::Warning, "SetShadowMapTexture: Shadow map has no SRV heap");
+        return;
+    }
+    
+    // Set the descriptor heap for the shadow map SRV
+    ID3D12DescriptorHeap* heaps[] = { srvHeap };
+    GraphicsCommandList->SetDescriptorHeaps(1, heaps);
+    
+    // Set the descriptor table for the shadow map (root parameter index 3 for lit shader)
+    GraphicsCommandList->SetGraphicsRootDescriptorTable(3, dx12Texture->GetSRVGPUHandle());
 }
 
 void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwapChain3* InSwapChain)
@@ -567,6 +838,84 @@ void FDX12CommandList::RHIDrawText(const std::string& Text, const FVector2D& Pos
 	}
 }
 
+void FDX12CommandList::DrawDebugTexture(FRHITexture* Texture, float X, float Y, float Width, float Height)
+{
+    if (!D2DDeviceContext || !Texture)
+    {
+        return;
+    }
+    
+    FDX12Texture* dx12Texture = static_cast<FDX12Texture*>(Texture);
+    
+    try
+    {
+        // Draw debug texture visualization as an opaque rectangle with texture info
+        D3D11On12Device->AcquireWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+        
+        D2DDeviceContext->SetTarget(D2DRenderTargets[FrameIndex].Get());
+        D2DDeviceContext->BeginDraw();
+        
+        // Draw an opaque black background for the debug texture area
+        ComPtr<ID2D1SolidColorBrush> bgBrush;
+        D2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.0f, 0.0f, 1.0f), &bgBrush);
+        
+        D2D1_RECT_F rect = D2D1::RectF(X, Y, X + Width, Y + Height);
+        D2DDeviceContext->FillRectangle(rect, bgBrush.Get());
+        
+        // Draw yellow border
+        ComPtr<ID2D1SolidColorBrush> borderBrush;
+        D2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 0.0f, 1.0f), &borderBrush);
+        D2DDeviceContext->DrawRectangle(rect, borderBrush.Get(), 2.0f);
+        
+        // Draw "Shadow Map" header text
+        ComPtr<IDWriteTextFormat> textFormat;
+        DWriteFactory->CreateTextFormat(
+            L"Arial", nullptr,
+            DWRITE_FONT_WEIGHT_BOLD,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            14.0f, L"en-us", &textFormat);
+        
+        ComPtr<ID2D1SolidColorBrush> textBrush;
+        D2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &textBrush);
+        
+        std::wstring label = L"Shadow Map (Directional)";
+        D2D1_RECT_F textRect = D2D1::RectF(X + 5, Y + 5, X + Width - 5, Y + 22);
+        D2DDeviceContext->DrawText(label.c_str(), static_cast<UINT32>(label.length()), textFormat.Get(), &textRect, textBrush.Get());
+        
+        // Draw texture dimensions
+        wchar_t dimText[64];
+        swprintf_s(dimText, L"Size: %ux%u D32_FLOAT", dx12Texture->GetWidth(), dx12Texture->GetHeight());
+        
+        ComPtr<IDWriteTextFormat> smallTextFormat;
+        DWriteFactory->CreateTextFormat(
+            L"Arial", nullptr,
+            DWRITE_FONT_WEIGHT_NORMAL,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            11.0f, L"en-us", &smallTextFormat);
+            
+        textRect = D2D1::RectF(X + 5, Y + Height - 35, X + Width - 5, Y + Height - 20);
+        D2DDeviceContext->DrawText(dimText, static_cast<UINT32>(wcslen(dimText)), smallTextFormat.Get(), &textRect, textBrush.Get());
+        
+        // Draw usage hint
+        std::wstring hint = L"Use RenderDoc for capture";
+        textRect = D2D1::RectF(X + 5, Y + Height - 18, X + Width - 5, Y + Height - 5);
+        D2DDeviceContext->DrawText(hint.c_str(), static_cast<UINT32>(hint.length()), smallTextFormat.Get(), &textRect, textBrush.Get());
+        
+        D2DDeviceContext->EndDraw();
+        
+        D3D11On12Device->ReleaseWrappedResources(WrappedBackBuffers[FrameIndex].GetAddressOf(), 1);
+        D3D11DeviceContext->Flush();
+        
+        FLog::Log(ELogLevel::Info, "Debug texture drawn at (" + std::to_string(X) + ", " + std::to_string(Y) + ")");
+    }
+    catch (const std::exception& e)
+    {
+        FLog::Log(ELogLevel::Error, std::string("DrawDebugTexture error: ") + e.what());
+    }
+}
+
 
 // FDX12RHI implementation
 FDX12RHI::FDX12RHI() : Width(0), Height(0)
@@ -685,7 +1034,7 @@ FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data)
 {
     FLog::Log(ELogLevel::Info, std::string("Creating vertex buffer - Size: ") + std::to_string(Size) + " bytes");
     
-    // Create upload heap
+    // Create upload heap - buffers on upload heaps are effectively in COMMON state
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
     
@@ -694,7 +1043,7 @@ FRHIBuffer* FDX12RHI::CreateVertexBuffer(uint32 Size, const void* Data)
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&vertexBuffer)));
     
@@ -717,7 +1066,7 @@ FRHIBuffer* FDX12RHI::CreateIndexBuffer(uint32 Size, const void* Data)
 {
     FLog::Log(ELogLevel::Info, std::string("Creating index buffer - Size: ") + std::to_string(Size) + " bytes");
     
-    // Create upload heap
+    // Create upload heap - buffers on upload heaps are effectively in COMMON state
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(Size);
     
@@ -726,7 +1075,7 @@ FRHIBuffer* FDX12RHI::CreateIndexBuffer(uint32 Size, const void* Data)
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&indexBuffer)));
     
@@ -753,7 +1102,7 @@ FRHIBuffer* FDX12RHI::CreateConstantBuffer(uint32 Size)
     static constexpr uint32 CONSTANT_BUFFER_ALIGNMENT = 256;
     uint32 alignedSize = (Size + CONSTANT_BUFFER_ALIGNMENT - 1) & ~(CONSTANT_BUFFER_ALIGNMENT - 1);
     
-    // Create upload heap
+    // Create upload heap - buffers on upload heaps are effectively in COMMON state
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(alignedSize);
     
@@ -762,12 +1111,157 @@ FRHIBuffer* FDX12RHI::CreateConstantBuffer(uint32 Size)
         &heapProps,
         D3D12_HEAP_FLAG_NONE,
         &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
+        D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&constantBuffer)));
     
     FLog::Log(ELogLevel::Info, "Constant buffer created successfully");
     return new FDX12Buffer(constantBuffer.Detach(), FDX12Buffer::EBufferType::Constant);
+}
+
+FRHITexture* FDX12RHI::CreateDepthTexture(uint32 InWidth, uint32 InHeight, ERTFormat Format, uint32 ArraySize)
+{
+    FLog::Log(ELogLevel::Info, "Creating depth texture: " + std::to_string(InWidth) + "x" + 
+              std::to_string(InHeight) + " ArraySize=" + std::to_string(ArraySize));
+    
+    // Map ERTFormat to DXGI_FORMAT
+    DXGI_FORMAT resourceFormat;
+    DXGI_FORMAT dsvFormat;
+    DXGI_FORMAT srvFormat;
+    
+    switch (Format)
+    {
+        case ERTFormat::D32_FLOAT:
+            resourceFormat = DXGI_FORMAT_R32_TYPELESS;  // Typeless for multi-use
+            dsvFormat = DXGI_FORMAT_D32_FLOAT;
+            srvFormat = DXGI_FORMAT_R32_FLOAT;
+            break;
+        case ERTFormat::D16_UNORM:
+            resourceFormat = DXGI_FORMAT_R16_TYPELESS;
+            dsvFormat = DXGI_FORMAT_D16_UNORM;
+            srvFormat = DXGI_FORMAT_R16_UNORM;
+            break;
+        case ERTFormat::D24_UNORM_S8_UINT:
+            resourceFormat = DXGI_FORMAT_R24G8_TYPELESS;
+            dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+            srvFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+            break;
+        case ERTFormat::R32_FLOAT:
+            resourceFormat = DXGI_FORMAT_R32_FLOAT;
+            dsvFormat = DXGI_FORMAT_D32_FLOAT;
+            srvFormat = DXGI_FORMAT_R32_FLOAT;
+            break;
+        default:
+            FLog::Log(ELogLevel::Error, "Unsupported depth format");
+            return nullptr;
+    }
+    
+    // Create texture resource
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+    
+    D3D12_RESOURCE_DESC texDesc = {};
+    texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    texDesc.Alignment = 0;
+    texDesc.Width = InWidth;
+    texDesc.Height = InHeight;
+    texDesc.DepthOrArraySize = static_cast<UINT16>(ArraySize);
+    texDesc.MipLevels = 1;
+    texDesc.Format = resourceFormat;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.SampleDesc.Quality = 0;
+    texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    
+    D3D12_CLEAR_VALUE clearValue = {};
+    clearValue.Format = dsvFormat;
+    clearValue.DepthStencil.Depth = 1.0f;
+    clearValue.DepthStencil.Stencil = 0;
+    
+    ComPtr<ID3D12Resource> texture;
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &heapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &texDesc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        &clearValue,
+        IID_PPV_ARGS(&texture)));
+    
+    // Create DSV descriptor heap (one DSV per array slice)
+    D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};
+    dsvHeapDesc.NumDescriptors = ArraySize;
+    dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+    dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    
+    ComPtr<ID3D12DescriptorHeap> dsvHeap;
+    ThrowIfFailed(Device->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsvHeap)));
+    
+    uint32 dsvDescriptorSize = Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    
+    // Create DSVs for each array slice
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(dsvHeap->GetCPUDescriptorHandleForHeapStart());
+    for (uint32 i = 0; i < ArraySize; ++i)
+    {
+        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+        dsvDesc.Format = dsvFormat;
+        
+        if (ArraySize > 1)
+        {
+            dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
+            dsvDesc.Texture2DArray.MipSlice = 0;
+            dsvDesc.Texture2DArray.FirstArraySlice = i;
+            dsvDesc.Texture2DArray.ArraySize = 1;
+        }
+        else
+        {
+            dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+            dsvDesc.Texture2D.MipSlice = 0;
+        }
+        dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+        
+        Device->CreateDepthStencilView(texture.Get(), &dsvDesc, dsvHandle);
+        dsvHandle.Offset(1, dsvDescriptorSize);
+    }
+    
+    // Create SRV descriptor heap (for sampling in shaders)
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 1;  // Single SRV for entire texture/array
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    
+    ComPtr<ID3D12DescriptorHeap> srvHeap;
+    ThrowIfFailed(Device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap)));
+    
+    // Create SRV
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = srvFormat;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    
+    if (ArraySize > 1)
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+        srvDesc.Texture2DArray.MostDetailedMip = 0;
+        srvDesc.Texture2DArray.MipLevels = 1;
+        srvDesc.Texture2DArray.FirstArraySlice = 0;
+        srvDesc.Texture2DArray.ArraySize = ArraySize;
+        srvDesc.Texture2DArray.PlaneSlice = 0;
+        srvDesc.Texture2DArray.ResourceMinLODClamp = 0.0f;
+    }
+    else
+    {
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = 1;
+        srvDesc.Texture2D.PlaneSlice = 0;
+        srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+    }
+    
+    Device->CreateShaderResourceView(texture.Get(), &srvDesc, srvHeap->GetCPUDescriptorHandleForHeapStart());
+    
+    FLog::Log(ELogLevel::Info, "Depth texture created successfully");
+    
+    // Pass the initial state (DEPTH_WRITE) to the texture so it can track state transitions
+    return new FDX12Texture(texture.Detach(), InWidth, InHeight, ArraySize, dsvFormat, 
+                            dsvHeap.Detach(), srvHeap.Detach(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 }
 
 FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
@@ -831,9 +1325,15 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     ComPtr<ID3DBlob> pixelShader;
     ComPtr<ID3DBlob> error;
     
+    // Shader compile flags - disable optimization in debug mode for RenderDoc debugging
+    UINT shaderCompileFlags = 0;
+#ifdef _DEBUG
+    shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+    
     // Compile vertex shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "VSMain", "vs_5_0", 0, 0, &vertexShader, &error)))
+                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
 {
         if (error)
         {
@@ -845,7 +1345,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     
     // Compile pixel shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "PSMain", "ps_5_0", 0, 0, &pixelShader, &error)))
+                         "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
 {
         if (error)
         {
@@ -935,15 +1435,49 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     bool bEnableLighting = HasFlag(Flags, EPipelineFlags::EnableLighting);
     bool bWireframe = HasFlag(Flags, EPipelineFlags::WireframeMode);
     bool bLineTopology = HasFlag(Flags, EPipelineFlags::LineTopology);
+    bool bEnableShadows = HasFlag(Flags, EPipelineFlags::EnableShadows);
+    bool bDepthOnly = HasFlag(Flags, EPipelineFlags::DepthOnly);
     
     FLog::Log(ELogLevel::Info, std::string("Creating graphics pipeline state Ex (depth: ") + 
         (bEnableDepth ? "on" : "off") + ", lighting: " + (bEnableLighting ? "on" : "off") + 
-        ", wireframe: " + (bWireframe ? "on" : "off") + ", lines: " + (bLineTopology ? "on" : "off") + ")...");
+        ", wireframe: " + (bWireframe ? "on" : "off") + ", lines: " + (bLineTopology ? "on" : "off") + 
+        ", shadows: " + (bEnableShadows ? "on" : "off") + ", depth-only: " + (bDepthOnly ? "on" : "off") + ")...");
     
-    // Phong lighting shader - uses FLitVertex format (position, normal, color)
+    // Depth-only shader for shadow pass
+    const char* depthOnlyShaderCode = R"(
+        cbuffer MVPBuffer : register(b0)
+        {
+            float4x4 MVP;
+        };
+        
+        struct VSInput {
+            float3 position : POSITION;
+            float3 normal : NORMAL;
+            float4 color : COLOR;
+        };
+        
+        struct PSInput {
+            float4 position : SV_POSITION;
+        };
+        
+        PSInput VSMain(VSInput input)
+        {
+            PSInput result;
+            result.position = mul(float4(input.position, 1.0f), MVP);
+            return result;
+        }
+        
+        void PSMain(PSInput input)
+        {
+            // Depth-only pass - no color output
+        }
+    )";
+    
+    // Phong lighting shader with shadow support - uses FLitVertex format (position, normal, color)
     // Constant buffer layout:
     //   b0: MVP matrix (model-view-projection)
     //   b1: Lighting data (model matrix, camera pos, lights, material)
+    //   b2: Shadow data (light view-projection matrix)
     const char* litShaderCode = R"(
         cbuffer MVPBuffer : register(b0)
         {
@@ -983,6 +1517,16 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             float4 MaterialAmbient;     // xyz = ambient color, w = unused
         };
         
+        cbuffer ShadowBuffer : register(b2)
+        {
+            float4x4 DirLightViewProj;  // Directional light view-projection matrix
+            float4 ShadowParams;        // x = bias, y = enabled, z = shadow strength, w = unused
+        };
+        
+        // Shadow map texture and sampler
+        Texture2D<float> ShadowMap : register(t0);
+        SamplerComparisonState ShadowSampler : register(s0);
+        
         struct VSInput {
             float3 position : POSITION;
             float3 normal : NORMAL;
@@ -994,6 +1538,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             float3 worldPos : WORLDPOS;
             float3 normal : NORMAL;
             float4 color : COLOR;
+            float4 lightSpacePos : LIGHTSPACEPOS;
         };
         
         PSInput VSMain(VSInput input)
@@ -1015,7 +1560,49 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             result.normal = normalize(mul(input.normal, normalMatrix));
             
             result.color = input.color;
+            
+            // Transform to light space for shadow mapping
+            result.lightSpacePos = mul(float4(result.worldPos, 1.0f), DirLightViewProj);
+            
             return result;
+        }
+        
+        // Calculate shadow factor by sampling the shadow map
+        float CalcShadow(float4 lightSpacePos, float bias)
+        {
+            // Perform perspective divide
+            float3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+            
+            // Transform to [0,1] range (NDC is [-1,1] for x,y)
+            projCoords.x = projCoords.x * 0.5f + 0.5f;
+            projCoords.y = -projCoords.y * 0.5f + 0.5f;  // Flip Y
+            
+            // Check if in shadow map bounds
+            if (projCoords.x < 0.0f || projCoords.x > 1.0f ||
+                projCoords.y < 0.0f || projCoords.y > 1.0f ||
+                projCoords.z < 0.0f || projCoords.z > 1.0f)
+            {
+                return 1.0f;  // Not in shadow (outside light frustum)
+            }
+            
+            // Apply bias to avoid shadow acne
+            float currentDepth = projCoords.z - bias;
+            
+            // Sample shadow map with PCF 3x3 kernel
+            float shadow = 0.0f;
+            float texelSize = 1.0f / 1024.0f;  // Shadow map resolution
+            
+            for (int x = -1; x <= 1; ++x)
+            {
+                for (int y = -1; y <= 1; ++y)
+                {
+                    float2 uv = projCoords.xy + float2(x, y) * texelSize;
+                    shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, uv, currentDepth);
+                }
+            }
+            shadow /= 9.0f;  // Average 9 samples
+            
+            return shadow;
         }
         
         // Calculate point light attenuation
@@ -1071,22 +1658,37 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
             // Ambient contribution
             float3 ambient = ambientColor * AmbientLight.xyz * AmbientLight.w;
             
-            // Directional light contribution
+            // Calculate shadow factor for directional light
+            float shadowBias = ShadowParams.x;
+            float shadowEnabled = ShadowParams.y;
+            float shadowStrength = ShadowParams.z;
+            float shadow = 1.0f;
+            
+            if (shadowEnabled > 0.5f)
+            {
+                shadow = CalcShadow(input.lightSpacePos, shadowBias);
+                shadow = lerp(1.0f, shadow, shadowStrength);
+            }
+            
+            // Directional light contribution (with shadow)
             float3 directional = float3(0, 0, 0);
             if (DirLightDirection.w > 0.5f) // Enabled
             {
                 float3 L = normalize(-DirLightDirection.xyz); // Direction toward light
                 float NdotL = max(dot(N, L), 0.0f);
                 
+                // Apply shadow - surfaces facing away from light are in shadow
+                float selfShadow = NdotL;
+                
                 float3 lightColorRGB = DirLightColor.xyz * DirLightColor.w;
                 
-                // Diffuse
-                float3 diffuse = diffuseColor * lightColorRGB * NdotL;
+                // Diffuse (attenuated by shadow)
+                float3 diffuse = diffuseColor * lightColorRGB * NdotL * shadow;
                 
-                // Specular (Blinn-Phong)
+                // Specular (Blinn-Phong, also attenuated by shadow)
                 float3 H = normalize(L + V);
                 float NdotH = max(dot(N, H), 0.0f);
-                float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
+                float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess) * shadow;
                 
                 directional = diffuse + specular;
             }
@@ -1135,15 +1737,36 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         }
     )";
     
-    const char* shaderCode = bEnableLighting ? litShaderCode : unlitShaderCode;
+    const char* shaderCode;
+    if (bDepthOnly)
+    {
+        shaderCode = depthOnlyShaderCode;
+    }
+    else if (bEnableLighting)
+    {
+        shaderCode = litShaderCode;
+    }
+    else
+    {
+        shaderCode = unlitShaderCode;
+    }
     
     ComPtr<ID3DBlob> vertexShader;
     ComPtr<ID3DBlob> pixelShader;
     ComPtr<ID3DBlob> error;
     
+    // Shader compile flags - disable optimization in debug mode for RenderDoc debugging
+    UINT shaderCompileFlags = 0;
+#ifdef _DEBUG
+    // D3DCOMPILE_DEBUG: Include debug info for shader debugging
+    // D3DCOMPILE_SKIP_OPTIMIZATION: Disable optimization for source-level debugging
+    shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+    FLog::Log(ELogLevel::Info, "Compiling shaders with DEBUG flags (no optimization, debug info enabled)");
+#endif
+    
     // Compile vertex shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "VSMain", "vs_5_0", 0, 0, &vertexShader, &error)))
+                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
     {
         if (error)
         {
@@ -1155,7 +1778,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     
     // Compile pixel shader
     if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "PSMain", "ps_5_0", 0, 0, &pixelShader, &error)))
+                         "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
     {
         if (error)
         {
@@ -1166,19 +1789,56 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
     
     // Create root signature with appropriate number of constant buffers
-    CD3DX12_ROOT_PARAMETER rootParameters[2];
+    CD3DX12_ROOT_PARAMETER rootParameters[4];
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
     
     if (bEnableLighting)
     {
-        // Two CBVs: MVP (b0) and Lighting (b1)
+        // Four root parameters:
+        // 0: CBV for MVP (b0)
+        // 1: CBV for Lighting (b1)
+        // 2: CBV for Shadow (b2)
+        // 3: Descriptor table for shadow map texture (t0)
         rootParameters[0].InitAsConstantBufferView(0);
         rootParameters[1].InitAsConstantBufferView(1);
-        rootSignatureDesc.Init(2, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        rootParameters[2].InitAsConstantBufferView(2);
+        
+        // Descriptor range for shadow map texture (t0)
+        CD3DX12_DESCRIPTOR_RANGE srvRange;
+        srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);  // 1 SRV at t0
+        rootParameters[3].InitAsDescriptorTable(1, &srvRange);
+        
+        // Static sampler for shadow map comparison sampling
+        D3D12_STATIC_SAMPLER_DESC shadowSampler = {};
+        shadowSampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+        shadowSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        shadowSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        shadowSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        shadowSampler.MipLODBias = 0;
+        shadowSampler.MaxAnisotropy = 1;
+        shadowSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+        shadowSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;  // White border = no shadow outside
+        shadowSampler.MinLOD = 0.0f;
+        shadowSampler.MaxLOD = D3D12_FLOAT32_MAX;
+        shadowSampler.ShaderRegister = 0;  // s0
+        shadowSampler.RegisterSpace = 0;
+        shadowSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        
+        rootSignatureDesc.Init(4, rootParameters, 1, &shadowSampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        FLog::Log(ELogLevel::Info, "Creating lit PSO with shadow map sampling support");
+    }
+    else if (bDepthOnly)
+    {
+        // For depth-only (shadow pass), use 32-bit root constants instead of CBV
+        // This allows per-draw matrix data without constant buffer sync issues
+        // MVP matrix = 16 floats = 16 DWORDs
+        rootParameters[0].InitAsConstants(16, 0);  // 16 constants at b0
+        rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        FLog::Log(ELogLevel::Info, "Using root constants for depth-only PSO (shadow pass)");
     }
     else if (bEnableDepth)
     {
-        // One CBV: MVP (b0)
+        // One CBV: MVP (b0) - for depth-enabled non-lit rendering
         rootParameters[0].InitAsConstantBufferView(0);
         rootSignatureDesc.Init(1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
     }
@@ -1210,8 +1870,9 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     
     // Create PSO
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    if (bEnableLighting)
+    if (bEnableLighting || bDepthOnly)
     {
+        // Depth-only shader uses lit vertex format (position, normal, color)
         psoDesc.InputLayout = { litInputElementDescs, _countof(litInputElementDescs) };
     }
     else
@@ -1233,24 +1894,37 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     
-    if (bEnableDepth)
+    if (bDepthOnly)
+    {
+        // Depth-only rendering (shadow pass)
+        psoDesc.DepthStencilState.DepthEnable = TRUE;
+        psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        psoDesc.DepthStencilState.StencilEnable = FALSE;
+        psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+        psoDesc.NumRenderTargets = 0;  // No color output
+        // RTVFormats remain unset (nullptr/UNKNOWN)
+    }
+    else if (bEnableDepth)
     {
         psoDesc.DepthStencilState.DepthEnable = TRUE;
         psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
         psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
         psoDesc.DepthStencilState.StencilEnable = FALSE;
         psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+        psoDesc.NumRenderTargets = 1;
+        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     }
     else
     {
         psoDesc.DepthStencilState.DepthEnable = FALSE;
         psoDesc.DepthStencilState.StencilEnable = FALSE;
+        psoDesc.NumRenderTargets = 1;
+        psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     }
     
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.PrimitiveTopologyType = bLineTopology ? D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE : D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     psoDesc.SampleDesc.Count = 1;
     
     ComPtr<ID3D12PipelineState> pipelineState;

@@ -3,6 +3,8 @@
 #include "../RHI/RHI.h"
 #include "RenderStats.h"
 #include "Camera.h"
+#include "RTPool.h"
+#include "ShadowMapping.h"
 #include <memory>
 
 // Render commands that can be enqueued from game thread
@@ -20,13 +22,31 @@ struct FTransform;
 class FSceneProxy 
 {
 public:
+    FSceneProxy() : bCastShadow(true) {}  // Default to casting shadows
     virtual ~FSceneProxy() = default;
     virtual void Render(FRHICommandList* RHICmdList) = 0;
     virtual uint32 GetTriangleCount() const = 0;
     
+    // Shadow pass rendering - renders with light's view-projection matrix
+    // Default implementation does nothing - override for shadow-casting objects
+    // @param RHICmdList - Command list to record draw commands
+    // @param LightViewProj - Light's view-projection matrix
+    // @param ShadowMVPBuffer - Optional separate constant buffer for shadow MVP (avoids GPU race with main pass)
+    virtual void RenderShadow(FRHICommandList* RHICmdList, const FMatrix4x4& LightViewProj, FRHIBuffer* ShadowMVPBuffer = nullptr) {}
+    
     // Update transform - default implementation does nothing
     // Derived classes should override this to handle transform updates
     virtual void UpdateTransform(const FTransform& InTransform) {}
+    
+    // Get model matrix for shadow calculations
+    virtual FMatrix4x4 GetModelMatrix() const { return FMatrix4x4::Identity(); }
+    
+    // Shadow casting property
+    void SetCastShadow(bool bCast) { bCastShadow = bCast; }
+    bool GetCastShadow() const { return bCastShadow; }
+
+protected:
+    bool bCastShadow;  // Whether this proxy casts shadows
 };
 
 // Triangle mesh scene proxy
@@ -99,11 +119,27 @@ public:
     // Get camera
     FCamera* GetCamera() { return Camera.get(); }
     
+    // Get shadow system
+    FShadowSystem* GetShadowSystem() { return ShadowSystem.get(); }
+    
+    // Get RT pool statistics
+    const FRTPoolStats* GetRTPoolStats() const;
+    uint32 GetDrawCallCount() const { return DrawCallCount; }
+    
 private:
     void RenderStats(FRHICommandList* RHICmdList);
+    void RenderShadowPasses(FRHICommandList* RHICmdList);
     
     FRHI* RHI;
     std::unique_ptr<FRenderScene> RenderScene;
     FRenderStats Stats;
     std::unique_ptr<FCamera> Camera;
+    std::unique_ptr<FRTPool> RTPool;
+    std::unique_ptr<FShadowSystem> ShadowSystem;
+    
+    // Per-frame tracking
+    uint32 DrawCallCount;
+    
+    // Scene reference for shadow pass updates
+    FScene* CurrentScene;
 };

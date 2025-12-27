@@ -39,11 +39,30 @@ public:
     virtual void Unmap() = 0;
 };
 
+/**
+ * ERTFormat - Render texture format enumeration
+ * Maps to underlying graphics API formats
+ */
+enum class ERTFormat
+{
+    R8G8B8A8_UNORM,     // Standard color format
+    R16G16B16A16_FLOAT, // HDR color format
+    R32_FLOAT,          // Single channel float (used for shadow maps)
+    D32_FLOAT,          // 32-bit depth format (primary shadow format)
+    D16_UNORM,          // 16-bit depth format (compact shadow format)
+    D24_UNORM_S8_UINT,  // Depth-stencil format
+};
+
 // RHI Texture
 class FRHITexture : public FRHIResource 
 {
 public:
     virtual ~FRHITexture() = default;
+    
+    // Get texture dimensions
+    virtual uint32 GetWidth() const = 0;
+    virtual uint32 GetHeight() const = 0;
+    virtual uint32 GetArraySize() const = 0;
 };
 
 // Pipeline state
@@ -84,6 +103,36 @@ public:
     
     // Text rendering - call FlushCommandsFor2D() before calling this
     virtual void RHIDrawText(const std::string& Text, const FVector2D& Position, float FontSize, const FColor& Color) = 0;
+    
+    // Debug texture visualization - draws a texture as a quad on screen
+    // Position and size are in screen pixels. Call FlushCommandsFor2D() before calling this.
+    virtual void DrawDebugTexture(FRHITexture* Texture, float X, float Y, float Width, float Height) = 0;
+    
+    // Shadow map rendering support
+    // Begin rendering to a shadow map texture (sets depth-only render target)
+    virtual void BeginShadowPass(FRHITexture* ShadowMap, uint32 FaceIndex = 0) = 0;
+    
+    // End shadow pass and restore main render target
+    virtual void EndShadowPass() = 0;
+    
+    // Set viewport for shadow map rendering (used for atlas region selection)
+    virtual void SetViewport(float X, float Y, float Width, float Height, float MinDepth = 0.0f, float MaxDepth = 1.0f) = 0;
+    
+    // Clear just the depth buffer (for shadow maps that share atlas)
+    virtual void ClearDepthOnly(FRHITexture* DepthTexture, uint32 FaceIndex = 0) = 0;
+    
+    // GPU event markers for RenderDoc/PIX debugging
+    // These create named events that appear in GPU profilers
+    virtual void BeginEvent(const std::string& EventName) = 0;
+    virtual void EndEvent() = 0;
+    
+    // Set inline root constants (avoids constant buffer synchronization issues)
+    // Data is copied directly into the root signature at record time
+    virtual void SetRootConstants(uint32 RootParameterIndex, uint32 Num32BitValues, const void* Data, uint32 DestOffset = 0) = 0;
+    
+    // Bind shadow map texture for shader sampling
+    // Call this before rendering lit geometry that receives shadows
+    virtual void SetShadowMapTexture(FRHITexture* ShadowMap) = 0;
 };
 
 // Pipeline state creation flags
@@ -94,6 +143,8 @@ enum class EPipelineFlags : uint32
     EnableLighting = 1 << 1,
     WireframeMode = 1 << 2,
     LineTopology = 1 << 3,  // For wireframe line rendering
+    EnableShadows = 1 << 4, // Enable shadow mapping (requires shadow map textures bound)
+    DepthOnly = 1 << 5,     // Depth-only rendering for shadow pass
 };
 
 // Operator overloads for pipeline flags
@@ -129,6 +180,9 @@ public:
     virtual FRHIBuffer* CreateVertexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) = 0;
     virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) = 0;
+    
+    // Texture creation for render targets and shadow maps
+    virtual FRHITexture* CreateDepthTexture(uint32 Width, uint32 Height, ERTFormat Format, uint32 ArraySize = 1) = 0;
     
     // Legacy pipeline state creation (unlit)
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) = 0;
