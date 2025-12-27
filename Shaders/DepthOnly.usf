@@ -1,6 +1,8 @@
 // Depth-only shader for shadow pass rendering
 // Uses FLitVertex format (position, normal, color)
+// NOTE: Uses root constants (not CBV) - the MVP matrix is passed directly via SetGraphicsRoot32BitConstants
 
+// When using root constants, the data appears as a constant buffer at b0
 cbuffer MVPBuffer : register(b0)
 {
     float4x4 MVP;
@@ -23,7 +25,10 @@ PSInput VSMain(VSInput input)
     return result;
 }
 
-void PSMain(PSInput input)
+// For depth-only pass with no render targets, pixel shader can simply be empty
+// The depth write happens automatically from the rasterizer
+float4 PSMain(PSInput input) : SV_TARGET
 {
-    // Depth-only pass - no color output
+    // Return dummy value - this won't actually be written since NumRenderTargets=0
+    return float4(0, 0, 0, 0);
 }

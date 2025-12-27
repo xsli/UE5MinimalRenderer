@@ -1445,17 +1445,24 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     }
     FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully");
     
-    // Compile pixel shader
-    if (FAILED(D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
-                         "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
+    // Compile pixel shader (skip for depth-only since we use null pixel shader)
+    if (!bDepthOnly)
     {
-        if (error)
+        if (FAILED(D3DCompile(shaderSource.c_str(), shaderSource.size(), shaderName.c_str(), nullptr, nullptr,
+                             "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
         {
-            FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
+            if (error)
+            {
+                FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
+            }
+            return nullptr;
         }
-        return nullptr;
+        FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
     }
-    FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
+    else
+    {
+        FLog::Log(ELogLevel::Info, "Skipping pixel shader compilation for depth-only PSO (null pixel shader)");
+    }
     
     // Create root signature with appropriate number of constant buffers
     CD3DX12_ROOT_PARAMETER rootParameters[4];
@@ -1552,7 +1559,14 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     }
     psoDesc.pRootSignature = rootSignature.Get();
     psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
-    psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
+    
+    // For depth-only rendering, we can skip the pixel shader entirely
+    // D3D12 allows null pixel shader when NumRenderTargets = 0
+    if (!bDepthOnly)
+    {
+        psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
+    }
+    // else psoDesc.PS remains default/empty (null pixel shader)
     
     // Rasterizer state
     CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
