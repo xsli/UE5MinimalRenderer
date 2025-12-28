@@ -134,7 +134,6 @@ private:
     std::unique_ptr<FRenderScene> RenderScene;
     FRenderStats Stats;
     std::unique_ptr<FCamera> Camera;
-    std::unique_ptr<FRTPool> RTPool;
     std::unique_ptr<FShadowSystem> ShadowSystem;
     
     // Per-frame tracking
