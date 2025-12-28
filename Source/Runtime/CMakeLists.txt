@@ -14,6 +14,10 @@ add_executable(UE5MinimalRenderer WIN32
     ../TaskGraph/RenderCommands.cpp
     ../TaskGraph/RenderCommands.h
     
+    # Shaders
+    ../Shaders/ShaderCompiler.cpp
+    ../Shaders/ShaderCompiler.h
+    
     # RHI
     ../RHI/RHI.cpp
     ../RHI/RHI.h
@@ -62,6 +66,7 @@ target_include_directories(UE5MinimalRenderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../Core
     ${CMAKE_CURRENT_SOURCE_DIR}/../TaskGraph
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Shaders
     ${CMAKE_CURRENT_SOURCE_DIR}/../RHI
     ${CMAKE_CURRENT_SOURCE_DIR}/../RHI_DX12
     ${CMAKE_CURRENT_SOURCE_DIR}/../Renderer
@@ -83,6 +88,8 @@ source_group("Core" FILES ../Core/CoreTypes.cpp ../Core/CoreTypes.h)
 source_group("TaskGraph" FILES 
     ../TaskGraph/TaskGraph.cpp ../TaskGraph/TaskGraph.h
     ../TaskGraph/RenderCommands.cpp ../TaskGraph/RenderCommands.h)
+source_group("Shaders" FILES 
+    ../Shaders/ShaderCompiler.cpp ../Shaders/ShaderCompiler.h)
 source_group("RHI" FILES ../RHI/RHI.cpp ../RHI/RHI.h)
 source_group("RHI_DX12" FILES ../RHI_DX12/DX12RHI.cpp ../RHI_DX12/DX12RHI.h)
 source_group("Renderer" FILES 

@@ -1,0 +1,101 @@
+// ForwardLightingPixelShader.usf - Forward lighting with Phong shading
+// Similar to Unreal Engine's ForwardLightingPixelShader.usf
+
+#include "Common.ush"
+#include "LightingCommon.ush"
+
+// MVP constant buffer
+cbuffer MVPBuffer : register(b0)
+{
+    float4x4 MVP;
+};
+
+// Vertex shader for lit rendering
+FLitPassOutput VSMain(FLitVertexInput Input)
+{
+    FLitPassOutput Output;
+    Output.Position = mul(float4(Input.Position, 1.0f), MVP);
+    
+    // Transform position to world space for lighting
+    Output.WorldPos = mul(float4(Input.Position, 1.0f), ModelMatrix).xyz;
+    
+    // Transform normal to world space (using upper 3x3 of model matrix)
+    // NOTE: For proper normal transformation with non-uniform scaling,
+    // we should use the inverse transpose of the model matrix.
+    // This simplified approach works correctly for:
+    //   - Uniform scaling (same scale in X, Y, Z)
+    //   - Rotation and translation only
+    // Limitation: Non-uniform scaling will produce incorrect normals.
+    float3x3 NormalMatrix = (float3x3)ModelMatrix;
+    Output.Normal = normalize(mul(Input.Normal, NormalMatrix));
+    
+    Output.Color = Input.Color;
+    
+    // Transform to light space for shadow mapping
+    Output.LightSpacePos = mul(float4(Output.WorldPos, 1.0f), DirLightViewProj);
+    
+    return Output;
+}
+
+// Pixel shader for lit rendering with Phong shading
+float4 PSMain(FLitPassOutput Input) : SV_TARGET 
+{
+    float3 N = normalize(Input.Normal);
+    float3 V = normalize(CameraPosition.xyz - Input.WorldPos);
+    
+    // Base material colors (multiply with vertex color)
+    float3 DiffuseColor = MaterialDiffuse.xyz * Input.Color.xyz;
+    float3 SpecularColor = MaterialSpecular.xyz;
+    float3 AmbientColor = MaterialAmbient.xyz * Input.Color.xyz;
+    float Shininess = MaterialSpecular.w;
+    
+    // Ambient contribution
+    float3 Ambient = AmbientColor * AmbientLight.xyz * AmbientLight.w;
+    
+    // Calculate shadow factor for directional light
+    float ShadowBias = ShadowParams.x;
+    float ShadowEnabled = ShadowParams.y;
+    float ShadowStrength = ShadowParams.z;
+    float Shadow = 1.0f;
+    
+    if (ShadowEnabled > 0.5f)
+    {
+        Shadow = CalcShadow(Input.LightSpacePos, ShadowBias);
+        Shadow = lerp(1.0f, Shadow, ShadowStrength);
+    }
+    
+    // Directional light contribution (with shadow)
+    float3 Directional = float3(0, 0, 0);
+    if (DirLightDirection.w > 0.5f) // Enabled
+    {
+        float3 L = normalize(-DirLightDirection.xyz); // Direction toward light
+        float NdotL = max(dot(N, L), 0.0f);
+        
+        // Apply shadow - surfaces facing away from light are in shadow
+        float SelfShadow = NdotL;
+        
+        float3 LightColorRGB = DirLightColor.xyz * DirLightColor.w;
+        
+        // Diffuse (attenuated by shadow)
+        float3 Diffuse = DiffuseColor * LightColorRGB * NdotL * Shadow;
+        
+        // Specular (Blinn-Phong, also attenuated by shadow)
+        float3 H = normalize(L + V);
+        float NdotH = max(dot(N, H), 0.0f);
+        float3 Specular = SpecularColor * LightColorRGB * pow(NdotH, Shininess) * Shadow;
+        
+        Directional = Diffuse + Specular;
+    }
+    
+    // Point light contributions
+    float3 PointLights = float3(0, 0, 0);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight0Position, PointLight0Color, PointLight0Params, DiffuseColor, SpecularColor, Shininess);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight1Position, PointLight1Color, PointLight1Params, DiffuseColor, SpecularColor, Shininess);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight2Position, PointLight2Color, PointLight2Params, DiffuseColor, SpecularColor, Shininess);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight3Position, PointLight3Color, PointLight3Params, DiffuseColor, SpecularColor, Shininess);
+    
+    // Final color
+    float3 FinalColor = Ambient + Directional + PointLights;
+    
+    return float4(FinalColor, Input.Color.a);
+}

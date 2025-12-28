@@ -1,5 +1,6 @@
 #include "DX12RHI.h"
 #include "d3dx12.h"
+#include "../Shaders/ShaderCompiler.h"
 #include <d3dcompiler.h>
 #include <stdexcept>
 #include <cstring>
@@ -1269,91 +1270,26 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     FLog::Log(ELogLevel::Info, std::string("Creating graphics pipeline state (depth: ") + 
         (bEnableDepth ? "enabled" : "disabled") + ")...");
     
-    // Shader code with optional MVP matrix
-    const char* shaderCode = bEnableDepth ? R"(
-        cbuffer MVPBuffer : register(b0)
-{
-            float4x4 MVP;
-        };
-        
-        struct VSInput {
-            float3 position : POSITION;
-            float4 color : COLOR;
-        };
-        
-        struct PSInput {
-            float4 position : SV_POSITION;
-            float4 color : COLOR;
-        };
-        
-        PSInput VSMain(VSInput input)
-{
-            PSInput result;
-            result.position = mul(float4(input.position, 1.0f), MVP);
-            result.color = input.color;
-            return result;
-        }
-        
-        float4 PSMain(PSInput input) : SV_TARGET {
-            return input.color;
-        }
-    )" : R"(
-        struct VSInput {
-            float3 position : POSITION;
-            float4 color : COLOR;
-        };
-        
-        struct PSInput {
-            float4 position : SV_POSITION;
-            float4 color : COLOR;
-        };
-        
-        PSInput VSMain(VSInput input)
-{
-            PSInput result;
-            result.position = float4(input.position, 1.0f);
-            result.color = input.color;
-            return result;
-        }
-        
-        float4 PSMain(PSInput input) : SV_TARGET {
-            return input.color;
-        }
-    )";
+    // Use shader manager to compile shaders from files
+    FShaderManager& shaderManager = FShaderManager::Get();
     
-    ComPtr<ID3DBlob> vertexShader;
-    ComPtr<ID3DBlob> pixelShader;
-    ComPtr<ID3DBlob> error;
+    // Compile vertex and pixel shaders from BasePassVertexShader.usf
+    FShaderBytecode vertexShaderBytecode = shaderManager.GetShader("BasePassVertexShader.usf", "VSMain", EShaderType::Vertex);
+    FShaderBytecode pixelShaderBytecode = shaderManager.GetShader("BasePassVertexShader.usf", "PSMain", EShaderType::Pixel);
     
-    // Shader compile flags - disable optimization in debug mode for RenderDoc debugging
-    UINT shaderCompileFlags = 0;
-#ifdef _DEBUG
-    shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-    
-    // Compile vertex shader
-    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
-{
-        if (error)
-        {
-            FLog::Log(ELogLevel::Error, std::string("Vertex shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
-        }
+    if (!vertexShaderBytecode.IsValid())
+    {
+        FLog::Log(ELogLevel::Error, "Failed to compile vertex shader from file");
         return nullptr;
     }
-    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully");
+    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully from file");
     
-    // Compile pixel shader
-    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
-{
-        if (error)
-        {
-            FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
-        }
+    if (!pixelShaderBytecode.IsValid())
+    {
+        FLog::Log(ELogLevel::Error, "Failed to compile pixel shader from file");
         return nullptr;
     }
-    FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
+    FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully from file");
     
     // Create root signature
     // NOTE: rootParameters must be declared outside the if block to remain valid
@@ -1374,6 +1310,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     }
     
     ComPtr<ID3DBlob> signature;
+    ComPtr<ID3DBlob> error;
     ComPtr<ID3D12RootSignature> rootSignature;
     ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
     ThrowIfFailed(Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
@@ -1391,8 +1328,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
     psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
     psoDesc.pRootSignature = rootSignature.Get();
-    psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
-    psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
+    psoDesc.VS = vertexShaderBytecode.GetShaderBytecode();
+    psoDesc.PS = pixelShaderBytecode.GetShaderBytecode();
     
     // Rasterizer state - DISABLE BACKFACE CULLING to ensure triangle is visible
     CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
@@ -1443,350 +1380,47 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         ", wireframe: " + (bWireframe ? "on" : "off") + ", lines: " + (bLineTopology ? "on" : "off") + 
         ", shadows: " + (bEnableShadows ? "on" : "off") + ", depth-only: " + (bDepthOnly ? "on" : "off") + ")...");
     
-    // Depth-only shader for shadow pass
-    const char* depthOnlyShaderCode = R"(
-        cbuffer MVPBuffer : register(b0)
-        {
-            float4x4 MVP;
-        };
-        
-        struct VSInput {
-            float3 position : POSITION;
-            float3 normal : NORMAL;
-            float4 color : COLOR;
-        };
-        
-        struct PSInput {
-            float4 position : SV_POSITION;
-        };
-        
-        PSInput VSMain(VSInput input)
-        {
-            PSInput result;
-            result.position = mul(float4(input.position, 1.0f), MVP);
-            return result;
-        }
-        
-        void PSMain(PSInput input)
-        {
-            // Depth-only pass - no color output
-        }
-    )";
+    // Use shader manager to compile shaders from files
+    FShaderManager& shaderManager = FShaderManager::Get();
     
-    // Phong lighting shader with shadow support - uses FLitVertex format (position, normal, color)
-    // Constant buffer layout:
-    //   b0: MVP matrix (model-view-projection)
-    //   b1: Lighting data (model matrix, camera pos, lights, material)
-    //   b2: Shadow data (light view-projection matrix)
-    const char* litShaderCode = R"(
-        cbuffer MVPBuffer : register(b0)
-        {
-            float4x4 MVP;
-        };
-        
-        cbuffer LightingBuffer : register(b1)
-        {
-            float4x4 ModelMatrix;
-            float4 CameraPosition;      // xyz = camera pos, w = unused
-            float4 AmbientLight;        // xyz = ambient color, w = intensity
-            
-            // Directional light
-            float4 DirLightDirection;   // xyz = direction (normalized), w = enabled
-            float4 DirLightColor;       // xyz = color, w = intensity
-            
-            // Point light (up to 4)
-            float4 PointLight0Position; // xyz = position, w = enabled
-            float4 PointLight0Color;    // xyz = color, w = intensity
-            float4 PointLight0Params;   // x = radius, y = falloff, zw = unused
-            
-            float4 PointLight1Position;
-            float4 PointLight1Color;
-            float4 PointLight1Params;
-            
-            float4 PointLight2Position;
-            float4 PointLight2Color;
-            float4 PointLight2Params;
-            
-            float4 PointLight3Position;
-            float4 PointLight3Color;
-            float4 PointLight3Params;
-            
-            // Material properties
-            float4 MaterialDiffuse;     // xyz = diffuse color, w = unused
-            float4 MaterialSpecular;    // xyz = specular color, w = shininess
-            float4 MaterialAmbient;     // xyz = ambient color, w = unused
-        };
-        
-        cbuffer ShadowBuffer : register(b2)
-        {
-            float4x4 DirLightViewProj;  // Directional light view-projection matrix
-            float4 ShadowParams;        // x = bias, y = enabled, z = shadow strength, w = unused
-        };
-        
-        // Shadow map texture and sampler
-        Texture2D<float> ShadowMap : register(t0);
-        SamplerComparisonState ShadowSampler : register(s0);
-        
-        struct VSInput {
-            float3 position : POSITION;
-            float3 normal : NORMAL;
-            float4 color : COLOR;
-        };
-        
-        struct PSInput {
-            float4 position : SV_POSITION;
-            float3 worldPos : WORLDPOS;
-            float3 normal : NORMAL;
-            float4 color : COLOR;
-            float4 lightSpacePos : LIGHTSPACEPOS;
-        };
-        
-        PSInput VSMain(VSInput input)
-        {
-            PSInput result;
-            result.position = mul(float4(input.position, 1.0f), MVP);
-            
-            // Transform position to world space for lighting
-            result.worldPos = mul(float4(input.position, 1.0f), ModelMatrix).xyz;
-            
-            // Transform normal to world space (using upper 3x3 of model matrix)
-            // NOTE: For proper normal transformation with non-uniform scaling,
-            // we should use the inverse transpose of the model matrix.
-            // This simplified approach works correctly for:
-            //   - Uniform scaling (same scale in X, Y, Z)
-            //   - Rotation and translation only
-            // Limitation: Non-uniform scaling will produce incorrect normals.
-            float3x3 normalMatrix = (float3x3)ModelMatrix;
-            result.normal = normalize(mul(input.normal, normalMatrix));
-            
-            result.color = input.color;
-            
-            // Transform to light space for shadow mapping
-            result.lightSpacePos = mul(float4(result.worldPos, 1.0f), DirLightViewProj);
-            
-            return result;
-        }
-        
-        // Calculate shadow factor by sampling the shadow map
-        float CalcShadow(float4 lightSpacePos, float bias)
-        {
-            // Perform perspective divide
-            float3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
-            
-            // Transform to [0,1] range (NDC is [-1,1] for x,y)
-            projCoords.x = projCoords.x * 0.5f + 0.5f;
-            projCoords.y = -projCoords.y * 0.5f + 0.5f;  // Flip Y
-            
-            // Check if in shadow map bounds
-            if (projCoords.x < 0.0f || projCoords.x > 1.0f ||
-                projCoords.y < 0.0f || projCoords.y > 1.0f ||
-                projCoords.z < 0.0f || projCoords.z > 1.0f)
-            {
-                return 1.0f;  // Not in shadow (outside light frustum)
-            }
-            
-            // Apply bias to avoid shadow acne
-            float currentDepth = projCoords.z - bias;
-            
-            // Sample shadow map with PCF 3x3 kernel
-            float shadow = 0.0f;
-            float texelSize = 1.0f / 1024.0f;  // Shadow map resolution
-            
-            for (int x = -1; x <= 1; ++x)
-            {
-                for (int y = -1; y <= 1; ++y)
-                {
-                    float2 uv = projCoords.xy + float2(x, y) * texelSize;
-                    shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, uv, currentDepth);
-                }
-            }
-            shadow /= 9.0f;  // Average 9 samples
-            
-            return shadow;
-        }
-        
-        // Calculate point light attenuation
-        float CalcAttenuation(float distance, float radius, float falloff)
-        {
-            if (distance >= radius) return 0.0f;
-            float normalizedDist = distance / radius;
-            float attenuation = 1.0f / (1.0f + pow(normalizedDist, falloff));
-            float smooth = 1.0f - pow(normalizedDist, 4.0f);
-            return attenuation * saturate(smooth);
-        }
-        
-        // Apply point light contribution
-        float3 CalcPointLight(float3 worldPos, float3 N, float3 V, 
-                             float4 lightPos, float4 lightColor, float4 lightParams,
-                             float3 diffuseColor, float3 specularColor, float shininess)
-        {
-            if (lightPos.w < 0.5f) return float3(0, 0, 0); // Light disabled
-            
-            float3 lightPosition = lightPos.xyz;
-            float3 L = lightPosition - worldPos;
-            float distance = length(L);
-            L = normalize(L);
-            
-            float attenuation = CalcAttenuation(distance, lightParams.x, lightParams.y);
-            if (attenuation < 0.001f) return float3(0, 0, 0);
-            
-            float3 lightColorRGB = lightColor.xyz * lightColor.w;
-            
-            // Diffuse
-            float NdotL = max(dot(N, L), 0.0f);
-            float3 diffuse = diffuseColor * lightColorRGB * NdotL;
-            
-            // Specular (Blinn-Phong)
-            float3 H = normalize(L + V);
-            float NdotH = max(dot(N, H), 0.0f);
-            float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess);
-            
-            return (diffuse + specular) * attenuation;
-        }
-        
-        float4 PSMain(PSInput input) : SV_TARGET 
-        {
-            float3 N = normalize(input.normal);
-            float3 V = normalize(CameraPosition.xyz - input.worldPos);
-            
-            // Base material colors (multiply with vertex color)
-            float3 diffuseColor = MaterialDiffuse.xyz * input.color.xyz;
-            float3 specularColor = MaterialSpecular.xyz;
-            float3 ambientColor = MaterialAmbient.xyz * input.color.xyz;
-            float shininess = MaterialSpecular.w;
-            
-            // Ambient contribution
-            float3 ambient = ambientColor * AmbientLight.xyz * AmbientLight.w;
-            
-            // Calculate shadow factor for directional light
-            float shadowBias = ShadowParams.x;
-            float shadowEnabled = ShadowParams.y;
-            float shadowStrength = ShadowParams.z;
-            float shadow = 1.0f;
-            
-            if (shadowEnabled > 0.5f)
-            {
-                shadow = CalcShadow(input.lightSpacePos, shadowBias);
-                shadow = lerp(1.0f, shadow, shadowStrength);
-            }
-            
-            // Directional light contribution (with shadow)
-            float3 directional = float3(0, 0, 0);
-            if (DirLightDirection.w > 0.5f) // Enabled
-            {
-                float3 L = normalize(-DirLightDirection.xyz); // Direction toward light
-                float NdotL = max(dot(N, L), 0.0f);
-                
-                // Apply shadow - surfaces facing away from light are in shadow
-                float selfShadow = NdotL;
-                
-                float3 lightColorRGB = DirLightColor.xyz * DirLightColor.w;
-                
-                // Diffuse (attenuated by shadow)
-                float3 diffuse = diffuseColor * lightColorRGB * NdotL * shadow;
-                
-                // Specular (Blinn-Phong, also attenuated by shadow)
-                float3 H = normalize(L + V);
-                float NdotH = max(dot(N, H), 0.0f);
-                float3 specular = specularColor * lightColorRGB * pow(NdotH, shininess) * shadow;
-                
-                directional = diffuse + specular;
-            }
-            
-            // Point light contributions
-            float3 pointLights = float3(0, 0, 0);
-            pointLights += CalcPointLight(input.worldPos, N, V, PointLight0Position, PointLight0Color, PointLight0Params, diffuseColor, specularColor, shininess);
-            pointLights += CalcPointLight(input.worldPos, N, V, PointLight1Position, PointLight1Color, PointLight1Params, diffuseColor, specularColor, shininess);
-            pointLights += CalcPointLight(input.worldPos, N, V, PointLight2Position, PointLight2Color, PointLight2Params, diffuseColor, specularColor, shininess);
-            pointLights += CalcPointLight(input.worldPos, N, V, PointLight3Position, PointLight3Color, PointLight3Params, diffuseColor, specularColor, shininess);
-            
-            // Final color
-            float3 finalColor = ambient + directional + pointLights;
-            
-            return float4(finalColor, input.color.a);
-        }
-    )";
+    FShaderBytecode vertexShaderBytecode;
+    FShaderBytecode pixelShaderBytecode;
     
-    // Unlit shader with MVP (for wireframes, lines, etc.)
-    const char* unlitShaderCode = R"(
-        cbuffer MVPBuffer : register(b0)
-        {
-            float4x4 MVP;
-        };
-        
-        struct VSInput {
-            float3 position : POSITION;
-            float4 color : COLOR;
-        };
-        
-        struct PSInput {
-            float4 position : SV_POSITION;
-            float4 color : COLOR;
-        };
-        
-        PSInput VSMain(VSInput input)
-        {
-            PSInput result;
-            result.position = mul(float4(input.position, 1.0f), MVP);
-            result.color = input.color;
-            return result;
-        }
-        
-        float4 PSMain(PSInput input) : SV_TARGET {
-            return input.color;
-        }
-    )";
-    
-    const char* shaderCode;
+    // Select shader file based on pipeline flags
+    std::string shaderFile;
     if (bDepthOnly)
     {
-        shaderCode = depthOnlyShaderCode;
+        shaderFile = "ShadowDepthVertexShader.usf";
+        FLog::Log(ELogLevel::Info, "Using shadow depth shader from file: " + shaderFile);
     }
     else if (bEnableLighting)
     {
-        shaderCode = litShaderCode;
+        shaderFile = "ForwardLightingPixelShader.usf";
+        FLog::Log(ELogLevel::Info, "Using forward lighting shader from file: " + shaderFile);
     }
     else
     {
-        shaderCode = unlitShaderCode;
+        shaderFile = "BasePassVertexShader.usf";
+        FLog::Log(ELogLevel::Info, "Using base pass shader from file: " + shaderFile);
     }
     
-    ComPtr<ID3DBlob> vertexShader;
-    ComPtr<ID3DBlob> pixelShader;
-    ComPtr<ID3DBlob> error;
+    // Compile vertex and pixel shaders from files
+    vertexShaderBytecode = shaderManager.GetShader(shaderFile, "VSMain", EShaderType::Vertex);
+    pixelShaderBytecode = shaderManager.GetShader(shaderFile, "PSMain", EShaderType::Pixel);
     
-    // Shader compile flags - disable optimization in debug mode for RenderDoc debugging
-    UINT shaderCompileFlags = 0;
-#ifdef _DEBUG
-    // D3DCOMPILE_DEBUG: Include debug info for shader debugging
-    // D3DCOMPILE_SKIP_OPTIMIZATION: Disable optimization for source-level debugging
-    shaderCompileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-    FLog::Log(ELogLevel::Info, "Compiling shaders with DEBUG flags (no optimization, debug info enabled)");
-#endif
-    
-    // Compile vertex shader
-    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "VSMain", "vs_5_0", shaderCompileFlags, 0, &vertexShader, &error)))
+    if (!vertexShaderBytecode.IsValid())
     {
-        if (error)
-        {
-            FLog::Log(ELogLevel::Error, std::string("Vertex shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
-        }
+        FLog::Log(ELogLevel::Error, "Failed to compile vertex shader from file: " + shaderFile);
         return nullptr;
     }
-    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully");
+    FLog::Log(ELogLevel::Info, "Vertex shader compiled successfully from file");
     
-    // Compile pixel shader
-    if (FAILED(D3DCompile(shaderCode, strlen(shaderCode), nullptr, nullptr, nullptr,
-                         "PSMain", "ps_5_0", shaderCompileFlags, 0, &pixelShader, &error)))
+    if (!pixelShaderBytecode.IsValid())
     {
-        if (error)
-        {
-            FLog::Log(ELogLevel::Error, std::string("Pixel shader compile error: ") + static_cast<char*>(error->GetBufferPointer()));
-        }
+        FLog::Log(ELogLevel::Error, "Failed to compile pixel shader from file: " + shaderFile);
         return nullptr;
     }
-    FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully");
+    FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully from file");
     
     // Create root signature with appropriate number of constant buffers
     CD3DX12_ROOT_PARAMETER rootParameters[4];
@@ -1848,6 +1482,7 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     }
     
     ComPtr<ID3DBlob> signature;
+    ComPtr<ID3DBlob> error;
     ComPtr<ID3D12RootSignature> rootSignature;
     ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
     ThrowIfFailed(Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
@@ -1880,8 +1515,8 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         psoDesc.InputLayout = { unlitInputElementDescs, _countof(unlitInputElementDescs) };
     }
     psoDesc.pRootSignature = rootSignature.Get();
-    psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.Get());
-    psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.Get());
+    psoDesc.VS = vertexShaderBytecode.GetShaderBytecode();
+    psoDesc.PS = pixelShaderBytecode.GetShaderBytecode();
     
     // Rasterizer state
     CD3DX12_RASTERIZER_DESC rasterizerDesc(D3D12_DEFAULT);
