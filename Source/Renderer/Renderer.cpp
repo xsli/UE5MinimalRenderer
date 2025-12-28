@@ -104,9 +104,8 @@ void FRenderer::Initialize()
     // Create render scene
     RenderScene = std::make_unique<FRenderScene>();
     
-    // Initialize RT pool
-    RTPool = std::make_unique<FRTPool>(RHI);
-    FRTPool::Initialize(RHI);  // Also set as global singleton
+    // Initialize RT pool (global singleton)
+    FRTPool::Initialize(RHI);
     
     // Initialize shadow system
     ShadowSystem = std::make_unique<FShadowSystem>();
@@ -124,12 +123,7 @@ void FRenderer::Shutdown()
         ShadowSystem.reset();
     }
     
-    // Shutdown RT pool
-    if (RTPool)
-    {
-        RTPool->ClearAll();
-        RTPool.reset();
-    }
+    // Shutdown RT pool (global singleton)
     FRTPool::Shutdown();
     
     if (RenderScene)
@@ -160,9 +154,10 @@ void FRenderer::RenderFrame()
     DrawCallCount = 0;
     
     // Begin RT pool frame
-    if (RTPool)
+    FRTPool* rtPool = FRTPool::Get();
+    if (rtPool)
     {
-        RTPool->BeginFrame(Stats.GetFrameCount());
+        rtPool->BeginFrame(Stats.GetFrameCount());
     }
     
     // This simulates UE5's parallel rendering architecture
@@ -243,9 +238,9 @@ void FRenderer::RenderFrame()
     Stats.EndRHIThreadTiming();
     
     // End RT pool frame
-    if (RTPool)
+    if (rtPool)
     {
-        RTPool->EndFrame();
+        rtPool->EndFrame();
     }
     
     // End stats tracking
@@ -336,19 +331,35 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
     yPos += lineHeight;
     
     // RT Pool statistics
-    if (RTPool)
+    FRTPool* pool = FRTPool::Get();
+    if (pool)
     {
-        const FRTPoolStats& poolStats = RTPool->GetStats();
+        const FRTPoolStats& poolStats = pool->GetStats();
         snprintf(buffer, sizeof(buffer), "RT Pool: %u/%u", poolStats.ActiveRTs, poolStats.TotalPooledRTs);
         RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+        yPos += lineHeight;
+        
+        // Per-frame RT statistics
+        snprintf(buffer, sizeof(buffer), "RT New/Reuse: %u/%u", poolStats.CreatedThisFrame, poolStats.ReusedThisFrame);
+        RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+        yPos += lineHeight;
+        
+        // Show destroyed count if any
+        if (poolStats.DestroyedThisFrame > 0)
+        {
+            snprintf(buffer, sizeof(buffer), "RT Destroyed: %u", poolStats.DestroyedThisFrame);
+            RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+            yPos += lineHeight;
+        }
     }
 }
 
 const FRTPoolStats* FRenderer::GetRTPoolStats() const
 {
-    if (RTPool)
+    FRTPool* pool = FRTPool::Get();
+    if (pool)
     {
-        return &RTPool->GetStats();
+        return &pool->GetStats();
     }
     return nullptr;
 }

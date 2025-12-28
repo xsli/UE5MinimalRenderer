@@ -33,10 +33,12 @@ void FRTPool::Initialize(FRHI* InRHI)
 
 void FRTPool::Shutdown()
 {
+    FLog::Log(ELogLevel::Info, "FRTPool: Shutdown called");
     if (GInstance)
     {
         delete GInstance;
         GInstance = nullptr;
+        FLog::Log(ELogLevel::Info, "FRTPool: Global instance destroyed");
     }
 }
 
@@ -47,6 +49,8 @@ void FRTPool::BeginFrame(uint64 FrameNumber)
     // Reset per-frame stats
     Stats.CreatedThisFrame = 0;
     Stats.ReusedThisFrame = 0;
+    Stats.DestroyedThisFrame = 0;
+    Stats.ReleasedThisFrame = 0;
     
     // Mark all RTs as not in use for this frame
     // (They stay marked until Release() is called)
@@ -123,6 +127,7 @@ void FRTPool::Release(FPooledRT* RT)
         
         Stats.ActiveRTs--;
         Stats.IdleRTs++;
+        Stats.ReleasedThisFrame++;
     }
 }
 
@@ -174,6 +179,7 @@ void FRTPool::Cleanup(bool bForce)
         
         Stats.TotalPooledRTs--;
         Stats.IdleRTs--;
+        Stats.DestroyedThisFrame++;
     }
     
     if (!ToRemove.empty())
@@ -185,6 +191,8 @@ void FRTPool::Cleanup(bool bForce)
 
 void FRTPool::ClearAll()
 {
+    FLog::Log(ELogLevel::Info, "FRTPool: Clearing all pooled RTs (count: " + std::to_string(AllRTs.size()) + ")");
+    
     for (FPooledRT* RT : AllRTs)
     {
         DestroyRT(RT);
@@ -234,11 +242,15 @@ void FRTPool::DestroyRT(FPooledRT* RT)
 {
     if (RT)
     {
+        FLog::Log(ELogLevel::Info, "FRTPool: Destroying RT " + 
+            std::to_string(RT->Descriptor.Width) + "x" + std::to_string(RT->Descriptor.Height));
+        
         Stats.TotalMemoryBytes -= EstimateMemoryUsage(RT->Descriptor);
         
         if (RT->Texture)
         {
             delete RT->Texture;
+            RT->Texture = nullptr;
         }
         delete RT;
     }

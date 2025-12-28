@@ -55,11 +55,13 @@ static void UpdateWindowTitle()
     const FRTPoolStats* poolStats = renderer->GetRTPoolStats();
     uint32 rtPooled = poolStats ? poolStats->TotalPooledRTs : 0;
     uint32 rtActive = poolStats ? poolStats->ActiveRTs : 0;
+    uint32 rtCreated = poolStats ? poolStats->CreatedThisFrame : 0;
+    uint32 rtReused = poolStats ? poolStats->ReusedThisFrame : 0;
     
     char title[256];
     snprintf(title, sizeof(title), 
-             "UE5 Minimal Renderer - Shadow Mapping | FPS: %.1f | DrawCalls: %u | RT Pool: %u/%u", 
-             fps, drawCalls, rtActive, rtPooled);
+             "UE5 Minimal Renderer | FPS: %.1f | DrawCalls: %u | RT: %u/%u (New: %u, Reuse: %u)", 
+             fps, drawCalls, rtActive, rtPooled, rtCreated, rtReused);
     
     SetWindowTextA(g_HWND, title);
 }

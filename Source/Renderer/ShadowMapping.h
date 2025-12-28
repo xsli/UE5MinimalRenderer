@@ -136,6 +136,9 @@ public:
     // Initialize for point light (6-face cubemap as atlas)
     void InitializePointLight(FRHI* RHI, uint32 FaceSize = 512);
     
+    // Shutdown and release resources
+    void Shutdown();
+    
     // Update light matrices
     void UpdateDirectionalLight(const FDirectionalLight* Light, const FVector& SceneCenter, float SceneRadius);
     void UpdatePointLight(const FPointLight* Light);
@@ -144,7 +147,7 @@ public:
     FMatrix4x4 GetViewProjectionMatrix(uint32 FaceIndex = 0) const;
     
     // Get shadow texture
-    FRHITexture* GetShadowTexture() const { return ShadowTexture; }
+    FRHITexture* GetShadowTexture() const;
     
     // Shadow bias configuration
     void SetConstantBias(float Bias) { ConstantBias = Bias; }
@@ -170,9 +173,9 @@ private:
     void CalculatePointLightMatrices(const FVector& LightPos, float Radius);
     
     FRHI* RHI;
-    FRHITexture* ShadowTexture;         // Depth texture for shadow map
-    FRHIPipelineState* ShadowPSO;       // Shadow pass pipeline state
-    FRHIBuffer* ShadowConstantBuffer;   // MVP for shadow pass
+    FPooledRT* PooledShadowTexture;      // Pooled depth texture for shadow map
+    FRHIPipelineState* ShadowPSO;        // Shadow pass pipeline state
+    FRHIBuffer* ShadowConstantBuffer;    // MVP for shadow pass
     
     uint32 MapSize;
     bool bInitialized;
