@@ -4,6 +4,84 @@
 #include <filesystem>
 #include <algorithm>
 #include <regex>
+#include <Windows.h>
+
+// Helper function to get the executable directory
+static std::string GetExecutableDirectory()
+{
+    char buffer[MAX_PATH];
+    DWORD result = GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    
+    // Check for errors
+    if (result == 0 || result == MAX_PATH)
+    {
+        FLog::Log(ELogLevel::Warning, "GetModuleFileNameA failed, using current directory");
+        return ".";
+    }
+    
+    std::string path(buffer);
+    
+    // Find last backslash or forward slash
+    size_t lastSlash = path.find_last_of("\\/");
+    if (lastSlash != std::string::npos)
+    {
+        path = path.substr(0, lastSlash);
+    }
+    
+    // Normalize to forward slashes
+    std::replace(path.begin(), path.end(), '\\', '/');
+    
+    return path;
+}
+
+// Helper function to resolve shader directory relative to executable
+static std::string ResolveShaderDirectory(const std::string& RelativePath)
+{
+    std::string exeDir = GetExecutableDirectory();
+    
+    // If the path is absolute, use it directly
+    if (RelativePath.length() > 1 && (RelativePath[1] == ':' || RelativePath[0] == '/'))
+    {
+        return RelativePath;
+    }
+    
+    // For relative paths, first try relative to executable
+    std::string fullPath = exeDir + "/" + RelativePath;
+    
+    // Check if the directory exists
+    if (std::filesystem::exists(fullPath) && std::filesystem::is_directory(fullPath))
+    {
+        FLog::Log(ELogLevel::Info, "Found shader directory relative to executable: " + fullPath);
+        return fullPath;
+    }
+    
+    // Try going up directories from the executable to find Source/Shaders
+    // Build structure: build/Source/Runtime/Release/UE5MinimalRenderer.exe
+    // We need to go up to find Source/Shaders
+    std::string currentDir = exeDir;
+    for (int i = 0; i < 5; ++i)  // Try up to 5 parent directories
+    {
+        // Try Source/Shaders relative to current directory
+        std::string testPath = currentDir + "/Source/Shaders";
+        if (std::filesystem::exists(testPath) && std::filesystem::is_directory(testPath))
+        {
+            FLog::Log(ELogLevel::Info, "Found shader directory by searching parents: " + testPath);
+            return testPath;
+        }
+        
+        // Go up one directory
+        size_t lastSlash = currentDir.find_last_of("/");
+        if (lastSlash == std::string::npos || lastSlash == 0)
+        {
+            break;
+        }
+        currentDir = currentDir.substr(0, lastSlash);
+    }
+    
+    // Fall back to original path (might be relative to current working directory)
+    FLog::Log(ELogLevel::Warning, "Could not find shader directory, using fallback: " + RelativePath);
+    return RelativePath;
+}
 
 // Shader compile flags
 static UINT GetShaderCompileFlags()
@@ -30,7 +108,9 @@ FShaderCompiler::~FShaderCompiler()
 
 void FShaderCompiler::SetShaderDirectory(const std::string& Directory)
 {
-    ShaderDirectory = Directory;
+    // Resolve the shader directory using executable path
+    ShaderDirectory = ResolveShaderDirectory(Directory);
+    
     // Normalize path separators
     std::replace(ShaderDirectory.begin(), ShaderDirectory.end(), '\\', '/');
     // Remove trailing slash if present
@@ -38,6 +118,8 @@ void FShaderCompiler::SetShaderDirectory(const std::string& Directory)
     {
         ShaderDirectory.pop_back();
     }
+    
+    FLog::Log(ELogLevel::Info, "Shader directory set to: " + ShaderDirectory);
 }
 
 const char* FShaderCompiler::GetShaderTarget(EShaderType ShaderType) const
