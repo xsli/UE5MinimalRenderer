@@ -78,6 +78,11 @@ void FShadowMapPass::InitializeDirectional(FRHI* InRHI, uint32 InMapSize)
         FRTDescriptor desc(MapSize, MapSize, ERTFormat::D32_FLOAT, 1, 1, 1);
         PooledShadowTexture = pool->Fetch(desc);
     }
+    else
+    {
+        FLog::Log(ELogLevel::Error, "FShadowMapPass: RT Pool not available, cannot allocate shadow map");
+        PooledShadowTexture = nullptr;
+    }
     
     // Create constant buffer for shadow pass MVP matrix
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
@@ -88,8 +93,15 @@ void FShadowMapPass::InitializeDirectional(FRHI* InRHI, uint32 InMapSize)
     
     bInitialized = (PooledShadowTexture != nullptr && PooledShadowTexture->Texture != nullptr && ShadowPSO != nullptr);
     
-    FLog::Log(ELogLevel::Info, "FShadowMapPass: Initialized directional shadow map " + 
-              std::to_string(MapSize) + "x" + std::to_string(MapSize) + " (from RT Pool)");
+    if (bInitialized)
+    {
+        FLog::Log(ELogLevel::Info, "FShadowMapPass: Initialized directional shadow map " + 
+                  std::to_string(MapSize) + "x" + std::to_string(MapSize) + " (from RT Pool)");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Error, "FShadowMapPass: Failed to initialize directional shadow map");
+    }
 }
 
 void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
@@ -112,6 +124,11 @@ void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
         FRTDescriptor desc(atlasWidth, atlasHeight, ERTFormat::D32_FLOAT, 1, 1, 1);
         PooledShadowTexture = pool->Fetch(desc);
     }
+    else
+    {
+        FLog::Log(ELogLevel::Error, "FShadowMapPass: RT Pool not available, cannot allocate shadow atlas");
+        PooledShadowTexture = nullptr;
+    }
     
     // Create constant buffer
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
@@ -122,8 +139,15 @@ void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
     
     bInitialized = (PooledShadowTexture != nullptr && PooledShadowTexture->Texture != nullptr && ShadowPSO != nullptr);
     
-    FLog::Log(ELogLevel::Info, "FShadowMapPass: Initialized point light shadow atlas " + 
-              std::to_string(atlasWidth) + "x" + std::to_string(atlasHeight) + " (from RT Pool)");
+    if (bInitialized)
+    {
+        FLog::Log(ELogLevel::Info, "FShadowMapPass: Initialized point light shadow atlas " + 
+                  std::to_string(atlasWidth) + "x" + std::to_string(atlasHeight) + " (from RT Pool)");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Error, "FShadowMapPass: Failed to initialize point light shadow atlas");
+    }
 }
 
 void FShadowMapPass::UpdateDirectionalLight(const FDirectionalLight* Light, const FVector& SceneCenter, float SceneRadius)
