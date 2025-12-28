@@ -353,6 +353,7 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
         {
             snprintf(buffer, sizeof(buffer), "RT Destroyed: %u", poolStats.DestroyedThisFrame);
             RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+            yPos += lineHeight;
         }
     }
 }
