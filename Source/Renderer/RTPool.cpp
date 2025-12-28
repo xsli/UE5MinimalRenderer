@@ -33,10 +33,12 @@ void FRTPool::Initialize(FRHI* InRHI)
 
 void FRTPool::Shutdown()
 {
+    FLog::Log(ELogLevel::Info, "FRTPool: Shutdown called");
     if (GInstance)
     {
         delete GInstance;
         GInstance = nullptr;
+        FLog::Log(ELogLevel::Info, "FRTPool: Global instance destroyed");
     }
 }
 
@@ -189,6 +191,8 @@ void FRTPool::Cleanup(bool bForce)
 
 void FRTPool::ClearAll()
 {
+    FLog::Log(ELogLevel::Info, "FRTPool: Clearing all pooled RTs (count: " + std::to_string(AllRTs.size()) + ")");
+    
     for (FPooledRT* RT : AllRTs)
     {
         DestroyRT(RT);
@@ -238,11 +242,15 @@ void FRTPool::DestroyRT(FPooledRT* RT)
 {
     if (RT)
     {
+        FLog::Log(ELogLevel::Info, "FRTPool: Destroying RT " + 
+            std::to_string(RT->Descriptor.Width) + "x" + std::to_string(RT->Descriptor.Height));
+        
         Stats.TotalMemoryBytes -= EstimateMemoryUsage(RT->Descriptor);
         
         if (RT->Texture)
         {
             delete RT->Texture;
+            RT->Texture = nullptr;
         }
         delete RT;
     }
