@@ -11,6 +11,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.8.0] - Texture Support and OBJ Model Import
+
+### Added
+- **Texture Support**
+  - `FTextureLoader` class for loading image files (PNG, JPEG, BMP, TGA)
+  - `CreateTexture2D()` in FRHI interface for GPU texture creation
+  - `FTexturedVertex` with Position, Normal, UV coordinates, Color
+  - Procedural texture generation (checker patterns, solid colors)
+  - Diffuse texture sampling in shaders
+
+- **OBJ Model Import**
+  - `FOBJLoader` class using tinyobjloader library
+  - `FMeshData` structure for mesh vertex/index data
+  - `FOBJPrimitive` for loading and rendering OBJ models
+  - MTL material file parsing (diffuse color, specular, textures)
+  - Automatic polygon triangulation
+
+- **Textured Rendering Pipeline**
+  - `TexturedLightingPixelShader.usf` - Lit rendering with texture sampling
+  - `FTexturedSceneProxy` - Scene proxy for textured meshes
+  - `FTexturedVertexInput` shader structure
+  - `EPipelineFlags::EnableTextures` for textured PSO creation
+
+- **Third-Party Libraries**
+  - `stb_image.h` - Public domain image loading (PNG, JPEG, BMP, TGA)
+  - `tiny_obj_loader.h` - MIT licensed OBJ file parser
+
+- **Content Pipeline**
+  - `Content/Models/` directory for 3D model assets
+  - Sample textured cube OBJ model
+
+### Changed
+- Updated CMakeLists.txt to include Asset module and ThirdParty includes
+- Extended demo scene with rotating textured OBJ cube
+- Updated `.gitignore` to allow OBJ model files in Content directory
+
+### Technical Details
+- Texture upload via staging buffer with proper alignment
+- SRV descriptor heap for shader-visible textures
+- UV coordinate flip for DirectX convention (Y-flip)
+- Vertex deduplication during OBJ loading
+
+---
+
 ## [0.7.0] - Lighting System
 
 ### Added
@@ -287,6 +331,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 | Version | Release | Key Features |
 |---------|---------|--------------|
+| 0.8.0 | Textures & OBJ | Texture loading, OBJ import, textured rendering |
 | 0.7.0 | Lighting System | Phong shading, directional/point lights, materials, light visualization |
 | 0.6.0 | Multi-Threading | TaskGraph, FRenderThread, FRHIThread, 1-frame lead sync |
 | 0.5.0 | Scene Management | FScene, FPrimitive, multiple primitive types |

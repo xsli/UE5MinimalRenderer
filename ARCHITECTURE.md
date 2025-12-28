@@ -11,12 +11,13 @@ This project implements a minimal version of Unreal Engine 5's parallel renderin
 3. [3D Rendering Pipeline](#3d-rendering-pipeline)
 4. [Camera System](#camera-system)
 5. [Lighting System](#lighting-system)
-6. [Data Structures](#data-structures)
-7. [Key Design Patterns](#key-design-patterns)
-8. [DirectX 12 Implementation](#directx-12-specifics)
-9. [Text Rendering System](#text-rendering-system)
-10. [UE5 Comparison](#ue5-parallel-rendering-comparison)
-11. [Multi-Threading Architecture](#multi-threading-architecture)
+6. [Asset System](#asset-system)
+7. [Data Structures](#data-structures)
+8. [Key Design Patterns](#key-design-patterns)
+9. [DirectX 12 Implementation](#directx-12-specifics)
+10. [Text Rendering System](#text-rendering-system)
+11. [UE5 Comparison](#ue5-parallel-rendering-comparison)
+12. [Multi-Threading Architecture](#multi-threading-architecture)
 
 ---
 
@@ -387,6 +388,107 @@ The lighting system is designed for extension to:
 
 ---
 
+## Asset System
+
+The Asset module provides utilities for loading external resources like textures and 3D models.
+
+### Texture Loading
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    TEXTURE LOADING PIPELINE                      │
+│                                                                 │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
+│  │ Image File  │───▶│ stb_image   │───▶│ RGBA8 Data  │         │
+│  │ PNG/JPG/... │    │ (decode)    │    │ (CPU memory)│         │
+│  └─────────────┘    └─────────────┘    └──────┬──────┘         │
+│                                               │                 │
+│                                               ▼                 │
+│                     ┌─────────────────────────────────┐         │
+│                     │     DX12 Texture Upload         │         │
+│                     │  • Create upload buffer         │         │
+│                     │  • Copy with row pitch align    │         │
+│                     │  • Execute copy command         │         │
+│                     │  • Transition to SRV state      │         │
+│                     └──────────────┬──────────────────┘         │
+│                                    ▼                            │
+│                     ┌─────────────────────────────────┐         │
+│                     │     FRHITexture (GPU)           │         │
+│                     │  • Shader Resource View         │         │
+│                     │  • Ready for shader sampling    │         │
+│                     └─────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### FTextureLoader API
+
+```cpp
+class FTextureLoader {
+    // Load from file
+    static FRHITexture* CreateTextureFromFile(FRHI* RHI, const std::string& Filename);
+    
+    // Procedural generation
+    static FRHITexture* CreateSolidColorTexture(FRHI* RHI, const FColor& Color);
+    static FRHITexture* CreateCheckerTexture(FRHI* RHI, uint32 Size, uint32 CheckerSize,
+                                              const FColor& Color1, const FColor& Color2);
+};
+```
+
+### OBJ Model Import
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    OBJ LOADING PIPELINE                          │
+│                                                                 │
+│  ┌─────────────┐    ┌────────────────┐    ┌─────────────┐      │
+│  │  .OBJ File  │───▶│ tinyobjloader  │───▶│ FMeshData   │      │
+│  │             │    │ (parse)        │    │             │      │
+│  └─────────────┘    └────────────────┘    └──────┬──────┘      │
+│                                                  │              │
+│  ┌─────────────┐    ┌────────────────┐          │              │
+│  │  .MTL File  │───▶│ Material parse │──────────┤              │
+│  │             │    │ (Kd, Ks, etc.) │          │              │
+│  └─────────────┘    └────────────────┘          │              │
+│                                                  ▼              │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                    FOBJPrimitive                          │ │
+│  │  • FTexturedVertex[] - Position, Normal, UV, Color        │ │
+│  │  • uint32[] indices - Triangulated faces                  │ │
+│  │  • FMeshMaterial - Diffuse color, texture path            │ │
+│  │  • FRHITexture* - Loaded diffuse texture                  │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### FOBJLoader API
+
+```cpp
+class FOBJLoader {
+    // Load OBJ file with triangulation
+    static bool LoadFromFile(const std::string& Filename, FMeshData& OutMeshData);
+};
+
+struct FMeshData {
+    std::vector<FTexturedVertex> Vertices;
+    std::vector<uint32> Indices;
+    FMeshMaterial Material;  // Diffuse color, texture path, shininess
+};
+```
+
+### FOBJPrimitive
+
+```cpp
+class FOBJPrimitive : public FPrimitive {
+    // Loads OBJ and creates GPU resources
+    FOBJPrimitive(const std::string& Filename, FRHI* RHI);
+    
+    // Creates FTexturedSceneProxy for rendering
+    FSceneProxy* CreateSceneProxy(FRHI* RHI, FLightScene* LightScene);
+};
+```
+
+---
+
 ## Data Structures
 
 ### FVertex
@@ -405,6 +507,17 @@ struct FLitVertex {
     FVector Normal;    // Nx, Ny, Nz (12 bytes)
     FColor Color;      // R, G, B, A (16 bytes)
     // Total: 40 bytes
+};
+```
+
+### FTexturedVertex (Texture-mapped)
+```cpp
+struct FTexturedVertex {
+    FVector Position;    // X, Y, Z (12 bytes)
+    FVector Normal;      // Nx, Ny, Nz (12 bytes)
+    FVector2D TexCoord;  // U, V (8 bytes)
+    FColor Color;        // R, G, B, A (16 bytes)
+    // Total: 48 bytes
 };
 ```
 

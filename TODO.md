@@ -18,11 +18,12 @@ This document lists planned features and improvements for the UE5MinimalRenderer
   - Percentage closer filtering (PCF)
   - Cascaded shadow maps for large scenes
 
-- [ ] **Texture Support**
-  - Texture loading (PNG, JPEG, DDS)
-  - Texture sampling in shaders
-  - Mipmapping
-  - Texture filtering (bilinear, trilinear, anisotropic)
+- [x] **Texture Support**
+  - [x] Texture loading (PNG, JPEG, BMP, TGA via stb_image)
+  - [x] Texture sampling in shaders
+  - [x] Procedural texture generation (checker patterns)
+  - [ ] Mipmapping
+  - [ ] Texture filtering (anisotropic)
 
 - [ ] **Material System Enhancements**
   - Roughness and metallic parameters (PBR preparation)
@@ -68,7 +69,8 @@ This document lists planned features and improvements for the UE5MinimalRenderer
   - Cone primitive
   - Torus primitive
   - Capsule primitive
-  - Custom mesh loading (OBJ, FBX)
+  - [x] Custom mesh loading (OBJ via tinyobjloader)
+  - [ ] FBX model loading
 
 - [ ] **Instanced Rendering**
   - GPU instancing for repeated objects
