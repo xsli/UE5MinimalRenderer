@@ -330,6 +330,25 @@ Factory methods:
 - `FMaterial::Glossy(color, shininess)` - Shiny plastic
 - `FMaterial::Metal(color, shininess)` - Metallic surface
 
+### Shader System
+
+The shader system follows Unreal Engine naming conventions with external HLSL files:
+
+**File Types:**
+- `.usf` (Unreal Shader File) - Shader source with entry points
+- `.ush` (Unreal Shader Header) - Shared code for includes
+
+**Shader Files (Source/Shaders/):**
+- `Common.ush` - Shared vertex input/output structures
+- `LightingCommon.ush` - Lighting constant buffers and helper functions
+- `BasePassVertexShader.usf` - Unlit base pass rendering
+- `ShadowDepthVertexShader.usf` - Depth-only shadow pass
+- `ForwardLightingPixelShader.usf` - Lit forward rendering with Phong shading
+
+**Shader Compilation:**
+- `FShaderCompiler` - Compiles HLSL from files with #include processing
+- `FShaderManager` - Singleton for shader caching and management
+
 ### Shader Implementation
 
 The lighting shader uses Blinn-Phong model:
@@ -544,7 +563,7 @@ class FRenderStats {
 | Scene Representation | Complex proxy system | Simple proxy |
 | RHI Abstraction | Full multi-platform | DX12 only (but extensible) |
 | Resource Streaming | Async streaming | Immediate creation |
-| Shader System | Material system | Hardcoded HLSL |
+| Shader System | Material system | File-based .usf/.ush with FShaderManager |
 
 ---
 

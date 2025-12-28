@@ -161,6 +161,13 @@ Source/
 ├── TaskGraph/      # Multi-threading system
 │   ├── TaskGraph.* # Worker thread pool and task system
 │   └── RenderCommands.* # Render command queue and thread management
+├── Shaders/        # HLSL shader files (Unreal Engine naming convention)
+│   ├── Common.ush  # Shared vertex structures
+│   ├── LightingCommon.ush # Lighting constant buffers and functions
+│   ├── BasePassVertexShader.usf # Unlit base pass
+│   ├── ShadowDepthVertexShader.usf # Shadow depth pass
+│   ├── ForwardLightingPixelShader.usf # Lit forward rendering
+│   └── ShaderCompiler.* # Shader compilation and caching system
 ├── RHI/            # Render Hardware Interface (platform-agnostic)
 ├── RHI_DX12/       # DirectX 12 implementation
 │   ├── d3dx12*.h   # Microsoft DirectX 12 helper headers (included)

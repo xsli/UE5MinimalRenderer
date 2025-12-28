@@ -1,0 +1,42 @@
+// Common.ush - Shared shader definitions and structures
+// Similar to Unreal Engine's Common.ush
+
+#ifndef COMMON_USH
+#define COMMON_USH
+
+// Vertex structures
+struct FVertexInput
+{
+    float3 Position : POSITION;
+    float4 Color : COLOR;
+};
+
+struct FLitVertexInput
+{
+    float3 Position : POSITION;
+    float3 Normal : NORMAL;
+    float4 Color : COLOR;
+};
+
+// Common output structures
+struct FBasePassOutput
+{
+    float4 Position : SV_POSITION;
+    float4 Color : COLOR;
+};
+
+struct FLitPassOutput
+{
+    float4 Position : SV_POSITION;
+    float3 WorldPos : WORLDPOS;
+    float3 Normal : NORMAL;
+    float4 Color : COLOR;
+    float4 LightSpacePos : LIGHTSPACEPOS;
+};
+
+struct FShadowDepthOutput
+{
+    float4 Position : SV_POSITION;
+};
+
+#endif // COMMON_USH

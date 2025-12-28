@@ -1,0 +1,24 @@
+// ShadowDepthVertexShader.usf - Shadow depth pass shader
+// Similar to Unreal Engine's ShadowDepthVertexShader.usf
+
+#include "Common.ush"
+
+// MVP constant buffer for shadow pass
+cbuffer MVPBuffer : register(b0)
+{
+    float4x4 MVP;
+};
+
+// Vertex shader for depth-only rendering (shadow pass)
+FShadowDepthOutput VSMain(FLitVertexInput Input)
+{
+    FShadowDepthOutput Output;
+    Output.Position = mul(float4(Input.Position, 1.0f), MVP);
+    return Output;
+}
+
+// Pixel shader for depth-only pass (no color output)
+void PSMain(FShadowDepthOutput Input)
+{
+    // Depth-only pass - no color output
+}

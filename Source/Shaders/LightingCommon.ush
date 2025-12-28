@@ -1,0 +1,130 @@
+// LightingCommon.ush - Shared lighting functions and constants
+// Similar to Unreal Engine's ShadingCommon.ush and LightingCommon.ush
+
+#ifndef LIGHTING_COMMON_USH
+#define LIGHTING_COMMON_USH
+
+// Lighting constant buffer layout
+// Matches FLightingConstants in LightingConstants.h
+cbuffer LightingBuffer : register(b1)
+{
+    float4x4 ModelMatrix;
+    float4 CameraPosition;      // xyz = camera pos, w = unused
+    float4 AmbientLight;        // xyz = ambient color, w = intensity
+    
+    // Directional light
+    float4 DirLightDirection;   // xyz = direction (normalized), w = enabled
+    float4 DirLightColor;       // xyz = color, w = intensity
+    
+    // Point light (up to 4)
+    float4 PointLight0Position; // xyz = position, w = enabled
+    float4 PointLight0Color;    // xyz = color, w = intensity
+    float4 PointLight0Params;   // x = radius, y = falloff, zw = unused
+    
+    float4 PointLight1Position;
+    float4 PointLight1Color;
+    float4 PointLight1Params;
+    
+    float4 PointLight2Position;
+    float4 PointLight2Color;
+    float4 PointLight2Params;
+    
+    float4 PointLight3Position;
+    float4 PointLight3Color;
+    float4 PointLight3Params;
+    
+    // Material properties
+    float4 MaterialDiffuse;     // xyz = diffuse color, w = unused
+    float4 MaterialSpecular;    // xyz = specular color, w = shininess
+    float4 MaterialAmbient;     // xyz = ambient color, w = unused
+};
+
+// Shadow constant buffer
+cbuffer ShadowBuffer : register(b2)
+{
+    float4x4 DirLightViewProj;  // Directional light view-projection matrix
+    float4 ShadowParams;        // x = bias, y = enabled, z = shadow strength, w = unused
+};
+
+// Shadow map texture and sampler
+Texture2D<float> ShadowMap : register(t0);
+SamplerComparisonState ShadowSampler : register(s0);
+
+// Calculate point light attenuation
+float CalcAttenuation(float Distance, float Radius, float Falloff)
+{
+    if (Distance >= Radius) return 0.0f;
+    float NormalizedDist = Distance / Radius;
+    float Attenuation = 1.0f / (1.0f + pow(NormalizedDist, Falloff));
+    float Smooth = 1.0f - pow(NormalizedDist, 4.0f);
+    return Attenuation * saturate(Smooth);
+}
+
+// Apply point light contribution
+float3 CalcPointLight(float3 WorldPos, float3 N, float3 V, 
+                     float4 LightPos, float4 LightColor, float4 LightParams,
+                     float3 DiffuseColor, float3 SpecularColor, float Shininess)
+{
+    if (LightPos.w < 0.5f) return float3(0, 0, 0); // Light disabled
+    
+    float3 LightPosition = LightPos.xyz;
+    float3 L = LightPosition - WorldPos;
+    float Distance = length(L);
+    L = normalize(L);
+    
+    float Attenuation = CalcAttenuation(Distance, LightParams.x, LightParams.y);
+    if (Attenuation < 0.001f) return float3(0, 0, 0);
+    
+    float3 LightColorRGB = LightColor.xyz * LightColor.w;
+    
+    // Diffuse
+    float NdotL = max(dot(N, L), 0.0f);
+    float3 Diffuse = DiffuseColor * LightColorRGB * NdotL;
+    
+    // Specular (Blinn-Phong)
+    float3 H = normalize(L + V);
+    float NdotH = max(dot(N, H), 0.0f);
+    float3 Specular = SpecularColor * LightColorRGB * pow(NdotH, Shininess);
+    
+    return (Diffuse + Specular) * Attenuation;
+}
+
+// Calculate shadow factor by sampling the shadow map
+float CalcShadow(float4 LightSpacePos, float Bias)
+{
+    // Perform perspective divide
+    float3 ProjCoords = LightSpacePos.xyz / LightSpacePos.w;
+    
+    // Transform to [0,1] range (NDC is [-1,1] for x,y)
+    ProjCoords.x = ProjCoords.x * 0.5f + 0.5f;
+    ProjCoords.y = -ProjCoords.y * 0.5f + 0.5f;  // Flip Y
+    
+    // Check if in shadow map bounds
+    if (ProjCoords.x < 0.0f || ProjCoords.x > 1.0f ||
+        ProjCoords.y < 0.0f || ProjCoords.y > 1.0f ||
+        ProjCoords.z < 0.0f || ProjCoords.z > 1.0f)
+    {
+        return 1.0f;  // Not in shadow (outside light frustum)
+    }
+    
+    // Apply bias to avoid shadow acne
+    float CurrentDepth = ProjCoords.z - Bias;
+    
+    // Sample shadow map with PCF 3x3 kernel
+    float Shadow = 0.0f;
+    float TexelSize = 1.0f / 1024.0f;  // Shadow map resolution
+    
+    for (int x = -1; x <= 1; ++x)
+    {
+        for (int y = -1; y <= 1; ++y)
+        {
+            float2 UV = ProjCoords.xy + float2(x, y) * TexelSize;
+            Shadow += ShadowMap.SampleCmpLevelZero(ShadowSampler, UV, CurrentDepth);
+        }
+    }
+    Shadow /= 9.0f;  // Average 9 samples
+    
+    return Shadow;
+}
+
+#endif // LIGHTING_COMMON_USH

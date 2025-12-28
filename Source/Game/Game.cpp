@@ -3,6 +3,7 @@
 #include "../RHI_DX12/DX12RHI.h"
 #include "../Lighting/LightVisualization.h"
 #include "../Scene/LitSceneProxy.h"
+#include "../Shaders/ShaderCompiler.h"
 
 // Define the global camera pointer (declared in GameGlobals.h)
 FCamera* g_Camera = nullptr;
@@ -27,6 +28,11 @@ bool FGame::Initialize(void* WindowHandle, uint32 Width, uint32 Height)
     
     // Register main thread as the game thread
     FThreadManager::Get().SetCurrentThread(ENamedThreads::GameThread);
+    
+    // Initialize shader manager with shader directory
+    // Note: In a real engine, this path would be relative to the executable or configurable
+    FShaderManager::Get().Initialize("../Source/Shaders");
+    FLog::Log(ELogLevel::Info, "Shader manager initialized");
     
     // Create RHI
     RHI.reset(CreateDX12RHI());
@@ -335,6 +341,9 @@ void FGame::Shutdown()
         RHI->Shutdown();
         RHI.reset();
     }
+    
+    // Shutdown shader manager
+    FShaderManager::Get().Shutdown();
     
     g_Camera = nullptr;
     
