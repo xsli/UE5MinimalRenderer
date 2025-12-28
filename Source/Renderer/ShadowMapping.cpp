@@ -1,6 +1,7 @@
 #include "ShadowMapping.h"
 #include "../Scene/Scene.h"
 #include "../Renderer/Renderer.h"
+#include "../Renderer/RTPool.h"
 #include <cstring>
 #include <cmath>
 
@@ -10,7 +11,7 @@
 
 FShadowMapPass::FShadowMapPass()
     : RHI(nullptr)
-    , ShadowTexture(nullptr)
+    , PooledShadowTexture(nullptr)
     , ShadowPSO(nullptr)
     , ShadowConstantBuffer(nullptr)
     , MapSize(0)
@@ -29,10 +30,20 @@ FShadowMapPass::FShadowMapPass()
 
 FShadowMapPass::~FShadowMapPass()
 {
-    if (ShadowTexture)
+    Shutdown();
+}
+
+void FShadowMapPass::Shutdown()
+{
+    // Release pooled shadow texture back to the pool
+    if (PooledShadowTexture)
     {
-        delete ShadowTexture;
-        ShadowTexture = nullptr;
+        FRTPool* pool = FRTPool::Get();
+        if (pool)
+        {
+            pool->Release(PooledShadowTexture);
+        }
+        PooledShadowTexture = nullptr;
     }
     if (ShadowPSO)
     {
@@ -44,6 +55,12 @@ FShadowMapPass::~FShadowMapPass()
         delete ShadowConstantBuffer;
         ShadowConstantBuffer = nullptr;
     }
+    bInitialized = false;
+}
+
+FRHITexture* FShadowMapPass::GetShadowTexture() const
+{
+    return PooledShadowTexture ? PooledShadowTexture->Texture : nullptr;
 }
 
 void FShadowMapPass::InitializeDirectional(FRHI* InRHI, uint32 InMapSize)
@@ -54,8 +71,13 @@ void FShadowMapPass::InitializeDirectional(FRHI* InRHI, uint32 InMapSize)
     MapSize = InMapSize;
     bIsDirectional = true;
     
-    // Create depth texture for shadow map
-    ShadowTexture = RHI->CreateDepthTexture(MapSize, MapSize, ERTFormat::D32_FLOAT, 1);
+    // Fetch depth texture for shadow map from RT Pool
+    FRTPool* pool = FRTPool::Get();
+    if (pool)
+    {
+        FRTDescriptor desc(MapSize, MapSize, ERTFormat::D32_FLOAT, 1, 1, 1);
+        PooledShadowTexture = pool->Fetch(desc);
+    }
     
     // Create constant buffer for shadow pass MVP matrix
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
@@ -64,10 +86,10 @@ void FShadowMapPass::InitializeDirectional(FRHI* InRHI, uint32 InMapSize)
     // Use DepthOnly flag for simple depth pass without color output
     ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::DepthOnly);
     
-    bInitialized = (ShadowTexture != nullptr && ShadowPSO != nullptr);
+    bInitialized = (PooledShadowTexture != nullptr && PooledShadowTexture->Texture != nullptr && ShadowPSO != nullptr);
     
     FLog::Log(ELogLevel::Info, "FShadowMapPass: Initialized directional shadow map " + 
-              std::to_string(MapSize) + "x" + std::to_string(MapSize));
+              std::to_string(MapSize) + "x" + std::to_string(MapSize) + " (from RT Pool)");
 }
 
 void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
@@ -83,7 +105,13 @@ void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
     uint32 atlasWidth = FaceSize * ATLAS_COLS;
     uint32 atlasHeight = FaceSize * ATLAS_ROWS;
     
-    ShadowTexture = RHI->CreateDepthTexture(atlasWidth, atlasHeight, ERTFormat::D32_FLOAT, 1);
+    // Fetch depth texture for shadow map from RT Pool
+    FRTPool* pool = FRTPool::Get();
+    if (pool)
+    {
+        FRTDescriptor desc(atlasWidth, atlasHeight, ERTFormat::D32_FLOAT, 1, 1, 1);
+        PooledShadowTexture = pool->Fetch(desc);
+    }
     
     // Create constant buffer
     ShadowConstantBuffer = RHI->CreateConstantBuffer(sizeof(DirectX::XMMATRIX));
@@ -92,10 +120,10 @@ void FShadowMapPass::InitializePointLight(FRHI* InRHI, uint32 FaceSize)
     // Use DepthOnly flag for simple depth pass without color output
     ShadowPSO = RHI->CreateGraphicsPipelineStateEx(EPipelineFlags::DepthOnly);
     
-    bInitialized = (ShadowTexture != nullptr && ShadowPSO != nullptr);
+    bInitialized = (PooledShadowTexture != nullptr && PooledShadowTexture->Texture != nullptr && ShadowPSO != nullptr);
     
     FLog::Log(ELogLevel::Info, "FShadowMapPass: Initialized point light shadow atlas " + 
-              std::to_string(atlasWidth) + "x" + std::to_string(atlasHeight));
+              std::to_string(atlasWidth) + "x" + std::to_string(atlasHeight) + " (from RT Pool)");
 }
 
 void FShadowMapPass::UpdateDirectionalLight(const FDirectionalLight* Light, const FVector& SceneCenter, float SceneRadius)
@@ -255,7 +283,13 @@ void FShadowSystem::Initialize(FRHI* InRHI)
 
 void FShadowSystem::Shutdown()
 {
-    // Shadow passes clean up their own resources in destructors
+    // Explicitly shutdown shadow passes to release pooled RTs
+    DirectionalShadowPass.Shutdown();
+    for (int i = 0; i < 2; ++i)
+    {
+        PointLightShadowPasses[i].Shutdown();
+    }
+    
     bInitialized = false;
     RHI = nullptr;
     CurrentDirLight = nullptr;

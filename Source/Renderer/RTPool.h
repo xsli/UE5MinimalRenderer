@@ -96,6 +96,8 @@ struct FRTPoolStats
     uint32 IdleRTs;            // Available for reuse
     uint32 CreatedThisFrame;   // New allocations this frame
     uint32 ReusedThisFrame;    // Reused from pool this frame
+    uint32 DestroyedThisFrame; // RTs destroyed (cleaned up) this frame
+    uint32 ReleasedThisFrame;  // RTs released back to pool this frame
     uint64 TotalMemoryBytes;   // Estimated VRAM usage
 
     FRTPoolStats()
@@ -104,6 +106,8 @@ struct FRTPoolStats
         , IdleRTs(0)
         , CreatedThisFrame(0)
         , ReusedThisFrame(0)
+        , DestroyedThisFrame(0)
+        , ReleasedThisFrame(0)
         , TotalMemoryBytes(0)
     {
     }

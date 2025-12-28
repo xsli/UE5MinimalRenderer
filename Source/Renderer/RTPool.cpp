@@ -47,6 +47,8 @@ void FRTPool::BeginFrame(uint64 FrameNumber)
     // Reset per-frame stats
     Stats.CreatedThisFrame = 0;
     Stats.ReusedThisFrame = 0;
+    Stats.DestroyedThisFrame = 0;
+    Stats.ReleasedThisFrame = 0;
     
     // Mark all RTs as not in use for this frame
     // (They stay marked until Release() is called)
@@ -123,6 +125,7 @@ void FRTPool::Release(FPooledRT* RT)
         
         Stats.ActiveRTs--;
         Stats.IdleRTs++;
+        Stats.ReleasedThisFrame++;
     }
 }
 
@@ -174,6 +177,7 @@ void FRTPool::Cleanup(bool bForce)
         
         Stats.TotalPooledRTs--;
         Stats.IdleRTs--;
+        Stats.DestroyedThisFrame++;
     }
     
     if (!ToRemove.empty())

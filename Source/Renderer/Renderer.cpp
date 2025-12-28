@@ -341,6 +341,19 @@ void FRenderer::RenderStats(FRHICommandList* RHICmdList)
         const FRTPoolStats& poolStats = RTPool->GetStats();
         snprintf(buffer, sizeof(buffer), "RT Pool: %u/%u", poolStats.ActiveRTs, poolStats.TotalPooledRTs);
         RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+        yPos += lineHeight;
+        
+        // Per-frame RT statistics
+        snprintf(buffer, sizeof(buffer), "RT New/Reuse: %u/%u", poolStats.CreatedThisFrame, poolStats.ReusedThisFrame);
+        RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+        yPos += lineHeight;
+        
+        // Show destroyed count if any
+        if (poolStats.DestroyedThisFrame > 0)
+        {
+            snprintf(buffer, sizeof(buffer), "RT Destroyed: %u", poolStats.DestroyedThisFrame);
+            RHICmdList->RHIDrawText(buffer, FVector2D(startX, yPos), fontSize, statColor);
+        }
     }
 }
 
