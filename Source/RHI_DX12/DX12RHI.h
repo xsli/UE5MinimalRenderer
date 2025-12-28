@@ -42,7 +42,7 @@ private:
 
 /**
  * FDX12Texture - DirectX 12 texture implementation
- * Used for depth textures, render targets, and shadow maps
+ * Used for depth textures, render targets, shadow maps, and color textures (diffuse maps)
  */
 class FDX12Texture : public FRHITexture
 {
@@ -50,12 +50,14 @@ public:
     FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
                  uint32 InArraySize, DXGI_FORMAT InFormat,
                  ID3D12DescriptorHeap* InDSVHeap = nullptr, ID3D12DescriptorHeap* InSRVHeap = nullptr,
-                 D3D12_RESOURCE_STATES InInitialState = D3D12_RESOURCE_STATE_COMMON);
+                 D3D12_RESOURCE_STATES InInitialState = D3D12_RESOURCE_STATE_COMMON,
+                 bool bIsColorTexture = false);
     virtual ~FDX12Texture() override;
     
     virtual uint32 GetWidth() const override { return Width; }
     virtual uint32 GetHeight() const override { return Height; }
     virtual uint32 GetArraySize() const override { return ArraySize; }
+    virtual bool IsColorTexture() const override { return bColorTexture; }
     
     ID3D12Resource* GetResource() const { return Resource.Get(); }
     DXGI_FORMAT GetFormat() const { return Format; }
@@ -87,6 +89,7 @@ private:
     uint32 DSVDescriptorSize;
     uint32 SRVDescriptorSize;
     D3D12_RESOURCE_STATES CurrentState;
+    bool bColorTexture;  // True if this is a color texture (vs depth)
 };
 
 class FDX12PipelineState : public FRHIPipelineState 
@@ -143,6 +146,9 @@ public:
     
     // Bind shadow map texture for shader sampling
     virtual void SetShadowMapTexture(FRHITexture* ShadowMap) override;
+    
+    // Bind diffuse texture for shader sampling
+    virtual void SetDiffuseTexture(FRHITexture* DiffuseTexture) override;
     
     void InitializeTextRendering(ID3D12Device* Device, IDXGISwapChain3* SwapChain);
     
@@ -208,6 +214,7 @@ public:
     virtual FRHIBuffer* CreateIndexBuffer(uint32 Size, const void* Data) override;
     virtual FRHIBuffer* CreateConstantBuffer(uint32 Size) override;
     virtual FRHITexture* CreateDepthTexture(uint32 Width, uint32 Height, ERTFormat Format, uint32 ArraySize = 1) override;
+    virtual FRHITexture* CreateTexture2D(uint32 Width, uint32 Height, const void* Data) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) override;
     virtual FRHIPipelineState* CreateGraphicsPipelineStateEx(EPipelineFlags Flags) override;
     

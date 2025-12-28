@@ -23,6 +23,15 @@ struct FLitVertex
     FColor Color;
 };
 
+// Textured vertex data structure (includes UV coordinates for texture sampling)
+struct FTexturedVertex
+{
+    FVector Position;
+    FVector Normal;
+    FVector2D TexCoord;
+    FColor Color;  // For tinting/fallback
+};
+
 // RHI Resource base class
 class FRHIResource 
 {
@@ -63,6 +72,9 @@ public:
     virtual uint32 GetWidth() const = 0;
     virtual uint32 GetHeight() const = 0;
     virtual uint32 GetArraySize() const = 0;
+    
+    // Check if this is a diffuse/color texture (vs depth)
+    virtual bool IsColorTexture() const { return false; }
 };
 
 // Pipeline state
@@ -133,6 +145,10 @@ public:
     // Bind shadow map texture for shader sampling
     // Call this before rendering lit geometry that receives shadows
     virtual void SetShadowMapTexture(FRHITexture* ShadowMap) = 0;
+    
+    // Bind diffuse texture for shader sampling
+    // Call this before rendering textured geometry
+    virtual void SetDiffuseTexture(FRHITexture* DiffuseTexture) = 0;
 };
 
 // Pipeline state creation flags
@@ -145,6 +161,7 @@ enum class EPipelineFlags : uint32
     LineTopology = 1 << 3,  // For wireframe line rendering
     EnableShadows = 1 << 4, // Enable shadow mapping (requires shadow map textures bound)
     DepthOnly = 1 << 5,     // Depth-only rendering for shadow pass
+    EnableTextures = 1 << 6, // Enable texture sampling (requires texture bound)
 };
 
 // Operator overloads for pipeline flags
@@ -183,6 +200,10 @@ public:
     
     // Texture creation for render targets and shadow maps
     virtual FRHITexture* CreateDepthTexture(uint32 Width, uint32 Height, ERTFormat Format, uint32 ArraySize = 1) = 0;
+    
+    // Texture creation for color textures (diffuse maps, etc.)
+    // Data should be RGBA8 format (4 bytes per pixel)
+    virtual FRHITexture* CreateTexture2D(uint32 Width, uint32 Height, const void* Data) = 0;
     
     // Legacy pipeline state creation (unlit)
     virtual FRHIPipelineState* CreateGraphicsPipelineState(bool bEnableDepth = false) = 0;

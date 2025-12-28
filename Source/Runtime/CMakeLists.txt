@@ -45,6 +45,12 @@ add_executable(UE5MinimalRenderer WIN32
     ../Lighting/LightVisualization.cpp
     ../Lighting/LightVisualization.h
     
+    # Asset
+    ../Asset/TextureLoader.cpp
+    ../Asset/TextureLoader.h
+    ../Asset/OBJLoader.cpp
+    ../Asset/OBJLoader.h
+    
     # Scene
     ../Scene/Scene.cpp
     ../Scene/Scene.h
@@ -54,6 +60,10 @@ add_executable(UE5MinimalRenderer WIN32
     ../Scene/UnlitSceneProxy.h
     ../Scene/LitSceneProxy.cpp
     ../Scene/LitSceneProxy.h
+    ../Scene/TexturedSceneProxy.cpp
+    ../Scene/TexturedSceneProxy.h
+    ../Scene/OBJPrimitive.cpp
+    ../Scene/OBJPrimitive.h
     
     # Game
     ../Game/Game.cpp
@@ -71,8 +81,10 @@ target_include_directories(UE5MinimalRenderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../RHI_DX12
     ${CMAKE_CURRENT_SOURCE_DIR}/../Renderer
     ${CMAKE_CURRENT_SOURCE_DIR}/../Lighting
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Asset
     ${CMAKE_CURRENT_SOURCE_DIR}/../Scene
     ${CMAKE_CURRENT_SOURCE_DIR}/../Game
+    ${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty
 )
 
 # Link DirectX 12 libraries
@@ -102,11 +114,16 @@ source_group("Lighting" FILES
     ../Lighting/Light.cpp ../Lighting/Light.h
     ../Lighting/LightingConstants.h
     ../Lighting/LightVisualization.cpp ../Lighting/LightVisualization.h)
+source_group("Asset" FILES 
+    ../Asset/TextureLoader.cpp ../Asset/TextureLoader.h
+    ../Asset/OBJLoader.cpp ../Asset/OBJLoader.h)
 source_group("Scene" FILES 
     ../Scene/Scene.cpp ../Scene/Scene.h
     ../Scene/ScenePrimitive.cpp ../Scene/ScenePrimitive.h
     ../Scene/UnlitSceneProxy.cpp ../Scene/UnlitSceneProxy.h
-    ../Scene/LitSceneProxy.cpp ../Scene/LitSceneProxy.h)
+    ../Scene/LitSceneProxy.cpp ../Scene/LitSceneProxy.h
+    ../Scene/TexturedSceneProxy.cpp ../Scene/TexturedSceneProxy.h
+    ../Scene/OBJPrimitive.cpp ../Scene/OBJPrimitive.h)
 source_group("Game" FILES 
     ../Game/Game.cpp ../Game/Game.h
     ../Game/GameGlobals.h)

@@ -18,6 +18,14 @@ struct FLitVertexInput
     float4 Color : COLOR;
 };
 
+struct FTexturedVertexInput
+{
+    float3 Position : POSITION;
+    float3 Normal : NORMAL;
+    float2 TexCoord : TEXCOORD;
+    float4 Color : COLOR;
+};
+
 // Common output structures
 struct FBasePassOutput
 {
@@ -30,6 +38,16 @@ struct FLitPassOutput
     float4 Position : SV_POSITION;
     float3 WorldPos : WORLDPOS;
     float3 Normal : NORMAL;
+    float4 Color : COLOR;
+    float4 LightSpacePos : LIGHTSPACEPOS;
+};
+
+struct FTexturedPassOutput
+{
+    float4 Position : SV_POSITION;
+    float3 WorldPos : WORLDPOS;
+    float3 Normal : NORMAL;
+    float2 TexCoord : TEXCOORD;
     float4 Color : COLOR;
     float4 LightSpacePos : LIGHTSPACEPOS;
 };

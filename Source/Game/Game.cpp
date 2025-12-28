@@ -3,6 +3,8 @@
 #include "../RHI_DX12/DX12RHI.h"
 #include "../Lighting/LightVisualization.h"
 #include "../Scene/LitSceneProxy.h"
+#include "../Scene/OBJPrimitive.h"
+#include "../Asset/TextureLoader.h"
 #include "../Shaders/ShaderCompiler.h"
 
 // Define the global camera pointer (declared in GameGlobals.h)
@@ -221,6 +223,27 @@ void FGame::SetupScene()
     roseCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
     roseCylinder->SetMaterial(FMaterial::Metal(FColor(0.95f, 0.75f, 0.8f, 1.0f), 64.0f));  // Macaron rose
     Scene->AddPrimitive(roseCylinder);
+    
+    // ==========================================
+    // TEXTURED OBJ MODEL DEMO
+    // ==========================================
+    
+    // Load textured cube OBJ (demonstrates texture support)
+    FOBJPrimitive* texturedCube = new FOBJPrimitive("../Content/Models/cube.obj", RHI.get());
+    if (texturedCube->IsValid())
+    {
+        texturedCube->SetPosition(FVector(0.0f, 2.5f, 0.0f));
+        texturedCube->SetScale(FVector(1.5f, 1.5f, 1.5f));
+        texturedCube->SetAutoRotate(true);
+        texturedCube->SetRotationSpeed(0.8f);
+        Scene->AddPrimitive(texturedCube);
+        FLog::Log(ELogLevel::Info, "Added textured OBJ cube to scene");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load textured OBJ model, skipping");
+        delete texturedCube;
+    }
     
     // ==========================================
     // LIGHT VISUALIZATION (Wireframe)

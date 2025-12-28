@@ -1,0 +1,103 @@
+// TexturedLightingPixelShader.usf - Forward lighting with texture sampling
+// Used for rendering textured meshes with Phong shading
+
+#include "Common.ush"
+#include "LightingCommon.ush"
+
+// MVP constant buffer
+cbuffer MVPBuffer : register(b0)
+{
+    float4x4 MVP;
+};
+
+// Diffuse texture and sampler
+Texture2D<float4> DiffuseTexture : register(t1);
+SamplerState DiffuseSampler : register(s1);
+
+// Vertex shader for textured rendering
+FTexturedPassOutput VSMain(FTexturedVertexInput Input)
+{
+    FTexturedPassOutput Output;
+    Output.Position = mul(float4(Input.Position, 1.0f), MVP);
+    
+    // Transform position to world space for lighting
+    Output.WorldPos = mul(float4(Input.Position, 1.0f), ModelMatrix).xyz;
+    
+    // Transform normal to world space
+    float3x3 NormalMatrix = (float3x3)ModelMatrix;
+    Output.Normal = normalize(mul(Input.Normal, NormalMatrix));
+    
+    // Pass through texture coordinates
+    Output.TexCoord = Input.TexCoord;
+    
+    // Pass through vertex color for tinting
+    Output.Color = Input.Color;
+    
+    // Transform to light space for shadow mapping
+    Output.LightSpacePos = mul(float4(Output.WorldPos, 1.0f), DirLightViewProj);
+    
+    return Output;
+}
+
+// Pixel shader for textured rendering with lighting
+float4 PSMain(FTexturedPassOutput Input) : SV_TARGET 
+{
+    float3 N = normalize(Input.Normal);
+    float3 V = normalize(CameraPosition.xyz - Input.WorldPos);
+    
+    // Sample diffuse texture
+    float4 texColor = DiffuseTexture.Sample(DiffuseSampler, Input.TexCoord);
+    
+    // Combine texture color with material diffuse and vertex color
+    float3 DiffuseColor = texColor.rgb * MaterialDiffuse.xyz * Input.Color.xyz;
+    float3 SpecularColor = MaterialSpecular.xyz;
+    float3 AmbientColor = texColor.rgb * MaterialAmbient.xyz * Input.Color.xyz;
+    float Shininess = MaterialSpecular.w;
+    
+    // Ambient contribution
+    float3 Ambient = AmbientColor * AmbientLight.xyz * AmbientLight.w;
+    
+    // Calculate shadow factor for directional light
+    float ShadowBias = ShadowParams.x;
+    float ShadowEnabled = ShadowParams.y;
+    float ShadowStrength = ShadowParams.z;
+    float Shadow = 1.0f;
+    
+    if (ShadowEnabled > 0.5f)
+    {
+        Shadow = CalcShadow(Input.LightSpacePos, ShadowBias);
+        Shadow = lerp(1.0f, Shadow, ShadowStrength);
+    }
+    
+    // Directional light contribution (with shadow)
+    float3 Directional = float3(0, 0, 0);
+    if (DirLightDirection.w > 0.5f) // Enabled
+    {
+        float3 L = normalize(-DirLightDirection.xyz);
+        float NdotL = max(dot(N, L), 0.0f);
+        
+        float3 LightColorRGB = DirLightColor.xyz * DirLightColor.w;
+        
+        // Diffuse (attenuated by shadow)
+        float3 Diffuse = DiffuseColor * LightColorRGB * NdotL * Shadow;
+        
+        // Specular (Blinn-Phong, also attenuated by shadow)
+        float3 H = normalize(L + V);
+        float NdotH = max(dot(N, H), 0.0f);
+        float3 Specular = SpecularColor * LightColorRGB * pow(NdotH, Shininess) * Shadow;
+        
+        Directional = Diffuse + Specular;
+    }
+    
+    // Point light contributions
+    float3 PointLights = float3(0, 0, 0);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight0Position, PointLight0Color, PointLight0Params, DiffuseColor, SpecularColor, Shininess);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight1Position, PointLight1Color, PointLight1Params, DiffuseColor, SpecularColor, Shininess);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight2Position, PointLight2Color, PointLight2Params, DiffuseColor, SpecularColor, Shininess);
+    PointLights += CalcPointLight(Input.WorldPos, N, V, PointLight3Position, PointLight3Color, PointLight3Params, DiffuseColor, SpecularColor, Shininess);
+    
+    // Final color
+    float3 FinalColor = Ambient + Directional + PointLights;
+    
+    return float4(FinalColor, texColor.a * Input.Color.a);
+}

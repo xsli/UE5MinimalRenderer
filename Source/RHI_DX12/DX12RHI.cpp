@@ -78,7 +78,7 @@ void FDX12Buffer::Unmap()
 FDX12Texture::FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 InHeight, 
                            uint32 InArraySize, DXGI_FORMAT InFormat,
                            ID3D12DescriptorHeap* InDSVHeap, ID3D12DescriptorHeap* InSRVHeap,
-                           D3D12_RESOURCE_STATES InInitialState)
+                           D3D12_RESOURCE_STATES InInitialState, bool bIsColorTexture)
     : Resource(InResource)
     , DSVHeap(InDSVHeap)
     , SRVHeap(InSRVHeap)
@@ -89,6 +89,7 @@ FDX12Texture::FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 In
     , DSVDescriptorSize(0)
     , SRVDescriptorSize(0)
     , CurrentState(InInitialState)
+    , bColorTexture(bIsColorTexture)
 {
     // Get descriptor sizes from device
     ComPtr<ID3D12Device> device;
@@ -103,7 +104,7 @@ FDX12Texture::FDX12Texture(ID3D12Resource* InResource, uint32 InWidth, uint32 In
     }
     
     FLog::Log(ELogLevel::Info, "FDX12Texture created: " + std::to_string(Width) + "x" + std::to_string(Height) + 
-              " ArraySize=" + std::to_string(ArraySize));
+              " ArraySize=" + std::to_string(ArraySize) + " Color=" + (bColorTexture ? "yes" : "no"));
 }
 
 FDX12Texture::~FDX12Texture()
@@ -687,6 +688,27 @@ void FDX12CommandList::SetShadowMapTexture(FRHITexture* ShadowMap)
     GraphicsCommandList->SetGraphicsRootDescriptorTable(3, dx12Texture->GetSRVGPUHandle());
 }
 
+void FDX12CommandList::SetDiffuseTexture(FRHITexture* DiffuseTexture)
+{
+    if (!DiffuseTexture) return;
+    
+    FDX12Texture* dx12Texture = static_cast<FDX12Texture*>(DiffuseTexture);
+    ID3D12DescriptorHeap* srvHeap = dx12Texture->GetSRVHeap();
+    
+    if (!srvHeap)
+    {
+        FLog::Log(ELogLevel::Warning, "SetDiffuseTexture: Diffuse texture has no SRV heap");
+        return;
+    }
+    
+    // Set the descriptor heap for the diffuse texture SRV
+    ID3D12DescriptorHeap* heaps[] = { srvHeap };
+    GraphicsCommandList->SetDescriptorHeaps(1, heaps);
+    
+    // Set the descriptor table for the diffuse texture (root parameter index 4 for textured shader)
+    GraphicsCommandList->SetGraphicsRootDescriptorTable(4, dx12Texture->GetSRVGPUHandle());
+}
+
 void FDX12CommandList::InitializeTextRendering(ID3D12Device* InDevice, IDXGISwapChain3* InSwapChain)
 {
     FLog::Log(ELogLevel::Info, "Initializing text rendering (D2D/DWrite)...");
@@ -1262,7 +1284,153 @@ FRHITexture* FDX12RHI::CreateDepthTexture(uint32 InWidth, uint32 InHeight, ERTFo
     
     // Pass the initial state (DEPTH_WRITE) to the texture so it can track state transitions
     return new FDX12Texture(texture.Detach(), InWidth, InHeight, ArraySize, dsvFormat, 
-                            dsvHeap.Detach(), srvHeap.Detach(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+                            dsvHeap.Detach(), srvHeap.Detach(), D3D12_RESOURCE_STATE_DEPTH_WRITE, false);
+}
+
+FRHITexture* FDX12RHI::CreateTexture2D(uint32 InWidth, uint32 InHeight, const void* Data)
+{
+    FLog::Log(ELogLevel::Info, "Creating color texture: " + std::to_string(InWidth) + "x" + std::to_string(InHeight));
+    
+    if (!Data)
+    {
+        FLog::Log(ELogLevel::Error, "CreateTexture2D: Data is null");
+        return nullptr;
+    }
+    
+    // Create texture resource on default heap
+    D3D12_RESOURCE_DESC texDesc = {};
+    texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    texDesc.Alignment = 0;
+    texDesc.Width = InWidth;
+    texDesc.Height = InHeight;
+    texDesc.DepthOrArraySize = 1;
+    texDesc.MipLevels = 1;
+    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    texDesc.SampleDesc.Count = 1;
+    texDesc.SampleDesc.Quality = 0;
+    texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    texDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+    
+    CD3DX12_HEAP_PROPERTIES defaultHeapProps(D3D12_HEAP_TYPE_DEFAULT);
+    
+    ComPtr<ID3D12Resource> texture;
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &defaultHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &texDesc,
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        nullptr,
+        IID_PPV_ARGS(&texture)));
+    
+    // Create upload buffer for texture data
+    UINT64 uploadBufferSize = 0;
+    Device->GetCopyableFootprints(&texDesc, 0, 1, 0, nullptr, nullptr, nullptr, &uploadBufferSize);
+    
+    CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+    
+    ComPtr<ID3D12Resource> uploadBuffer;
+    ThrowIfFailed(Device->CreateCommittedResource(
+        &uploadHeapProps,
+        D3D12_HEAP_FLAG_NONE,
+        &uploadBufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&uploadBuffer)));
+    
+    // Get layout info
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+    UINT64 rowSizeInBytes;
+    UINT numRows;
+    Device->GetCopyableFootprints(&texDesc, 0, 1, 0, &footprint, &numRows, &rowSizeInBytes, nullptr);
+    
+    // Copy data to upload buffer (row by row to handle pitch alignment)
+    void* mappedData;
+    CD3DX12_RANGE readRange(0, 0);
+    ThrowIfFailed(uploadBuffer->Map(0, &readRange, &mappedData));
+    
+    const uint8* srcData = static_cast<const uint8*>(Data);
+    uint8* dstData = static_cast<uint8*>(mappedData);
+    UINT srcRowPitch = InWidth * 4;  // RGBA8 = 4 bytes per pixel
+    
+    for (UINT row = 0; row < numRows; ++row)
+    {
+        memcpy(dstData + row * footprint.Footprint.RowPitch,
+               srcData + row * srcRowPitch,
+               srcRowPitch);
+    }
+    
+    uploadBuffer->Unmap(0, nullptr);
+    
+    // Create command allocator and list for upload
+    ComPtr<ID3D12CommandAllocator> uploadCmdAllocator;
+    ComPtr<ID3D12GraphicsCommandList> uploadCmdList;
+    
+    ThrowIfFailed(Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&uploadCmdAllocator)));
+    ThrowIfFailed(Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, uploadCmdAllocator.Get(), nullptr, IID_PPV_ARGS(&uploadCmdList)));
+    
+    // Copy from upload buffer to texture
+    D3D12_TEXTURE_COPY_LOCATION dstLocation = {};
+    dstLocation.pResource = texture.Get();
+    dstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    dstLocation.SubresourceIndex = 0;
+    
+    D3D12_TEXTURE_COPY_LOCATION srcLocation = {};
+    srcLocation.pResource = uploadBuffer.Get();
+    srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    srcLocation.PlacedFootprint = footprint;
+    
+    uploadCmdList->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, nullptr);
+    
+    // Transition to shader resource state
+    CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        texture.Get(),
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    uploadCmdList->ResourceBarrier(1, &barrier);
+    
+    ThrowIfFailed(uploadCmdList->Close());
+    
+    // Execute upload
+    ID3D12CommandList* ppCmdLists[] = { uploadCmdList.Get() };
+    CommandQueue->ExecuteCommandLists(1, ppCmdLists);
+    
+    // Wait for upload to complete
+    ComPtr<ID3D12Fence> uploadFence;
+    ThrowIfFailed(Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&uploadFence)));
+    
+    void* fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    ThrowIfFailed(CommandQueue->Signal(uploadFence.Get(), 1));
+    ThrowIfFailed(uploadFence->SetEventOnCompletion(1, fenceEvent));
+    WaitForSingleObject(fenceEvent, INFINITE);
+    CloseHandle(fenceEvent);
+    
+    // Create SRV descriptor heap
+    D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+    srvHeapDesc.NumDescriptors = 1;
+    srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    
+    ComPtr<ID3D12DescriptorHeap> srvHeap;
+    ThrowIfFailed(Device->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap)));
+    
+    // Create SRV
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = 1;
+    srvDesc.Texture2D.PlaneSlice = 0;
+    srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+    
+    Device->CreateShaderResourceView(texture.Get(), &srvDesc, srvHeap->GetCPUDescriptorHandleForHeapStart());
+    
+    FLog::Log(ELogLevel::Info, "Color texture created successfully");
+    
+    // Return texture with no DSV heap (color texture), only SRV heap
+    return new FDX12Texture(texture.Detach(), InWidth, InHeight, 1, DXGI_FORMAT_R8G8B8A8_UNORM,
+                            nullptr, srvHeap.Detach(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, true);
 }
 
 FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineState(bool bEnableDepth)
@@ -1374,11 +1542,13 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     bool bLineTopology = HasFlag(Flags, EPipelineFlags::LineTopology);
     bool bEnableShadows = HasFlag(Flags, EPipelineFlags::EnableShadows);
     bool bDepthOnly = HasFlag(Flags, EPipelineFlags::DepthOnly);
+    bool bEnableTextures = HasFlag(Flags, EPipelineFlags::EnableTextures);
     
     FLog::Log(ELogLevel::Info, std::string("Creating graphics pipeline state Ex (depth: ") + 
         (bEnableDepth ? "on" : "off") + ", lighting: " + (bEnableLighting ? "on" : "off") + 
         ", wireframe: " + (bWireframe ? "on" : "off") + ", lines: " + (bLineTopology ? "on" : "off") + 
-        ", shadows: " + (bEnableShadows ? "on" : "off") + ", depth-only: " + (bDepthOnly ? "on" : "off") + ")...");
+        ", shadows: " + (bEnableShadows ? "on" : "off") + ", depth-only: " + (bDepthOnly ? "on" : "off") + 
+        ", textures: " + (bEnableTextures ? "on" : "off") + ")...");
     
     // Use shader manager to compile shaders from files
     FShaderManager& shaderManager = FShaderManager::Get();
@@ -1392,6 +1562,11 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     {
         shaderFile = "ShadowDepthVertexShader.usf";
         FLog::Log(ELogLevel::Info, "Using shadow depth shader from file: " + shaderFile);
+    }
+    else if (bEnableTextures && bEnableLighting)
+    {
+        shaderFile = "TexturedLightingPixelShader.usf";
+        FLog::Log(ELogLevel::Info, "Using textured lighting shader from file: " + shaderFile);
     }
     else if (bEnableLighting)
     {
@@ -1423,10 +1598,67 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     FLog::Log(ELogLevel::Info, "Pixel shader compiled successfully from file");
     
     // Create root signature with appropriate number of constant buffers
-    CD3DX12_ROOT_PARAMETER rootParameters[4];
+    CD3DX12_ROOT_PARAMETER rootParameters[5];
+    CD3DX12_DESCRIPTOR_RANGE srvRanges[2];  // For shadow map and diffuse texture
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+    D3D12_STATIC_SAMPLER_DESC staticSamplers[2] = {};  // Shadow sampler and diffuse sampler
+    int numSamplers = 0;
     
-    if (bEnableLighting)
+    if (bEnableTextures && bEnableLighting)
+    {
+        // Five root parameters for textured lit rendering:
+        // 0: CBV for MVP (b0)
+        // 1: CBV for Lighting (b1)
+        // 2: CBV for Shadow (b2)
+        // 3: Descriptor table for shadow map texture (t0)
+        // 4: Descriptor table for diffuse texture (t1)
+        rootParameters[0].InitAsConstantBufferView(0);
+        rootParameters[1].InitAsConstantBufferView(1);
+        rootParameters[2].InitAsConstantBufferView(2);
+        
+        // Descriptor range for shadow map texture (t0)
+        srvRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);  // 1 SRV at t0
+        rootParameters[3].InitAsDescriptorTable(1, &srvRanges[0]);
+        
+        // Descriptor range for diffuse texture (t1)
+        srvRanges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);  // 1 SRV at t1
+        rootParameters[4].InitAsDescriptorTable(1, &srvRanges[1]);
+        
+        // Shadow map comparison sampler (s0)
+        staticSamplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+        staticSamplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        staticSamplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        staticSamplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        staticSamplers[0].MipLODBias = 0;
+        staticSamplers[0].MaxAnisotropy = 1;
+        staticSamplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+        staticSamplers[0].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+        staticSamplers[0].MinLOD = 0.0f;
+        staticSamplers[0].MaxLOD = D3D12_FLOAT32_MAX;
+        staticSamplers[0].ShaderRegister = 0;  // s0
+        staticSamplers[0].RegisterSpace = 0;
+        staticSamplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        
+        // Diffuse texture sampler (s1)
+        staticSamplers[1].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+        staticSamplers[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        staticSamplers[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        staticSamplers[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        staticSamplers[1].MipLODBias = 0;
+        staticSamplers[1].MaxAnisotropy = 16;
+        staticSamplers[1].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        staticSamplers[1].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+        staticSamplers[1].MinLOD = 0.0f;
+        staticSamplers[1].MaxLOD = D3D12_FLOAT32_MAX;
+        staticSamplers[1].ShaderRegister = 1;  // s1
+        staticSamplers[1].RegisterSpace = 0;
+        staticSamplers[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        
+        numSamplers = 2;
+        rootSignatureDesc.Init(5, rootParameters, numSamplers, staticSamplers, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        FLog::Log(ELogLevel::Info, "Creating textured lit PSO with shadow and diffuse texture support");
+    }
+    else if (bEnableLighting)
     {
         // Four root parameters:
         // 0: CBV for MVP (b0)
@@ -1438,27 +1670,26 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
         rootParameters[2].InitAsConstantBufferView(2);
         
         // Descriptor range for shadow map texture (t0)
-        CD3DX12_DESCRIPTOR_RANGE srvRange;
-        srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);  // 1 SRV at t0
-        rootParameters[3].InitAsDescriptorTable(1, &srvRange);
+        srvRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);  // 1 SRV at t0
+        rootParameters[3].InitAsDescriptorTable(1, &srvRanges[0]);
         
         // Static sampler for shadow map comparison sampling
-        D3D12_STATIC_SAMPLER_DESC shadowSampler = {};
-        shadowSampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
-        shadowSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        shadowSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        shadowSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
-        shadowSampler.MipLODBias = 0;
-        shadowSampler.MaxAnisotropy = 1;
-        shadowSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-        shadowSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;  // White border = no shadow outside
-        shadowSampler.MinLOD = 0.0f;
-        shadowSampler.MaxLOD = D3D12_FLOAT32_MAX;
-        shadowSampler.ShaderRegister = 0;  // s0
-        shadowSampler.RegisterSpace = 0;
-        shadowSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        staticSamplers[0].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+        staticSamplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        staticSamplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        staticSamplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+        staticSamplers[0].MipLODBias = 0;
+        staticSamplers[0].MaxAnisotropy = 1;
+        staticSamplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+        staticSamplers[0].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+        staticSamplers[0].MinLOD = 0.0f;
+        staticSamplers[0].MaxLOD = D3D12_FLOAT32_MAX;
+        staticSamplers[0].ShaderRegister = 0;  // s0
+        staticSamplers[0].RegisterSpace = 0;
+        staticSamplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
         
-        rootSignatureDesc.Init(4, rootParameters, 1, &shadowSampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+        numSamplers = 1;
+        rootSignatureDesc.Init(4, rootParameters, numSamplers, staticSamplers, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
         FLog::Log(ELogLevel::Info, "Creating lit PSO with shadow map sampling support");
     }
     else if (bDepthOnly)
@@ -1484,12 +1715,28 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     ComPtr<ID3DBlob> signature;
     ComPtr<ID3DBlob> error;
     ComPtr<ID3D12RootSignature> rootSignature;
-    ThrowIfFailed(D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
+    HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
+    if (FAILED(hr))
+    {
+        if (error)
+        {
+            FLog::Log(ELogLevel::Error, std::string("Root signature error: ") + static_cast<char*>(error->GetBufferPointer()));
+        }
+        ThrowIfFailed(hr);
+    }
     ThrowIfFailed(Device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
     
     FLog::Log(ELogLevel::Info, "Root signature created");
     
-    // Define input layout based on vertex type
+    // Define input layouts for different vertex types
+    D3D12_INPUT_ELEMENT_DESC texturedInputElementDescs[] = 
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+    };
+    
     D3D12_INPUT_ELEMENT_DESC litInputElementDescs[] = 
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -1505,7 +1752,12 @@ FRHIPipelineState* FDX12RHI::CreateGraphicsPipelineStateEx(EPipelineFlags Flags)
     
     // Create PSO
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    if (bEnableLighting || bDepthOnly)
+    if (bEnableTextures)
+    {
+        // Textured vertex format (position, normal, texcoord, color)
+        psoDesc.InputLayout = { texturedInputElementDescs, _countof(texturedInputElementDescs) };
+    }
+    else if (bEnableLighting || bDepthOnly)
     {
         // Depth-only shader uses lit vertex format (position, normal, color)
         psoDesc.InputLayout = { litInputElementDescs, _countof(litInputElementDescs) };
