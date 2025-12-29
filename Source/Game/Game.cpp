@@ -6,6 +6,69 @@
 #include "../Scene/OBJPrimitive.h"
 #include "../Asset/TextureLoader.h"
 #include "../Shaders/ShaderCompiler.h"
+#include <filesystem>
+#include <algorithm>
+#include <Windows.h>
+
+// Helper function to get the executable directory
+static std::string GetExecutableDirectory()
+{
+    char buffer[MAX_PATH];
+    DWORD result = GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    
+    if (result == 0 || result == MAX_PATH)
+    {
+        FLog::Log(ELogLevel::Warning, "GetModuleFileNameA failed, using current directory");
+        return ".";
+    }
+    
+    std::string path(buffer);
+    size_t lastSlash = path.find_last_of("\\/");
+    if (lastSlash != std::string::npos)
+    {
+        path = path.substr(0, lastSlash);
+    }
+    
+    std::replace(path.begin(), path.end(), '\\', '/');
+    return path;
+}
+
+// Helper function to resolve content path relative to executable
+static std::string ResolveContentPath(const std::string& RelativePath)
+{
+    std::string exeDir = GetExecutableDirectory();
+    
+    // If the path is absolute, use it directly
+    if (RelativePath.length() > 1 && (RelativePath[1] == ':' || RelativePath[0] == '/'))
+    {
+        return RelativePath;
+    }
+    
+    // Try going up directories from the executable to find Content/
+    // Build structure: build/Source/Runtime/Release/UE5MinimalRenderer.exe
+    // We need to go up to find Content/
+    std::string currentDir = exeDir;
+    for (int i = 0; i < 5; ++i)
+    {
+        std::string testPath = currentDir + "/" + RelativePath;
+        if (std::filesystem::exists(testPath))
+        {
+            FLog::Log(ELogLevel::Info, "Found content path: " + testPath);
+            return testPath;
+        }
+        
+        size_t lastSlash = currentDir.find_last_of("/");
+        if (lastSlash == std::string::npos || lastSlash == 0)
+        {
+            break;
+        }
+        currentDir = currentDir.substr(0, lastSlash);
+    }
+    
+    // Fall back to original path
+    FLog::Log(ELogLevel::Warning, "Could not find content path, using fallback: " + RelativePath);
+    return RelativePath;
+}
 
 // Define the global camera pointer (declared in GameGlobals.h)
 FCamera* g_Camera = nullptr;
@@ -229,7 +292,9 @@ void FGame::SetupScene()
     // ==========================================
     
     // Load textured cube OBJ (demonstrates texture support)
-    FOBJPrimitive* texturedCube = new FOBJPrimitive("../Content/Models/cube.obj", RHI.get());
+    // Resolve path relative to executable location
+    std::string cubeObjPath = ResolveContentPath("Content/Models/cube.obj");
+    FOBJPrimitive* texturedCube = new FOBJPrimitive(cubeObjPath, RHI.get());
     if (texturedCube->IsValid())
     {
         texturedCube->SetPosition(FVector(0.0f, 2.5f, 0.0f));
