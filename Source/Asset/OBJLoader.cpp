@@ -71,30 +71,59 @@ static FVector Normalize(const FVector& v)
     return FVector(0.0f, 1.0f, 0.0f);  // Return up vector if degenerate
 }
 
-// Compute face normal from three vertices
-static FVector ComputeFaceNormal(const FVector& v0, const FVector& v1, const FVector& v2)
+// Compute dot product of two vectors
+static float Dot(const FVector& a, const FVector& b)
+{
+    return a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+}
+
+// Compute the angle at a vertex in a triangle (in radians)
+static float ComputeVertexAngle(const FVector& v, const FVector& v0, const FVector& v1)
+{
+    // Edge vectors from v to v0 and v1
+    FVector e0(v0.X - v.X, v0.Y - v.Y, v0.Z - v.Z);
+    FVector e1(v1.X - v.X, v1.Y - v.Y, v1.Z - v.Z);
+    
+    // Normalize edges
+    e0 = Normalize(e0);
+    e1 = Normalize(e1);
+    
+    // Clamp dot product to avoid numerical issues with acos
+    float dot = Dot(e0, e1);
+    dot = std::max(-1.0f, std::min(1.0f, dot));
+    
+    return std::acos(dot);
+}
+
+// Compute face normal from three vertices (unnormalized for area weighting)
+static FVector ComputeFaceNormalUnnormalized(const FVector& v0, const FVector& v1, const FVector& v2)
 {
     // Edge vectors
     FVector e1(v1.X - v0.X, v1.Y - v0.Y, v1.Z - v0.Z);
     FVector e2(v2.X - v0.X, v2.Y - v0.Y, v2.Z - v0.Z);
     
-    // Cross product
-    FVector normal(
+    // Cross product (magnitude is proportional to triangle area)
+    return FVector(
         e1.Y * e2.Z - e1.Z * e2.Y,
         e1.Z * e2.X - e1.X * e2.Z,
         e1.X * e2.Y - e1.Y * e2.X
     );
-    
-    return Normalize(normal);
 }
 
-// Generate smooth normals for mesh (vertex averaging)
+// Compute face normal from three vertices (normalized)
+static FVector ComputeFaceNormal(const FVector& v0, const FVector& v1, const FVector& v2)
+{
+    return Normalize(ComputeFaceNormalUnnormalized(v0, v1, v2));
+}
+
+// Generate smooth normals for mesh using angle-weighted vertex averaging
+// This produces higher quality normals than simple averaging
 static void GenerateSmoothNormals(FMeshData& meshData)
 {
     if (meshData.Vertices.empty() || meshData.Indices.empty())
         return;
     
-    FLog::Log(ELogLevel::Info, "Generating smooth normals for " + std::to_string(meshData.GetTriangleCount()) + " triangles");
+    FLog::Log(ELogLevel::Info, "Generating angle-weighted smooth normals for " + std::to_string(meshData.GetTriangleCount()) + " triangles");
     
     // Reset all normals to zero
     for (auto& vertex : meshData.Vertices)
@@ -102,7 +131,7 @@ static void GenerateSmoothNormals(FMeshData& meshData)
         vertex.Normal = FVector(0.0f, 0.0f, 0.0f);
     }
     
-    // Accumulate face normals for each vertex
+    // Accumulate angle-weighted face normals for each vertex
     for (size_t i = 0; i + 2 < meshData.Indices.size(); i += 3)
     {
         uint32 i0 = meshData.Indices[i];
@@ -113,20 +142,26 @@ static void GenerateSmoothNormals(FMeshData& meshData)
         const FVector& v1 = meshData.Vertices[i1].Position;
         const FVector& v2 = meshData.Vertices[i2].Position;
         
+        // Compute face normal (normalized)
         FVector faceNormal = ComputeFaceNormal(v0, v1, v2);
         
-        // Add face normal to each vertex (weighted by area is implicit in cross product magnitude)
-        meshData.Vertices[i0].Normal.X += faceNormal.X;
-        meshData.Vertices[i0].Normal.Y += faceNormal.Y;
-        meshData.Vertices[i0].Normal.Z += faceNormal.Z;
+        // Compute angle at each vertex
+        float angle0 = ComputeVertexAngle(v0, v1, v2);
+        float angle1 = ComputeVertexAngle(v1, v2, v0);
+        float angle2 = ComputeVertexAngle(v2, v0, v1);
         
-        meshData.Vertices[i1].Normal.X += faceNormal.X;
-        meshData.Vertices[i1].Normal.Y += faceNormal.Y;
-        meshData.Vertices[i1].Normal.Z += faceNormal.Z;
+        // Add angle-weighted face normal to each vertex
+        meshData.Vertices[i0].Normal.X += faceNormal.X * angle0;
+        meshData.Vertices[i0].Normal.Y += faceNormal.Y * angle0;
+        meshData.Vertices[i0].Normal.Z += faceNormal.Z * angle0;
         
-        meshData.Vertices[i2].Normal.X += faceNormal.X;
-        meshData.Vertices[i2].Normal.Y += faceNormal.Y;
-        meshData.Vertices[i2].Normal.Z += faceNormal.Z;
+        meshData.Vertices[i1].Normal.X += faceNormal.X * angle1;
+        meshData.Vertices[i1].Normal.Y += faceNormal.Y * angle1;
+        meshData.Vertices[i1].Normal.Z += faceNormal.Z * angle1;
+        
+        meshData.Vertices[i2].Normal.X += faceNormal.X * angle2;
+        meshData.Vertices[i2].Normal.Y += faceNormal.Y * angle2;
+        meshData.Vertices[i2].Normal.Z += faceNormal.Z * angle2;
     }
     
     // Normalize all accumulated normals
@@ -135,7 +170,7 @@ static void GenerateSmoothNormals(FMeshData& meshData)
         vertex.Normal = Normalize(vertex.Normal);
     }
     
-    FLog::Log(ELogLevel::Info, "Smooth normals generated successfully");
+    FLog::Log(ELogLevel::Info, "Angle-weighted smooth normals generated successfully");
 }
 
 bool FOBJLoader::LoadFromFile(const std::string& Filename, FMeshData& OutMeshData)

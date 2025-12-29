@@ -336,11 +336,40 @@ void FGame::SetupScene()
         cornellBox->SetScale(FVector(0.8f, 0.8f, 0.8f));
         Scene->AddPrimitive(cornellBox);
         FLog::Log(ELogLevel::Info, "Added Cornell Box to scene");
+        
+        // Add point light inside Cornell Box
+        FPointLight* cornellLight = new FPointLight();
+        // Position light at center-top of Cornell Box (box is at 0,0,5 with scale 0.8)
+        // Cornell box internal coords are 0-5 in all axes, so center is (2.5, 4.5, 2.5) * 0.8 + position
+        cornellLight->SetPosition(FVector(0.0f * 0.8f + 0.0f, 4.0f * 0.8f + 0.0f, 2.5f * 0.8f + 5.0f));  // Near ceiling
+        cornellLight->SetColor(FColor(1.0f, 0.98f, 0.95f, 1.0f));  // Warm white
+        cornellLight->SetIntensity(1.5f);
+        cornellLight->SetRadius(5.0f);
+        LightScene->AddLight(cornellLight);
+        FLog::Log(ELogLevel::Info, "Added point light inside Cornell Box");
     }
     else
     {
         FLog::Log(ELogLevel::Warning, "Failed to load Cornell Box, skipping");
         delete cornellBox;
+    }
+    
+    // Load African Head (textured model demo)
+    std::string headObjPath = ResolveContentPath("Content/Models/african_head.obj");
+    FOBJPrimitive* africanHead = new FOBJPrimitive(headObjPath, RHI.get());
+    if (africanHead->IsValid())
+    {
+        africanHead->SetPosition(FVector(0.0f, 1.5f, -5.0f));
+        africanHead->SetScale(FVector(2.0f, 2.0f, 2.0f));
+        africanHead->SetAutoRotate(true);
+        africanHead->SetRotationSpeed(0.4f);
+        Scene->AddPrimitive(africanHead);
+        FLog::Log(ELogLevel::Info, "Added African Head (textured) to scene");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load African Head, skipping");
+        delete africanHead;
     }
     
     // ==========================================
