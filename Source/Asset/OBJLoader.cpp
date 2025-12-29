@@ -60,6 +60,84 @@ static std::string GetDirectory(const std::string& filepath)
     return "";
 }
 
+// Normalize a vector
+static FVector Normalize(const FVector& v)
+{
+    float len = std::sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z);
+    if (len > 1e-8f)
+    {
+        return FVector(v.X / len, v.Y / len, v.Z / len);
+    }
+    return FVector(0.0f, 1.0f, 0.0f);  // Return up vector if degenerate
+}
+
+// Compute face normal from three vertices
+static FVector ComputeFaceNormal(const FVector& v0, const FVector& v1, const FVector& v2)
+{
+    // Edge vectors
+    FVector e1(v1.X - v0.X, v1.Y - v0.Y, v1.Z - v0.Z);
+    FVector e2(v2.X - v0.X, v2.Y - v0.Y, v2.Z - v0.Z);
+    
+    // Cross product
+    FVector normal(
+        e1.Y * e2.Z - e1.Z * e2.Y,
+        e1.Z * e2.X - e1.X * e2.Z,
+        e1.X * e2.Y - e1.Y * e2.X
+    );
+    
+    return Normalize(normal);
+}
+
+// Generate smooth normals for mesh (vertex averaging)
+static void GenerateSmoothNormals(FMeshData& meshData)
+{
+    if (meshData.Vertices.empty() || meshData.Indices.empty())
+        return;
+    
+    FLog::Log(ELogLevel::Info, "Generating smooth normals for " + std::to_string(meshData.GetTriangleCount()) + " triangles");
+    
+    // Reset all normals to zero
+    for (auto& vertex : meshData.Vertices)
+    {
+        vertex.Normal = FVector(0.0f, 0.0f, 0.0f);
+    }
+    
+    // Accumulate face normals for each vertex
+    for (size_t i = 0; i + 2 < meshData.Indices.size(); i += 3)
+    {
+        uint32 i0 = meshData.Indices[i];
+        uint32 i1 = meshData.Indices[i + 1];
+        uint32 i2 = meshData.Indices[i + 2];
+        
+        const FVector& v0 = meshData.Vertices[i0].Position;
+        const FVector& v1 = meshData.Vertices[i1].Position;
+        const FVector& v2 = meshData.Vertices[i2].Position;
+        
+        FVector faceNormal = ComputeFaceNormal(v0, v1, v2);
+        
+        // Add face normal to each vertex (weighted by area is implicit in cross product magnitude)
+        meshData.Vertices[i0].Normal.X += faceNormal.X;
+        meshData.Vertices[i0].Normal.Y += faceNormal.Y;
+        meshData.Vertices[i0].Normal.Z += faceNormal.Z;
+        
+        meshData.Vertices[i1].Normal.X += faceNormal.X;
+        meshData.Vertices[i1].Normal.Y += faceNormal.Y;
+        meshData.Vertices[i1].Normal.Z += faceNormal.Z;
+        
+        meshData.Vertices[i2].Normal.X += faceNormal.X;
+        meshData.Vertices[i2].Normal.Y += faceNormal.Y;
+        meshData.Vertices[i2].Normal.Z += faceNormal.Z;
+    }
+    
+    // Normalize all accumulated normals
+    for (auto& vertex : meshData.Vertices)
+    {
+        vertex.Normal = Normalize(vertex.Normal);
+    }
+    
+    FLog::Log(ELogLevel::Info, "Smooth normals generated successfully");
+}
+
 bool FOBJLoader::LoadFromFile(const std::string& Filename, FMeshData& OutMeshData)
 {
     return LoadFromFileWithBasePath(Filename, GetDirectory(Filename), OutMeshData);
@@ -93,7 +171,10 @@ bool FOBJLoader::LoadFromFileWithBasePath(const std::string& Filename, const std
     const auto& shapes = reader.GetShapes();
     const auto& materials = reader.GetMaterials();
     
+    bool hasNormals = !attrib.normals.empty();
+    
     FLog::Log(ELogLevel::Info, "OBJ loaded: " + std::to_string(attrib.vertices.size() / 3) + " vertices, " +
+              std::to_string(attrib.normals.size() / 3) + " normals, " +
               std::to_string(shapes.size()) + " shapes, " + std::to_string(materials.size()) + " materials");
     
     // Load material information (use first material if available)
@@ -126,6 +207,20 @@ bool FOBJLoader::LoadFromFileWithBasePath(const std::string& Filename, const std
         {
             size_t faceVertices = shape.mesh.num_face_vertices[faceIdx];
             
+            // Get material for this face to use its diffuse color
+            int materialId = -1;
+            if (faceIdx < shape.mesh.material_ids.size())
+            {
+                materialId = shape.mesh.material_ids[faceIdx];
+            }
+            
+            FColor faceColor = OutMeshData.Material.DiffuseColor;
+            if (materialId >= 0 && materialId < static_cast<int>(materials.size()))
+            {
+                const auto& faceMat = materials[materialId];
+                faceColor = FColor(faceMat.diffuse[0], faceMat.diffuse[1], faceMat.diffuse[2], 1.0f);
+            }
+            
             // Process each vertex in the face (should be 3 after triangulation)
             for (size_t v = 0; v < faceVertices; ++v)
             {
@@ -139,7 +234,7 @@ bool FOBJLoader::LoadFromFileWithBasePath(const std::string& Filename, const std
                 vertex.Position.Z = attrib.vertices[3 * idx.vertex_index + 2];
                 
                 // Normal (if available)
-                if (idx.normal_index >= 0)
+                if (idx.normal_index >= 0 && hasNormals)
                 {
                     vertex.Normal.X = attrib.normals[3 * idx.normal_index + 0];
                     vertex.Normal.Y = attrib.normals[3 * idx.normal_index + 1];
@@ -147,8 +242,8 @@ bool FOBJLoader::LoadFromFileWithBasePath(const std::string& Filename, const std
                 }
                 else
                 {
-                    // Default to up vector if no normal
-                    vertex.Normal = FVector(0.0f, 1.0f, 0.0f);
+                    // Will be computed later
+                    vertex.Normal = FVector(0.0f, 0.0f, 0.0f);
                 }
                 
                 // Texture coordinates (if available)
@@ -163,21 +258,36 @@ bool FOBJLoader::LoadFromFileWithBasePath(const std::string& Filename, const std
                     vertex.TexCoord = FVector2D(0.0f, 0.0f);
                 }
                 
-                // Vertex color (use material diffuse color)
-                vertex.Color = OutMeshData.Material.DiffuseColor;
+                // Vertex color (use per-face material diffuse color)
+                vertex.Color = faceColor;
                 
-                // Vertex deduplication
-                if (uniqueVertices.count(vertex) == 0)
+                // Don't deduplicate if we need to generate normals (would break smooth normals)
+                // Only deduplicate if normals are already present
+                if (hasNormals)
                 {
-                    uniqueVertices[vertex] = static_cast<uint32>(OutMeshData.Vertices.size());
+                    if (uniqueVertices.count(vertex) == 0)
+                    {
+                        uniqueVertices[vertex] = static_cast<uint32>(OutMeshData.Vertices.size());
+                        OutMeshData.Vertices.push_back(vertex);
+                    }
+                    OutMeshData.Indices.push_back(uniqueVertices[vertex]);
+                }
+                else
+                {
+                    // Push each vertex separately for proper normal calculation
+                    OutMeshData.Indices.push_back(static_cast<uint32>(OutMeshData.Vertices.size()));
                     OutMeshData.Vertices.push_back(vertex);
                 }
-                
-                OutMeshData.Indices.push_back(uniqueVertices[vertex]);
             }
             
             indexOffset += faceVertices;
         }
+    }
+    
+    // Generate normals if not present in the file
+    if (!hasNormals)
+    {
+        GenerateSmoothNormals(OutMeshData);
     }
     
     FLog::Log(ELogLevel::Info, "OBJ processed: " + std::to_string(OutMeshData.Vertices.size()) + " unique vertices, " +
