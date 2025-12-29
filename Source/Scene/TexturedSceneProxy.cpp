@@ -208,7 +208,7 @@ void FTexturedSceneProxy::UpdateLightingConstants()
             *pos = { p.X, p.Y, p.Z, 1.0f };
             FColor c = light->GetColor();
             *color = { c.R, c.G, c.B, light->GetIntensity() };
-            *params = { light->GetRadius(), light->GetFalloff(), 0.0f, 0.0f };
+            *params = { light->GetRadius(), light->GetFalloffExponent(), 0.0f, 0.0f };
         }
         else
         {
