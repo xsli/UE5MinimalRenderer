@@ -354,22 +354,22 @@ void FGame::SetupScene()
         delete cornellBox;
     }
     
-    // Load African Head (textured model demo)
-    std::string headObjPath = ResolveContentPath("Content/Models/african_head.obj");
-    FOBJPrimitive* africanHead = new FOBJPrimitive(headObjPath, RHI.get());
-    if (africanHead->IsValid())
+    // Load Textured Cylinder (checkerboard texture demo)
+    std::string cylinderObjPath = ResolveContentPath("Content/Models/cylinder.obj");
+    FOBJPrimitive* texturedCylinder = new FOBJPrimitive(cylinderObjPath, RHI.get());
+    if (texturedCylinder->IsValid())
     {
-        africanHead->SetPosition(FVector(0.0f, 1.5f, -5.0f));
-        africanHead->SetScale(FVector(2.0f, 2.0f, 2.0f));
-        africanHead->SetAutoRotate(true);
-        africanHead->SetRotationSpeed(0.4f);
-        Scene->AddPrimitive(africanHead);
-        FLog::Log(ELogLevel::Info, "Added African Head (textured) to scene");
+        texturedCylinder->SetPosition(FVector(0.0f, 1.5f, -5.0f));
+        texturedCylinder->SetScale(FVector(1.5f, 1.5f, 1.5f));
+        texturedCylinder->SetAutoRotate(true);
+        texturedCylinder->SetRotationSpeed(0.4f);
+        Scene->AddPrimitive(texturedCylinder);
+        FLog::Log(ELogLevel::Info, "Added Textured Cylinder to scene");
     }
     else
     {
-        FLog::Log(ELogLevel::Warning, "Failed to load African Head, skipping");
-        delete africanHead;
+        FLog::Log(ELogLevel::Warning, "Failed to load Textured Cylinder, skipping");
+        delete texturedCylinder;
     }
     
     // ==========================================

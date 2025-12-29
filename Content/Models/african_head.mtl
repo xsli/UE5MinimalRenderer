@@ -1,7 +1,0 @@
-# African Head Material
-newmtl head_material
-Ka 0.2 0.2 0.2
-Kd 0.8 0.8 0.8
-Ks 0.3 0.3 0.3
-Ns 32.0
-map_Kd ../Textures/african_head_diffuse.tga
