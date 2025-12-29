@@ -40,11 +40,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Content Pipeline**
   - `Content/Models/` directory for 3D model assets
+  - `Content/Textures/` directory for texture assets
   - Sample textured cube OBJ model
+  - African Head model with diffuse texture (from tinyrenderer project)
 
 ### Changed
 - Updated CMakeLists.txt to include Asset module and ThirdParty includes
-- Extended demo scene with rotating textured OBJ cube
+- Extended demo scene with rotating textured OBJ models
 - Updated `.gitignore` to allow OBJ model files in Content directory
 
 ### Technical Details
@@ -52,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - SRV descriptor heap for shader-visible textures
 - UV coordinate flip for DirectX convention (Y-flip)
 - Vertex deduplication during OBJ loading
+- Content path resolution relative to executable directory
 
 ---
 

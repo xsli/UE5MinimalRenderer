@@ -297,8 +297,8 @@ void FGame::SetupScene()
     FOBJPrimitive* texturedCube = new FOBJPrimitive(cubeObjPath, RHI.get());
     if (texturedCube->IsValid())
     {
-        texturedCube->SetPosition(FVector(0.0f, 2.5f, 0.0f));
-        texturedCube->SetScale(FVector(1.5f, 1.5f, 1.5f));
+        texturedCube->SetPosition(FVector(-3.0f, 2.5f, 0.0f));
+        texturedCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
         texturedCube->SetAutoRotate(true);
         texturedCube->SetRotationSpeed(0.8f);
         Scene->AddPrimitive(texturedCube);
@@ -308,6 +308,24 @@ void FGame::SetupScene()
     {
         FLog::Log(ELogLevel::Warning, "Failed to load textured OBJ model, skipping");
         delete texturedCube;
+    }
+    
+    // Load African Head model with diffuse texture
+    std::string headObjPath = ResolveContentPath("Content/Models/african_head.obj");
+    FOBJPrimitive* africanHead = new FOBJPrimitive(headObjPath, RHI.get());
+    if (africanHead->IsValid())
+    {
+        africanHead->SetPosition(FVector(3.0f, 1.5f, 0.0f));
+        africanHead->SetScale(FVector(2.0f, 2.0f, 2.0f));
+        africanHead->SetAutoRotate(true);
+        africanHead->SetRotationSpeed(0.5f);
+        Scene->AddPrimitive(africanHead);
+        FLog::Log(ELogLevel::Info, "Added African Head OBJ model to scene");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load African Head OBJ model, skipping");
+        delete africanHead;
     }
     
     // ==========================================
