@@ -20,6 +20,7 @@ _codeql_detected_source_root
 *.dll
 *.lib
 *.obj
+!Content/**/*.obj
 *.o
 *.pdb
 *.ilk

@@ -3,7 +3,72 @@
 #include "../RHI_DX12/DX12RHI.h"
 #include "../Lighting/LightVisualization.h"
 #include "../Scene/LitSceneProxy.h"
+#include "../Scene/OBJPrimitive.h"
+#include "../Asset/TextureLoader.h"
 #include "../Shaders/ShaderCompiler.h"
+#include <filesystem>
+#include <algorithm>
+#include <Windows.h>
+
+// Helper function to get the executable directory
+static std::string GetExecutableDirectory()
+{
+    char buffer[MAX_PATH];
+    DWORD result = GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    
+    if (result == 0 || result == MAX_PATH)
+    {
+        FLog::Log(ELogLevel::Warning, "GetModuleFileNameA failed, using current directory");
+        return ".";
+    }
+    
+    std::string path(buffer);
+    size_t lastSlash = path.find_last_of("\\/");
+    if (lastSlash != std::string::npos)
+    {
+        path = path.substr(0, lastSlash);
+    }
+    
+    std::replace(path.begin(), path.end(), '\\', '/');
+    return path;
+}
+
+// Helper function to resolve content path relative to executable
+static std::string ResolveContentPath(const std::string& RelativePath)
+{
+    std::string exeDir = GetExecutableDirectory();
+    
+    // If the path is absolute, use it directly
+    if (RelativePath.length() > 1 && (RelativePath[1] == ':' || RelativePath[0] == '/'))
+    {
+        return RelativePath;
+    }
+    
+    // Try going up directories from the executable to find Content/
+    // Build structure: build/Source/Runtime/Release/UE5MinimalRenderer.exe
+    // We need to go up to find Content/
+    std::string currentDir = exeDir;
+    for (int i = 0; i < 5; ++i)
+    {
+        std::string testPath = currentDir + "/" + RelativePath;
+        if (std::filesystem::exists(testPath))
+        {
+            FLog::Log(ELogLevel::Info, "Found content path: " + testPath);
+            return testPath;
+        }
+        
+        size_t lastSlash = currentDir.find_last_of("/");
+        if (lastSlash == std::string::npos || lastSlash == 0)
+        {
+            break;
+        }
+        currentDir = currentDir.substr(0, lastSlash);
+    }
+    
+    // Fall back to original path
+    FLog::Log(ELogLevel::Warning, "Could not find content path, using fallback: " + RelativePath);
+    return RelativePath;
+}
 
 // Define the global camera pointer (declared in GameGlobals.h)
 FCamera* g_Camera = nullptr;
@@ -221,6 +286,91 @@ void FGame::SetupScene()
     roseCylinder->SetScale(FVector(0.5f, 2.0f, 0.5f));
     roseCylinder->SetMaterial(FMaterial::Metal(FColor(0.95f, 0.75f, 0.8f, 1.0f), 64.0f));  // Macaron rose
     Scene->AddPrimitive(roseCylinder);
+    
+    // ==========================================
+    // TEXTURED OBJ MODEL DEMO
+    // ==========================================
+    
+    // Load Stanford Bunny (classic 3D test model)
+    std::string bunnyObjPath = ResolveContentPath("Content/Models/bunny.obj");
+    FOBJPrimitive* bunny = new FOBJPrimitive(bunnyObjPath, RHI.get());
+    if (bunny->IsValid())
+    {
+        bunny->SetPosition(FVector(-3.0f, 0.0f, 0.0f));
+        bunny->SetScale(FVector(15.0f, 15.0f, 15.0f));  // Bunny is small, scale up
+        bunny->SetAutoRotate(true);
+        bunny->SetRotationSpeed(0.5f);
+        Scene->AddPrimitive(bunny);
+        FLog::Log(ELogLevel::Info, "Added Stanford Bunny to scene");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load Stanford Bunny, skipping");
+        delete bunny;
+    }
+    
+    // Load Utah Teapot (another classic 3D test model)
+    std::string teapotObjPath = ResolveContentPath("Content/Models/teapot.obj");
+    FOBJPrimitive* teapot = new FOBJPrimitive(teapotObjPath, RHI.get());
+    if (teapot->IsValid())
+    {
+        teapot->SetPosition(FVector(3.0f, 0.5f, 0.0f));
+        teapot->SetScale(FVector(0.5f, 0.5f, 0.5f));
+        teapot->SetAutoRotate(true);
+        teapot->SetRotationSpeed(0.6f);
+        Scene->AddPrimitive(teapot);
+        FLog::Log(ELogLevel::Info, "Added Utah Teapot to scene");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load Utah Teapot, skipping");
+        delete teapot;
+    }
+    
+    // Load Cornell Box (classic rendering test scene)
+    std::string cornellObjPath = ResolveContentPath("Content/Models/cornell_box.obj");
+    FOBJPrimitive* cornellBox = new FOBJPrimitive(cornellObjPath, RHI.get());
+    if (cornellBox->IsValid())
+    {
+        cornellBox->SetPosition(FVector(0.0f, 0.0f, 5.0f));
+        cornellBox->SetScale(FVector(0.8f, 0.8f, 0.8f));
+        Scene->AddPrimitive(cornellBox);
+        FLog::Log(ELogLevel::Info, "Added Cornell Box to scene");
+        
+        // Add point light inside Cornell Box
+        FPointLight* cornellLight = new FPointLight();
+        // Position light at center-top of Cornell Box (box is at 0,0,5 with scale 0.8)
+        // Cornell box internal coords are 0-5 in all axes, so center is (2.5, 4.5, 2.5) * 0.8 + position
+        cornellLight->SetPosition(FVector(0.0f * 0.8f + 0.0f, 4.0f * 0.8f + 0.0f, 2.5f * 0.8f + 5.0f));  // Near ceiling
+        cornellLight->SetColor(FColor(1.0f, 0.98f, 0.95f, 1.0f));  // Warm white
+        cornellLight->SetIntensity(1.5f);
+        cornellLight->SetRadius(5.0f);
+        LightScene->AddLight(cornellLight);
+        FLog::Log(ELogLevel::Info, "Added point light inside Cornell Box");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load Cornell Box, skipping");
+        delete cornellBox;
+    }
+    
+    // Load Textured Cylinder (checkerboard texture demo)
+    std::string cylinderObjPath = ResolveContentPath("Content/Models/cylinder.obj");
+    FOBJPrimitive* texturedCylinder = new FOBJPrimitive(cylinderObjPath, RHI.get());
+    if (texturedCylinder->IsValid())
+    {
+        texturedCylinder->SetPosition(FVector(0.0f, 1.5f, -5.0f));
+        texturedCylinder->SetScale(FVector(1.5f, 1.5f, 1.5f));
+        texturedCylinder->SetAutoRotate(true);
+        texturedCylinder->SetRotationSpeed(0.4f);
+        Scene->AddPrimitive(texturedCylinder);
+        FLog::Log(ELogLevel::Info, "Added Textured Cylinder to scene");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load Textured Cylinder, skipping");
+        delete texturedCylinder;
+    }
     
     // ==========================================
     // LIGHT VISUALIZATION (Wireframe)

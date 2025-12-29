@@ -14,14 +14,18 @@ This project demonstrates a simplified version of Unreal Engine 5's parallel ren
 ## Demo
 
 The project renders a **3D scene with multiple rotating primitives**:
-- **Red Cube**: Auto-rotating box
-- **Blue Sphere**: UV sphere with smooth shading
-- **Green Cylinder**: Cylindrical primitive
-- **Gray Ground Plane**: Static ground surface
-- Additional colored objects demonstrating the scene system
+- **Stanford Bunny**: Classic 3D test model (~70K triangles), auto-rotating
+- **Utah Teapot**: Another classic test model with ceramic material
+- **Cornell Box**: Classic rendering test scene with red/green walls and two boxes
+- **Macaron-colored Cubes**: Multiple rotating cubes with soft pastel colors
+- **Spheres**: UV spheres with smooth shading and various materials
+- **Cylinders**: Cylindrical primitives with glossy materials
+- **Ground Plane**: Static lavender-colored ground surface
 
 Features demonstrated:
 - **Multi-threaded rendering**: Separate Game, Render, and RHI threads
+- **Texture Mapping**: Diffuse texture sampling with UV coordinates
+- **OBJ Model Import**: Load and render external 3D models with materials
 - **Shadow Mapping**: Directional light and point light shadows with PCF filtering
 - **RT Pool System**: Efficient render texture management with pooling
 - 3D camera system with perspective projection
@@ -167,7 +171,14 @@ Source/
 │   ├── BasePassVertexShader.usf # Unlit base pass
 │   ├── ShadowDepthVertexShader.usf # Shadow depth pass
 │   ├── ForwardLightingPixelShader.usf # Lit forward rendering
+│   ├── TexturedLightingPixelShader.usf # Textured lit rendering
 │   └── ShaderCompiler.* # Shader compilation and caching system
+├── ThirdParty/     # Third-party libraries
+│   ├── stb_image.h # Image loading library
+│   └── tiny_obj_loader.h # OBJ model loading library
+├── Asset/          # Asset loading utilities
+│   ├── TextureLoader.* # Texture loading from files
+│   └── OBJLoader.* # OBJ model file loading
 ├── RHI/            # Render Hardware Interface (platform-agnostic)
 ├── RHI_DX12/       # DirectX 12 implementation
 │   ├── d3dx12*.h   # Microsoft DirectX 12 helper headers (included)
@@ -184,16 +195,32 @@ Source/
 │   ├── Scene.*     # Scene container
 │   ├── ScenePrimitive.* # Primitive types
 │   ├── LitSceneProxy.* # Lit rendering proxy
+│   ├── TexturedSceneProxy.* # Textured rendering proxy
+│   ├── OBJPrimitive.* # OBJ model primitive
 │   └── UnlitSceneProxy.* # Unlit rendering proxy
 ├── Game/           # Game logic layer
 │   └── Game.*      # Main game class
 └── Runtime/        # Application entry point
+
+Content/
+├── Models/         # Sample 3D models
+│   ├── bunny.obj   # Stanford Bunny (~70K triangles)
+│   ├── bunny.mtl   # Bunny material (ceramic white)
+│   ├── teapot.obj  # Utah Teapot (classic test model)
+│   ├── teapot.mtl  # Teapot material (ceramic)
+│   ├── cornell_box.obj  # Cornell Box scene
+│   ├── cornell_box.mtl  # Cornell Box materials (white/red/green)
+│   ├── cube.obj    # Simple textured cube
+│   └── cube.mtl    # Cube material file
+└── Textures/       # Texture assets (procedural textures generated at runtime)
 ```
 
 ## Dependencies
 All required dependencies are included in the repository:
 - **DirectXMath**: Microsoft's SIMD-optimized math library (part of Windows SDK)
 - **d3dx12.h and related headers**: Microsoft's DirectX 12 helper headers from [DirectX-Headers](https://github.com/microsoft/DirectX-Headers) (MIT License)
+- **stb_image.h**: Single-file public domain image loader for texture loading (Public Domain/MIT)
+- **tiny_obj_loader.h**: Single-file OBJ loader library for model import (MIT License)
 - **Windows SDK**: Provides d3d12.lib, dxgi.lib, d3dcompiler.lib, d2d1.lib, dwrite.lib (installed with Visual Studio)
 
 ## Features
@@ -212,6 +239,18 @@ All required dependencies are included in the repository:
 - **Depth Testing**: Proper occlusion with 32-bit depth buffer
 - **Indexed Rendering**: Efficient rendering with index buffers
 - **Multiple Primitives**: Cube, sphere, cylinder, and plane support
+
+### Texture Support
+- **Texture Loading**: PNG, JPEG, BMP, TGA via stb_image library
+- **Diffuse Texture Mapping**: UV-mapped texture sampling in shaders
+- **Procedural Textures**: Checker patterns and solid colors
+- **Textured Vertex Format**: Position, normal, UV coordinates, color
+
+### OBJ Model Import
+- **OBJ File Loading**: Load 3D models from OBJ files via tinyobjloader
+- **MTL Material Support**: Parse diffuse color, specular, and texture paths
+- **Automatic Triangulation**: Triangulate polygon faces
+- **UV Coordinate Support**: Texture mapping from OBJ data
 
 ### Shadow Mapping
 - **Directional Light Shadows**: Orthographic projection for sun-like lights
