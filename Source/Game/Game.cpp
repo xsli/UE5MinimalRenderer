@@ -291,41 +291,56 @@ void FGame::SetupScene()
     // TEXTURED OBJ MODEL DEMO
     // ==========================================
     
-    // Load textured cube OBJ (demonstrates texture support)
-    // Resolve path relative to executable location
-    std::string cubeObjPath = ResolveContentPath("Content/Models/cube.obj");
-    FOBJPrimitive* texturedCube = new FOBJPrimitive(cubeObjPath, RHI.get());
-    if (texturedCube->IsValid())
+    // Load Stanford Bunny (classic 3D test model)
+    std::string bunnyObjPath = ResolveContentPath("Content/Models/bunny.obj");
+    FOBJPrimitive* bunny = new FOBJPrimitive(bunnyObjPath, RHI.get());
+    if (bunny->IsValid())
     {
-        texturedCube->SetPosition(FVector(-3.0f, 2.5f, 0.0f));
-        texturedCube->SetScale(FVector(1.2f, 1.2f, 1.2f));
-        texturedCube->SetAutoRotate(true);
-        texturedCube->SetRotationSpeed(0.8f);
-        Scene->AddPrimitive(texturedCube);
-        FLog::Log(ELogLevel::Info, "Added textured OBJ cube to scene");
+        bunny->SetPosition(FVector(-3.0f, 0.0f, 0.0f));
+        bunny->SetScale(FVector(15.0f, 15.0f, 15.0f));  // Bunny is small, scale up
+        bunny->SetAutoRotate(true);
+        bunny->SetRotationSpeed(0.5f);
+        Scene->AddPrimitive(bunny);
+        FLog::Log(ELogLevel::Info, "Added Stanford Bunny to scene");
     }
     else
     {
-        FLog::Log(ELogLevel::Warning, "Failed to load textured OBJ model, skipping");
-        delete texturedCube;
+        FLog::Log(ELogLevel::Warning, "Failed to load Stanford Bunny, skipping");
+        delete bunny;
     }
     
-    // Load African Head model with diffuse texture
-    std::string headObjPath = ResolveContentPath("Content/Models/african_head.obj");
-    FOBJPrimitive* africanHead = new FOBJPrimitive(headObjPath, RHI.get());
-    if (africanHead->IsValid())
+    // Load Utah Teapot (another classic 3D test model)
+    std::string teapotObjPath = ResolveContentPath("Content/Models/teapot.obj");
+    FOBJPrimitive* teapot = new FOBJPrimitive(teapotObjPath, RHI.get());
+    if (teapot->IsValid())
     {
-        africanHead->SetPosition(FVector(3.0f, 1.5f, 0.0f));
-        africanHead->SetScale(FVector(2.0f, 2.0f, 2.0f));
-        africanHead->SetAutoRotate(true);
-        africanHead->SetRotationSpeed(0.5f);
-        Scene->AddPrimitive(africanHead);
-        FLog::Log(ELogLevel::Info, "Added African Head OBJ model to scene");
+        teapot->SetPosition(FVector(3.0f, 0.5f, 0.0f));
+        teapot->SetScale(FVector(0.5f, 0.5f, 0.5f));
+        teapot->SetAutoRotate(true);
+        teapot->SetRotationSpeed(0.6f);
+        Scene->AddPrimitive(teapot);
+        FLog::Log(ELogLevel::Info, "Added Utah Teapot to scene");
     }
     else
     {
-        FLog::Log(ELogLevel::Warning, "Failed to load African Head OBJ model, skipping");
-        delete africanHead;
+        FLog::Log(ELogLevel::Warning, "Failed to load Utah Teapot, skipping");
+        delete teapot;
+    }
+    
+    // Load Cornell Box (classic rendering test scene)
+    std::string cornellObjPath = ResolveContentPath("Content/Models/cornell_box.obj");
+    FOBJPrimitive* cornellBox = new FOBJPrimitive(cornellObjPath, RHI.get());
+    if (cornellBox->IsValid())
+    {
+        cornellBox->SetPosition(FVector(0.0f, 0.0f, 5.0f));
+        cornellBox->SetScale(FVector(0.8f, 0.8f, 0.8f));
+        Scene->AddPrimitive(cornellBox);
+        FLog::Log(ELogLevel::Info, "Added Cornell Box to scene");
+    }
+    else
+    {
+        FLog::Log(ELogLevel::Warning, "Failed to load Cornell Box, skipping");
+        delete cornellBox;
     }
     
     // ==========================================

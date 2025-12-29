@@ -14,8 +14,9 @@ This project demonstrates a simplified version of Unreal Engine 5's parallel ren
 ## Demo
 
 The project renders a **3D scene with multiple rotating primitives**:
-- **African Head Model**: Detailed textured OBJ model with diffuse texture map
-- **Textured Cube**: Auto-rotating OBJ model with checker texture (demonstrates texture support)
+- **Stanford Bunny**: Classic 3D test model (~70K triangles), auto-rotating
+- **Utah Teapot**: Another classic test model with ceramic material
+- **Cornell Box**: Classic rendering test scene with red/green walls and two boxes
 - **Macaron-colored Cubes**: Multiple rotating cubes with soft pastel colors
 - **Spheres**: UV spheres with smooth shading and various materials
 - **Cylinders**: Cylindrical primitives with glossy materials
@@ -24,7 +25,7 @@ The project renders a **3D scene with multiple rotating primitives**:
 Features demonstrated:
 - **Multi-threaded rendering**: Separate Game, Render, and RHI threads
 - **Texture Mapping**: Diffuse texture sampling with UV coordinates
-- **OBJ Model Import**: Load and render external 3D models with textures
+- **OBJ Model Import**: Load and render external 3D models with materials
 - **Shadow Mapping**: Directional light and point light shadows with PCF filtering
 - **RT Pool System**: Efficient render texture management with pooling
 - 3D camera system with perspective projection
@@ -203,12 +204,15 @@ Source/
 
 Content/
 ├── Models/         # Sample 3D models
-│   ├── cube.obj    # Textured cube model
-│   ├── cube.mtl    # Cube material file
-│   ├── african_head.obj  # African head model (from tinyrenderer)
-│   └── african_head.mtl  # African head material file
-└── Textures/       # Texture assets
-    └── african_head_diffuse.tga  # Diffuse texture for African head
+│   ├── bunny.obj   # Stanford Bunny (~70K triangles)
+│   ├── bunny.mtl   # Bunny material (ceramic white)
+│   ├── teapot.obj  # Utah Teapot (classic test model)
+│   ├── teapot.mtl  # Teapot material (ceramic)
+│   ├── cornell_box.obj  # Cornell Box scene
+│   ├── cornell_box.mtl  # Cornell Box materials (white/red/green)
+│   ├── cube.obj    # Simple textured cube
+│   └── cube.mtl    # Cube material file
+└── Textures/       # Texture assets (procedural textures generated at runtime)
 ```
 
 ## Dependencies

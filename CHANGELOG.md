@@ -40,13 +40,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Content Pipeline**
   - `Content/Models/` directory for 3D model assets
-  - `Content/Textures/` directory for texture assets
-  - Sample textured cube OBJ model
-  - African Head model with diffuse texture (from tinyrenderer project)
+  - Classic 3D test models included:
+    - Stanford Bunny (~70K triangles, classic CG test model)
+    - Utah Teapot (classic rendering test model)
+    - Cornell Box (classic global illumination test scene)
+    - Simple textured cube
 
 ### Changed
 - Updated CMakeLists.txt to include Asset module and ThirdParty includes
-- Extended demo scene with rotating textured OBJ models
+- Extended demo scene with rotating classic 3D test models
 - Updated `.gitignore` to allow OBJ model files in Content directory
 
 ### Technical Details
