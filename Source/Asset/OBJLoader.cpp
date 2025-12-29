@@ -4,6 +4,37 @@
 #include <unordered_map>
 #include <cmath>
 
+// Hash function for position-based vertex lookup (for smooth normal generation)
+struct PositionHash
+{
+    size_t operator()(const FVector& v) const
+    {
+        // Quantize to avoid floating-point precision issues
+        auto quantize = [](float f) { return static_cast<int>(f * 10000.0f); };
+        auto h1 = std::hash<int>()(quantize(v.X));
+        auto h2 = std::hash<int>()(quantize(v.Y));
+        auto h3 = std::hash<int>()(quantize(v.Z));
+        
+        size_t seed = 0;
+        seed ^= h1 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= h3 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
+    }
+};
+
+// Equality function for position-based vertex lookup
+struct PositionEqual
+{
+    bool operator()(const FVector& a, const FVector& b) const
+    {
+        const float eps = 1e-4f;
+        return std::abs(a.X - b.X) < eps &&
+               std::abs(a.Y - b.Y) < eps &&
+               std::abs(a.Z - b.Z) < eps;
+    }
+};
+
 // Hash function for vertex deduplication
 struct VertexHash
 {
@@ -116,8 +147,8 @@ static FVector ComputeFaceNormal(const FVector& v0, const FVector& v1, const FVe
     return Normalize(ComputeFaceNormalUnnormalized(v0, v1, v2));
 }
 
-// Generate smooth normals for mesh using angle-weighted vertex averaging
-// This produces higher quality normals than simple averaging
+// Generate smooth normals for mesh using angle-weighted position-based averaging
+// This properly averages normals for all vertices at the same position, even if duplicated
 static void GenerateSmoothNormals(FMeshData& meshData)
 {
     if (meshData.Vertices.empty() || meshData.Indices.empty())
@@ -125,13 +156,10 @@ static void GenerateSmoothNormals(FMeshData& meshData)
     
     FLog::Log(ELogLevel::Info, "Generating angle-weighted smooth normals for " + std::to_string(meshData.GetTriangleCount()) + " triangles");
     
-    // Reset all normals to zero
-    for (auto& vertex : meshData.Vertices)
-    {
-        vertex.Normal = FVector(0.0f, 0.0f, 0.0f);
-    }
+    // Map from position to accumulated normal (for position-based averaging)
+    std::unordered_map<FVector, FVector, PositionHash, PositionEqual> positionNormals;
     
-    // Accumulate angle-weighted face normals for each vertex
+    // First pass: Accumulate angle-weighted face normals per position
     for (size_t i = 0; i + 2 < meshData.Indices.size(); i += 3)
     {
         uint32 i0 = meshData.Indices[i];
@@ -150,27 +178,50 @@ static void GenerateSmoothNormals(FMeshData& meshData)
         float angle1 = ComputeVertexAngle(v1, v2, v0);
         float angle2 = ComputeVertexAngle(v2, v0, v1);
         
-        // Add angle-weighted face normal to each vertex
-        meshData.Vertices[i0].Normal.X += faceNormal.X * angle0;
-        meshData.Vertices[i0].Normal.Y += faceNormal.Y * angle0;
-        meshData.Vertices[i0].Normal.Z += faceNormal.Z * angle0;
+        // Accumulate angle-weighted face normal for each position
+        auto accumulateNormal = [&](const FVector& pos, float angle) {
+            FVector weighted(faceNormal.X * angle, faceNormal.Y * angle, faceNormal.Z * angle);
+            auto it = positionNormals.find(pos);
+            if (it == positionNormals.end())
+            {
+                positionNormals[pos] = weighted;
+            }
+            else
+            {
+                it->second.X += weighted.X;
+                it->second.Y += weighted.Y;
+                it->second.Z += weighted.Z;
+            }
+        };
         
-        meshData.Vertices[i1].Normal.X += faceNormal.X * angle1;
-        meshData.Vertices[i1].Normal.Y += faceNormal.Y * angle1;
-        meshData.Vertices[i1].Normal.Z += faceNormal.Z * angle1;
-        
-        meshData.Vertices[i2].Normal.X += faceNormal.X * angle2;
-        meshData.Vertices[i2].Normal.Y += faceNormal.Y * angle2;
-        meshData.Vertices[i2].Normal.Z += faceNormal.Z * angle2;
+        accumulateNormal(v0, angle0);
+        accumulateNormal(v1, angle1);
+        accumulateNormal(v2, angle2);
     }
     
-    // Normalize all accumulated normals
+    // Normalize all accumulated normals in the map
+    for (auto& pair : positionNormals)
+    {
+        pair.second = Normalize(pair.second);
+    }
+    
+    // Second pass: Assign the averaged normal to all vertices at each position
     for (auto& vertex : meshData.Vertices)
     {
-        vertex.Normal = Normalize(vertex.Normal);
+        auto it = positionNormals.find(vertex.Position);
+        if (it != positionNormals.end())
+        {
+            vertex.Normal = it->second;
+        }
+        else
+        {
+            // Fallback (shouldn't happen)
+            vertex.Normal = FVector(0.0f, 1.0f, 0.0f);
+        }
     }
     
-    FLog::Log(ELogLevel::Info, "Angle-weighted smooth normals generated successfully");
+    FLog::Log(ELogLevel::Info, "Angle-weighted smooth normals generated successfully for " + 
+              std::to_string(positionNormals.size()) + " unique positions");
 }
 
 bool FOBJLoader::LoadFromFile(const std::string& Filename, FMeshData& OutMeshData)
